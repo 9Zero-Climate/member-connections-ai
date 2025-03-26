@@ -1,0 +1,57 @@
+name: Slack Channel Sync
+
+on:
+  schedule:
+    # Run at midnight Pacific time (UTC-7/8)
+    - cron: '0 7 * * *'
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: 'Channel to sync (optional)'
+        required: false
+        type: string
+        default: 'introductions'
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'pnpm'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8.15.4
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Sync Slack channels
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          DB_URL: ${{ secrets.DB_URL }}
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ github.event.inputs.channel }}" ]; then
+            # Manual trigger - sync specified channel or default
+            CHANNEL="${{ github.event.inputs.channel }}"
+            echo "Syncing channel: $CHANNEL"
+            pnpm sync sync-channel "$CHANNEL"
+          else
+            # Scheduled trigger - sync all configured channels
+            echo "Running scheduled sync for all configured channels"
+            # Add more channels as needed
+            pnpm sync sync-channel introductions
+            pnpm sync sync-channel general
+          fi
+
+      - name: Handle failure
+        if: failure()
+        run: |
+          echo "Sync failed. Check the logs above for details."
+          exit 1 
