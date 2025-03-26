@@ -9,7 +9,8 @@
         "lint:fix": "npx @biomejs/biome check --write *.js",
         "test": "jest",
         "test:watch": "jest --watch",
-        "test:db": "node src/scripts/test_db.js"
+        "test:db": "node src/scripts/test_db.js",
+        "test:slack": "node src/scripts/test_slack.js"
     },
     "author": "9Zero Climate",
     "license": "MIT",
@@ -22,6 +23,7 @@
     ],
     "dependencies": {
         "@slack/bolt": "^4.2.1",
+        "@slack/web-api": "^7.0.1",
         "dotenv": "~16.4.7",
         "express": "^4.18.3",
         "openai": "^4.87.4",

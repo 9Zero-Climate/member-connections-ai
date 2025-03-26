@@ -12,16 +12,6 @@ const pool = new Pool({
     connectionString: process.env.DB_URL,
 });
 
-// Test the connection immediately
-pool.connect((err, client, release) => {
-    if (err) {
-        console.error('Error connecting to the database:', err);
-    } else {
-        console.log('Successfully connected to database');
-        release();
-    }
-});
-
 /**
  * Basic CRUD operations for rag_docs table
  */

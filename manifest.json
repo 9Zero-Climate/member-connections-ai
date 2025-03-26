@@ -32,7 +32,11 @@
         "channels:history",
         "groups:history",
         "chat:write",
-        "reactions:write"
+        "reactions:write",
+        "channels:read",
+        "groups:read",
+        "mpim:read",
+        "im:read"
       ]
     }
   },

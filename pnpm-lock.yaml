@@ -8,6 +8,9 @@ dependencies:
   '@slack/bolt':
     specifier: ^4.2.1
     version: 4.2.1(@types/express@5.0.1)
+  '@slack/web-api':
+    specifier: ^7.0.1
+    version: 7.9.1
   dotenv:
     specifier: ~16.4.7
     version: 16.4.7
