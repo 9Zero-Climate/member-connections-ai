@@ -21,7 +21,7 @@ expressApp.get('/', (req, res) => {
   res.status(200).json({
     status: 'ok',
     timestamp: new Date().toISOString(),
-    uptime: process.uptime()
+    uptime: process.uptime(),
   });
 });
 
@@ -37,8 +37,8 @@ const openai = new OpenAI({
   baseURL: 'https://openrouter.ai/api/v1',
   defaultHeaders: {
     'HTTP-Referer': process.env.APP_URL || 'https://github.com/9Zero-Climate/member-connections-ai',
-    'X-Title': 'Member Connections AI'
-  }
+    'X-Title': 'Member Connections AI',
+  },
 });
 
 const DEFAULT_SYSTEM_CONTENT = `You're an assistant in the Slack workspace for 9Zero Climate, a community of people working to end the climate crisis.
@@ -54,7 +54,7 @@ const updateMessage = async ({ client, message, text }) => {
   await client.chat.update({
     channel: message.channel,
     ts: message.ts,
-    text
+    text,
   });
 };
 
@@ -155,7 +155,7 @@ const assistant = new Assistant({
       await client.reactions.add({
         name: 'thinking_face',
         channel: channel,
-        timestamp: message.ts
+        timestamp: message.ts,
       });
 
       const responseMessage = await say('thinking...');
@@ -206,9 +206,8 @@ const assistant = new Assistant({
       await client.reactions.remove({
         name: 'thinking_face',
         channel: channel,
-        timestamp: message.ts
+        timestamp: message.ts,
       });
-
     } catch (e) {
       logger.error(e);
 
@@ -217,7 +216,7 @@ const assistant = new Assistant({
         await client.reactions.remove({
           name: 'thinking_face',
           channel: message.channel,
-          timestamp: message.ts
+          timestamp: message.ts,
         });
       } catch (reactionError) {
         logger.error('Failed to remove thinking reaction:', reactionError);
