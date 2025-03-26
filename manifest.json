@@ -1,6 +1,7 @@
 {
   "display_information": {
-    "name": "Bolt for JavaScript Assistant"
+    "name": "Member Connections Bot",
+    "description": "An AI bot to assist in making member connections"
   },
   "features": {
     "app_home": {
@@ -9,12 +10,17 @@
       "messages_tab_read_only_enabled": false
     },
     "bot_user": {
-      "display_name": "Bolt for JavaScript Assistant",
+      "display_name": "Member Connections Bot",
       "always_online": false
     },
     "assistant_view": {
-      "assistant_description": "An Assistant built with Bolt for JavaScript, at your service!",
-      "suggested_prompts": []
+      "assistant_description": "An AI bot to assist in making member connections, at your service!",
+      "suggested_prompts": [
+        {
+          "title": "Find experts in a particular field",
+          "message": "Do we have any experts in distributed generation?"
+        }
+      ]
     }
   },
   "oauth_config": {
