@@ -222,8 +222,9 @@ const assistant = new Assistant({
         logger.error('Failed to remove thinking reaction:', reactionError);
       }
 
-      // Send message to advise user and clear processing status if a failure occurs
-      await say({ text: 'Sorry, something went wrong!' });
+      await say({
+        text: `Sorry, something went wrong.\n You may want to forward this error message to an admin: \`\`\`\n${JSON.stringify(e, null, 2)}\n\`\`\``,
+      });
     }
   },
 });
