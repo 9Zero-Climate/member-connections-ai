@@ -1,15 +1,34 @@
 const { App, LogLevel, Assistant } = require('@slack/bolt');
 const { config } = require('dotenv');
 const { OpenAI } = require('openai');
+const express = require('express');
 
 config();
 
-/** Initialization */
+// Setup Slack Bolt App
 const app = new App({
   token: process.env.SLACK_BOT_TOKEN,
   appToken: process.env.SLACK_APP_TOKEN,
   socketMode: true,
   logLevel: LogLevel.DEBUG,
+});
+
+// Create an Express app for health checks
+const expressApp = express();
+
+// Health check endpoint
+expressApp.get('/', (req, res) => {
+  res.status(200).json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
+  });
+});
+
+// Start the Express server
+const PORT = process.env.PORT || 8080;
+expressApp.listen(PORT, () => {
+  app.logger.info(`Health check server listening on port ${PORT}`);
 });
 
 /** OpenRouter Setup */
@@ -22,8 +41,8 @@ const openai = new OpenAI({
   }
 });
 
-const DEFAULT_SYSTEM_CONTENT = `You're an assistant in a Slack workspace.
-Users in the workspace will ask you to help them write something or to think better about a specific topic.
+const DEFAULT_SYSTEM_CONTENT = `You're an assistant in the Slack workspace for 9Zero Climate, a community of people working to end the climate crisis.
+Users in the workspace will ask you to connect them with other members.
 You'll respond to those questions in a professional way.
 When you include markdown text, convert them to Slack compatible ones.
 When a prompt has Slack's special syntax like <@USER_ID> or <#CHANNEL_ID>, you must keep them as-is in your response.`;
