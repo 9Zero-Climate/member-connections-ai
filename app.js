@@ -12,9 +12,14 @@ const app = new App({
   logLevel: LogLevel.DEBUG,
 });
 
-/** OpenAI Setup */
+/** OpenRouter Setup */
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+  apiKey: process.env.OPENROUTER_API_KEY,
+  baseURL: 'https://openrouter.ai/api/v1',
+  defaultHeaders: {
+    'HTTP-Referer': process.env.APP_URL || 'https://github.com/9Zero-Climate/member-connections-ai',
+    'X-Title': 'Member Connections AI'
+  }
 });
 
 const DEFAULT_SYSTEM_CONTENT = `You're an assistant in a Slack workspace.
@@ -23,13 +28,16 @@ You'll respond to those questions in a professional way.
 When you include markdown text, convert them to Slack compatible ones.
 When a prompt has Slack's special syntax like <@USER_ID> or <#CHANNEL_ID>, you must keep them as-is in your response.`;
 
+// Slack has a limit of 4000 characters per message
+const MAX_MESSAGE_LENGTH = 3900;
+
 const updateMessage = async ({ client, message, text }) => {
   await client.chat.update({
     channel: message.channel,
     ts: message.ts,
-    text: text,
+    text
   });
-}
+};
 
 const assistant = new Assistant({
   /**
@@ -116,6 +124,9 @@ const assistant = new Assistant({
    */
   userMessage: async ({ message, client, logger, say, setTitle, setStatus }) => {
     const { channel, thread_ts } = message;
+    let currentText = '';
+    let lastUpdateTime = Date.now();
+    const UPDATE_INTERVAL = 500; // 0.5 seconds
 
     try {
       await setTitle(message.text);
@@ -128,7 +139,7 @@ const assistant = new Assistant({
         timestamp: message.ts
       });
 
-      const responseMessage = await say({ text: 'thinking...' });
+      const responseMessage = await say('thinking...');
 
       // Retrieve the Assistant thread history for context of question being asked
       const thread = await client.conversations.replies({
@@ -146,28 +157,55 @@ const assistant = new Assistant({
 
       const messages = [{ role: 'system', content: DEFAULT_SYSTEM_CONTENT }, ...threadHistory, userMessage];
 
-      // Send message history and newest question to LLM
-      const llmResponse = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
-        n: 1,
+      // Stream the response from OpenRouter
+      const stream = await openai.chat.completions.create({
+        model: 'google/gemini-2.0-flash-001',
         messages,
+        stream: true,
+        max_tokens: MAX_MESSAGE_LENGTH / 4,
       });
 
-      await updateMessage({ client, message: responseMessage, text: llmResponse.choices[0].message.content });
-    } catch (e) {
-      logger.error(e);
-      // Send message to advise user and clear processing status if a failure occurs
-      await say({ text: 'Sorry, something went wrong!' });
-    }
+      for await (const chunk of stream) {
+        const content = chunk.choices[0]?.delta?.content || '';
+        if (content) {
+          currentText += content;
 
-    try {
+          // Rather than updating the message on every received chunk, throttle it to an interval
+          // to avoid upsetting the Slack API.
+          const now = Date.now();
+          if (now - lastUpdateTime >= UPDATE_INTERVAL) {
+            await updateMessage({ client, message: responseMessage, text: currentText });
+            lastUpdateTime = now;
+          }
+        }
+      }
+
+      // Final update to ensure we have the complete message
+      await updateMessage({ client, message: responseMessage, text: currentText });
+
+      // Remove thinking reaction
       await client.reactions.remove({
         name: 'thinking_face',
-        channel: message.channel,
+        channel: channel,
         timestamp: message.ts
       });
-    } catch (reactionError) {
-      logger.error('Failed to remove thinking reaction:', reactionError);
+
+    } catch (e) {
+      logger.error(e);
+
+      // Make sure to remove the thinking reaction even if there's an error
+      try {
+        await client.reactions.remove({
+          name: 'thinking_face',
+          channel: message.channel,
+          timestamp: message.ts
+        });
+      } catch (reactionError) {
+        logger.error('Failed to remove thinking reaction:', reactionError);
+      }
+
+      // Send message to advise user and clear processing status if a failure occurs
+      await say({ text: 'Sorry, something went wrong!' });
     }
   },
 });
