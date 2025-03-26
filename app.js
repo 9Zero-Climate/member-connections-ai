@@ -23,6 +23,14 @@ You'll respond to those questions in a professional way.
 When you include markdown text, convert them to Slack compatible ones.
 When a prompt has Slack's special syntax like <@USER_ID> or <#CHANNEL_ID>, you must keep them as-is in your response.`;
 
+const updateMessage = async ({ client, message, text }) => {
+  await client.chat.update({
+    channel: message.channel,
+    ts: message.ts,
+    text: text,
+  });
+}
+
 const assistant = new Assistant({
   /**
    * (Recommended) A custom ThreadContextStore can be provided, inclusive of methods to
@@ -106,77 +114,21 @@ const assistant = new Assistant({
    * be deduced based on their shape and metadata (if provided).
    * https://api.slack.com/events/message
    */
-  userMessage: async ({ client, logger, message, getThreadContext, say, setTitle, setStatus }) => {
+  userMessage: async ({ message, client, logger, say, setTitle, setStatus }) => {
     const { channel, thread_ts } = message;
 
     try {
-      /**
-       * Set the title of the Assistant thread to capture the initial topic/question
-       * as a way to facilitate future reference by the user.
-       * https://api.slack.com/methods/assistant.threads.setTitle
-       */
       await setTitle(message.text);
-
-      /**
-       * Set the status of the Assistant to give the appearance of active processing.
-       * https://api.slack.com/methods/assistant.threads.setStatus
-       */
       await setStatus('is typing..');
 
-      /** Scenario 1: Handle suggested prompt selection
-       * The example below uses a prompt that relies on the context (channel) in which
-       * the user has asked the question (in this case, to summarize that channel).
-       */
-      if (message.text === 'Assistant, please summarize the activity in this channel!') {
-        const threadContext = await getThreadContext();
-        let channelHistory;
+      // Add thinking reaction to the original message
+      await client.reactions.add({
+        name: 'thinking_face',
+        channel: channel,
+        timestamp: message.ts
+      });
 
-        try {
-          channelHistory = await client.conversations.history({
-            channel: threadContext.channel_id,
-            limit: 50,
-          });
-        } catch (e) {
-          // If the Assistant is not in the channel it's being asked about,
-          // have it join the channel and then retry the API call
-          if (e.data.error === 'not_in_channel') {
-            await client.conversations.join({ channel: threadContext.channel_id });
-            channelHistory = await client.conversations.history({
-              channel: threadContext.channel_id,
-              limit: 50,
-            });
-          } else {
-            logger.error(e);
-          }
-        }
-
-        // Prepare and tag the prompt and messages for LLM processing
-        let llmPrompt = `Please generate a brief summary of the following messages from Slack channel <#${threadContext.channel_id}>:`;
-        for (const m of channelHistory.messages.reverse()) {
-          if (m.user) llmPrompt += `\n<@${m.user}> says: ${m.text}`;
-        }
-
-        const messages = [
-          { role: 'system', content: DEFAULT_SYSTEM_CONTENT },
-          { role: 'user', content: llmPrompt },
-        ];
-
-        // Send channel history and prepared request to LLM
-        const llmResponse = await openai.chat.completions.create({
-          model: 'gpt-4o-mini',
-          n: 1,
-          messages,
-        });
-
-        // Provide a response to the user
-        await say({ text: llmResponse.choices[0].message.content });
-
-        return;
-      }
-
-      /**
-       * Scenario 2: Format and pass user messages directly to the LLM
-       */
+      const responseMessage = await say({ text: 'thinking...' });
 
       // Retrieve the Assistant thread history for context of question being asked
       const thread = await client.conversations.replies({
@@ -201,13 +153,21 @@ const assistant = new Assistant({
         messages,
       });
 
-      // Provide a response to the user
-      await say({ text: llmResponse.choices[0].message.content });
+      await updateMessage({ client, message: responseMessage, text: llmResponse.choices[0].message.content });
     } catch (e) {
       logger.error(e);
-
       // Send message to advise user and clear processing status if a failure occurs
       await say({ text: 'Sorry, something went wrong!' });
+    }
+
+    try {
+      await client.reactions.remove({
+        name: 'thinking_face',
+        channel: message.channel,
+        timestamp: message.ts
+      });
+    } catch (reactionError) {
+      logger.error('Failed to remove thinking reaction:', reactionError);
     }
   },
 });
