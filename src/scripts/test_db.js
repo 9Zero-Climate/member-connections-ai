@@ -16,8 +16,8 @@ async function testDatabase() {
         thread_ts: '1234567890.123456',
         reply_count: 2,
         reactions: [{ name: 'thumbsup', count: 1 }],
-        permalink: 'https://slack.com/archives/C1234567890/p1234567890123456'
-      }
+        permalink: 'https://slack.com/archives/C1234567890/p1234567890123456',
+      },
     };
 
     // Test insert

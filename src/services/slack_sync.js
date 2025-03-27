@@ -103,7 +103,7 @@ const slackSync = {
     // Get the permalink for the message
     const permalinkResult = await getClient().chat.getPermalink({
       channel: channelId,
-      message_ts: message.ts
+      message_ts: message.ts,
     });
 
     return {
@@ -116,7 +116,7 @@ const slackSync = {
         thread_ts: message.thread_ts,
         reply_count: message.reply_count,
         reactions: message.reactions,
-        permalink: permalinkResult.permalink
+        permalink: permalinkResult.permalink,
       },
     };
   },

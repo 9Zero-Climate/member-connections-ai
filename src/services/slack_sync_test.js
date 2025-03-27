@@ -45,7 +45,9 @@ describe('slackSync', () => {
     };
     mockClient = {
       chat: {
-        getPermalink: jest.fn().mockResolvedValue({ permalink: 'https://slack.com/archives/C1234567890/p1234567890123456' }),
+        getPermalink: jest
+          .fn()
+          .mockResolvedValue({ permalink: 'https://slack.com/archives/C1234567890/p1234567890123456' }),
         postMessage: jest.fn().mockResolvedValue({ ts: '1234567890.123456' }),
         update: jest.fn().mockResolvedValue({ ts: '1234567890.123456' }),
         delete: jest.fn().mockResolvedValue({ ts: '1234567890.123456' }),
@@ -201,8 +203,8 @@ describe('slackSync', () => {
           reply_count: mockMessages[0].reply_count,
           reactions: mockMessages[0].reactions,
           channel: mockChannelId,
-          permalink: 'https://slack.com/archives/C1234567890/p1234567890123456'
-        }
+          permalink: 'https://slack.com/archives/C1234567890/p1234567890123456',
+        },
       });
     });
   });
@@ -224,8 +226,8 @@ describe('slackSync', () => {
           reply_count: mockMessages[0].reply_count,
           reactions: mockMessages[0].reactions,
           channel: mockChannelId,
-          permalink: 'https://slack.com/archives/C1234567890/p1234567890123456'
-        }
+          permalink: 'https://slack.com/archives/C1234567890/p1234567890123456',
+        },
       });
     });
 

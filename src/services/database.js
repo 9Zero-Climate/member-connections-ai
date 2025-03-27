@@ -184,9 +184,9 @@ async function findSimilar(embedding, options = {}) {
     );
 
     // Convert stored vector format back to array for each result
-    return result.rows.map(doc => ({
+    return result.rows.map((doc) => ({
       ...doc,
-      embedding: parseStoredEmbedding(doc.embedding)
+      embedding: parseStoredEmbedding(doc.embedding),
     }));
   } catch (error) {
     console.error('Error finding similar documents:', error);

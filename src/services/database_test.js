@@ -61,8 +61,8 @@ describe('database', () => {
           thread_ts: '1234567890.123456',
           reply_count: 2,
           reactions: [{ name: 'thumbsup', count: 1 }],
-          permalink: 'https://slack.com/archives/C1234567890/p1234567890123456'
-        }
+          permalink: 'https://slack.com/archives/C1234567890/p1234567890123456',
+        },
       };
 
       if (process.env.CI) {
@@ -71,7 +71,7 @@ describe('database', () => {
           source_type: testDoc.source_type,
           source_unique_id: testDoc.source_unique_id,
           content: testDoc.content,
-          metadata: testDoc.metadata
+          metadata: testDoc.metadata,
         });
         expect(result.embedding).toBeDefined();
       } else {
@@ -83,7 +83,13 @@ describe('database', () => {
 
         expect(mockQuery).toHaveBeenCalledWith(
           'INSERT INTO rag_docs (source_type, source_unique_id, content, embedding, metadata) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-          [testDoc.source_type, testDoc.source_unique_id, testDoc.content, `[${testDoc.embedding.join(',')}]`, testDoc.metadata],
+          [
+            testDoc.source_type,
+            testDoc.source_unique_id,
+            testDoc.content,
+            `[${testDoc.embedding.join(',')}]`,
+            testDoc.metadata,
+          ],
         );
         expect(result).toEqual(testDoc);
       }
@@ -105,8 +111,8 @@ describe('database', () => {
             thread_ts: '1234567890.123456',
             reply_count: 2,
             reactions: [{ name: 'thumbsup', count: 1 }],
-            permalink: 'https://slack.com/archives/C1234567890/p1234567890123456'
-          }
+            permalink: 'https://slack.com/archives/C1234567890/p1234567890123456',
+          },
         };
         await insertDoc(testDoc);
 
@@ -115,7 +121,7 @@ describe('database', () => {
           source_type: testDoc.source_type,
           source_unique_id: testDoc.source_unique_id,
           content: testDoc.content,
-          metadata: testDoc.metadata
+          metadata: testDoc.metadata,
         });
         expect(result.embedding).toBeDefined();
       } else {
@@ -130,8 +136,8 @@ describe('database', () => {
             thread_ts: '1234567890.123456',
             reply_count: 2,
             reactions: [{ name: 'thumbsup', count: 1 }],
-            permalink: 'https://slack.com/archives/C1234567890/p1234567890123456'
-          }
+            permalink: 'https://slack.com/archives/C1234567890/p1234567890123456',
+          },
         };
         mockQuery.mockResolvedValueOnce({
           rows: [mockDoc],
@@ -141,7 +147,7 @@ describe('database', () => {
         expect(mockQuery).toHaveBeenCalledWith('SELECT * FROM rag_docs WHERE source_unique_id = $1', ['test123']);
         expect(result).toEqual({
           ...mockDoc,
-          embedding: generateTestVector()
+          embedding: generateTestVector(),
         });
       }
     });
@@ -177,8 +183,8 @@ describe('database', () => {
             thread_ts: '1234567890.123456',
             reply_count: 2,
             reactions: [{ name: 'thumbsup', count: 1 }],
-            permalink: 'https://slack.com/archives/C1234567890/p1234567890123456'
-          }
+            permalink: 'https://slack.com/archives/C1234567890/p1234567890123456',
+          },
         };
         await insertDoc(testDoc);
 
@@ -188,8 +194,8 @@ describe('database', () => {
           metadata: {
             ...testDoc.metadata,
             reply_count: 3,
-            reactions: [{ name: 'thumbsup', count: 2 }]
-          }
+            reactions: [{ name: 'thumbsup', count: 2 }],
+          },
         };
 
         const result = await updateDoc('test123', update);
@@ -197,7 +203,7 @@ describe('database', () => {
           source_type: testDoc.source_type,
           source_unique_id: testDoc.source_unique_id,
           content: update.content,
-          metadata: update.metadata
+          metadata: update.metadata,
         });
         expect(result.embedding).toBeDefined();
       } else {
@@ -212,8 +218,8 @@ describe('database', () => {
             thread_ts: '1234567890.123456',
             reply_count: 3,
             reactions: [{ name: 'thumbsup', count: 2 }],
-            permalink: 'https://slack.com/archives/C1234567890/p1234567890123456'
-          }
+            permalink: 'https://slack.com/archives/C1234567890/p1234567890123456',
+          },
         };
         mockQuery.mockResolvedValueOnce({
           rows: [mockDoc],
@@ -222,7 +228,7 @@ describe('database', () => {
         const result = await updateDoc('test123', {
           content: 'updated content',
           embedding: generateTestVector(1),
-          metadata: mockDoc.metadata
+          metadata: mockDoc.metadata,
         });
 
         expect(mockQuery).toHaveBeenCalledWith(
@@ -249,8 +255,8 @@ describe('database', () => {
             thread_ts: '1234567890.123456',
             reply_count: 2,
             reactions: [{ name: 'thumbsup', count: 1 }],
-            permalink: 'https://slack.com/archives/C1234567890/p1234567890123456'
-          }
+            permalink: 'https://slack.com/archives/C1234567890/p1234567890123456',
+          },
         };
         await insertDoc(testDoc);
 
@@ -307,8 +313,8 @@ describe('database', () => {
               thread_ts: '1234567890.123456',
               reply_count: 2,
               reactions: [{ name: 'thumbsup', count: 1 }],
-              permalink: 'https://slack.com/archives/C1234567890/p1234567890123456'
-            }
+              permalink: 'https://slack.com/archives/C1234567890/p1234567890123456',
+            },
           },
           {
             source_type: 'test',
@@ -321,8 +327,8 @@ describe('database', () => {
               thread_ts: '1234567890.123457',
               reply_count: 1,
               reactions: [{ name: 'heart', count: 1 }],
-              permalink: 'https://slack.com/archives/C0987654321/p1234567890123457'
-            }
+              permalink: 'https://slack.com/archives/C0987654321/p1234567890123457',
+            },
           },
         ];
         await Promise.all(docs.map((doc) => insertDoc(doc)));
@@ -337,13 +343,13 @@ describe('database', () => {
             id: 1,
             content: 'doc1',
             similarity: 0.9,
-            embedding: `[${generateTestVector().join(',')}]`
+            embedding: `[${generateTestVector().join(',')}]`,
           },
           {
             id: 2,
             content: 'doc2',
             similarity: 0.8,
-            embedding: `[${generateTestVector(1).join(',')}]`
+            embedding: `[${generateTestVector(1).join(',')}]`,
           },
         ];
         mockQuery.mockResolvedValueOnce({
@@ -368,10 +374,12 @@ describe('database', () => {
         const actualQuery = normalizeWhitespace(mockQuery.mock.calls[0][0]);
         expect(actualQuery).toBe(expectedQuery);
         expect(mockQuery.mock.calls[0][1]).toEqual([`[${generateTestVector(3).join(',')}]`, 2]);
-        expect(result).toEqual(mockDocs.map(doc => ({
-          ...doc,
-          embedding: doc.id === 1 ? generateTestVector() : generateTestVector(1)
-        })));
+        expect(result).toEqual(
+          mockDocs.map((doc) => ({
+            ...doc,
+            embedding: doc.id === 1 ? generateTestVector() : generateTestVector(1),
+          })),
+        );
       }
     });
 

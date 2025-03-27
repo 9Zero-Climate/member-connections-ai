@@ -191,9 +191,13 @@ const assistant = new Assistant({
 
       const messages = [
         { role: 'system', content: DEFAULT_SYSTEM_CONTENT },
-        { role: 'system', content: `Here is some relevant context from previous conversations. Each message includes metadata about the user who wrote it and the channel it was posted in. Use this information to mention users with their Slack IDs when appropriate:` },
+        {
+          role: 'system',
+          content:
+            'Here is some relevant context from previous conversations. Each message includes metadata about the user who wrote it and the channel it was posted in. Use this information to mention users with their Slack IDs when appropriate:',
+        },
         { role: 'user', content: contextFromDocs },
-        { role: 'system', content: `Here is the conversation history:` },
+        { role: 'system', content: 'Here is the conversation history:' },
         ...threadHistory,
         userMessage,
       ];
