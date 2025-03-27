@@ -17,8 +17,8 @@ AI-powered member connections for Slack, helping community members find and conn
 
 ### Prerequisites
 
-- Node.js 18+
-- pnpm 8.15.4+
+- Node.js
+- pnpm
 - Slack Bot Token
 - Slack App Token (for Socket Mode)
 - PostgreSQL Database URL with PGVector extension
