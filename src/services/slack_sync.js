@@ -3,7 +3,7 @@ const { config } = require('dotenv');
 const { generateEmbeddings } = require('./embedding.js');
 const { getDocBySource } = require('./database');
 
-config();
+// config();
 
 let client = null;
 
@@ -99,65 +99,41 @@ const slackSync = {
    * @param {string} channelId - Channel ID
    * @returns {Object} Formatted message
    */
-  formatMessage(message, channelId) {
+  async formatMessage(message, channelId) {
+    // Get the permalink for the message
+    const permalinkResult = await getClient().chat.getPermalink({
+      channel: channelId,
+      message_ts: message.ts
+    });
+
     return {
       source_type: 'slack',
       source_unique_id: `${channelId}:${message.ts}`,
       content: message.text,
       metadata: {
         user: message.user,
+        channel: channelId,
         thread_ts: message.thread_ts,
         reply_count: message.reply_count,
         reactions: message.reactions,
+        permalink: permalinkResult.permalink
       },
     };
   },
 
   /**
-   * Process a batch of messages and generate embeddings only for new or changed content
+   * Process a batch of messages and generate embeddings
    * @param {Array} messages - Array of Slack messages
    * @param {string} channelId - Channel ID
    * @returns {Promise<Array>} Array of formatted messages with embeddings
    */
   async processMessageBatch(messages, channelId) {
-    // Format messages
-    const formattedMessages = messages.map((msg) => this.formatMessage(msg, channelId));
-
-    // Check which messages need new embeddings
-    const messagesNeedingEmbeddings = [];
-    const existingMessages = await Promise.all(formattedMessages.map((msg) => getDocBySource(msg.source_unique_id)));
-
-    // Group messages that need embeddings
-    for (let i = 0; i < formattedMessages.length; i++) {
-      const existing = existingMessages[i];
-      if (!existing || existing.content !== formattedMessages[i].content) {
-        messagesNeedingEmbeddings.push(formattedMessages[i]);
-      }
-    }
-
-    // Only generate embeddings for messages that need them
-    let embeddings = [];
-    if (messagesNeedingEmbeddings.length > 0) {
-      console.log(`Generating embeddings for ${messagesNeedingEmbeddings.length} new or changed messages`);
-      const texts = messagesNeedingEmbeddings.map((msg) => msg.content);
-      embeddings = await generateEmbeddings(texts);
-    }
-
-    // Combine messages with their embeddings
-    let embeddingIndex = 0;
-    return formattedMessages.map((msg, index) => {
-      const existing = existingMessages[index];
-      if (!existing || existing.content !== msg.content) {
-        return {
-          ...msg,
-          embedding: embeddings[embeddingIndex++],
-        };
-      }
-      return {
-        ...msg,
-        embedding: existing.embedding,
-      };
-    });
+    const formattedMessages = await Promise.all(messages.map((msg) => this.formatMessage(msg, channelId)));
+    const embeddings = await generateEmbeddings(formattedMessages.map((msg) => msg.content));
+    return formattedMessages.map((msg, index) => ({
+      ...msg,
+      embedding: embeddings[index],
+    }));
   },
 };
 

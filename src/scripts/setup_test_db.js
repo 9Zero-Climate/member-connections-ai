@@ -20,17 +20,18 @@ async function setupTestDb() {
     // Create the table if it doesn't exist
     await client.query(`
       CREATE TABLE IF NOT EXISTS rag_docs (
-        id SERIAL PRIMARY KEY,
         source_type VARCHAR(255) NOT NULL,
-        source_unique_id VARCHAR(255) NOT NULL UNIQUE,
+        source_unique_id VARCHAR(255) NOT NULL UNIQUE PRIMARY KEY,
         content TEXT NOT NULL,
         embedding vector(1536),
+        metadata JSONB,
         created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
       );
 
       CREATE INDEX IF NOT EXISTS rag_docs_source_unique_id_idx ON rag_docs(source_unique_id);
       CREATE INDEX IF NOT EXISTS rag_docs_embedding_idx ON rag_docs USING ivfflat (embedding vector_cosine_ops);
+      CREATE INDEX IF NOT EXISTS rag_docs_metadata_idx ON rag_docs USING GIN (metadata);
     `);
     console.log('Test database schema created successfully');
   } catch (error) {

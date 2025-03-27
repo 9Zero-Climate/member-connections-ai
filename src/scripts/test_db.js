@@ -10,6 +10,14 @@ async function testDatabase() {
       source_unique_id: `test_${Date.now()}`,
       content: 'This is a test document',
       embedding: '[0.1, 0.2, 0.3, 0.4, 0.5]', // pgvector expects string format
+      metadata: {
+        user: 'U1234567890',
+        channel: 'C1234567890',
+        thread_ts: '1234567890.123456',
+        reply_count: 2,
+        reactions: [{ name: 'thumbsup', count: 1 }],
+        permalink: 'https://slack.com/archives/C1234567890/p1234567890123456'
+      }
     };
 
     // Test insert

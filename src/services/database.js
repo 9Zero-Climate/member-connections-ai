@@ -54,8 +54,8 @@ async function insertDoc(doc) {
   try {
     const embeddingVector = formatEmbedding(doc.embedding);
     const result = await client.query(
-      'INSERT INTO rag_docs (source_type, source_unique_id, content, embedding) VALUES ($1, $2, $3, $4) RETURNING *',
-      [doc.source_type, doc.source_unique_id, doc.content, embeddingVector],
+      'INSERT INTO rag_docs (source_type, source_unique_id, content, embedding, metadata) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      [doc.source_type, doc.source_unique_id, doc.content, embeddingVector, doc.metadata],
     );
     return result.rows[0];
   } catch (error) {
@@ -89,8 +89,8 @@ async function updateDoc(sourceUniqueId, updates) {
   try {
     const embeddingVector = formatEmbedding(updates.embedding);
     const result = await client.query(
-      'UPDATE rag_docs SET content = $1, embedding = $2 WHERE source_unique_id = $3 RETURNING *',
-      [updates.content, embeddingVector, sourceUniqueId],
+      'UPDATE rag_docs SET content = $1, embedding = $2, metadata = $3 WHERE source_unique_id = $4 RETURNING *',
+      [updates.content, embeddingVector, updates.metadata, sourceUniqueId],
     );
     return result.rows[0];
   } catch (error) {
@@ -127,10 +127,18 @@ async function findSimilar(embedding, options = {}) {
     const limit = options.limit || 5;
 
     const result = await client.query(
-      `SELECT *, 1 - (embedding <=> $1) as similarity
-             FROM rag_docs
-             ORDER BY embedding <=> $1
-             LIMIT $2`,
+      `SELECT 
+        source_type,
+        source_unique_id,
+        content,
+        embedding,
+        metadata,
+        created_at,
+        updated_at,
+        1 - (embedding <=> $1) as similarity
+      FROM rag_docs
+      ORDER BY embedding <=> $1
+      LIMIT $2`,
       [embeddingVector, limit],
     );
     return result.rows;

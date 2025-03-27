@@ -58,7 +58,12 @@ When formatting your responses:
 
 2. When mentioning members:
    - Always use the <@USER_ID> format for member mentions when you have Slack IDs.
-   - If you have access to member information in the context, use their actual Slack IDs
+   - To the user, this will show a tile with the member's name, so you don't need to also mention the member's name.
+
+3. When referencing messages:
+   - Use the permalink URL from the message metadata to create clickable links
+   - Format links as <URL|text> where URL is the permalink and text is a brief description
+   - Example: <@USER_ID> mentioned <https://slack.com/archives/C1234567890/p1234567890123456|here> that[...]
 
 You have access to relevant context from previous conversations and messages in the workspace - only information that is available to all 9Zero Climate members.
 Use this context to provide more accurate and helpful responses.
@@ -187,7 +192,7 @@ const assistant = new Assistant({
 
       const messages = [
         { role: 'system', content: DEFAULT_SYSTEM_CONTENT },
-        { role: 'system', content: `Here is some relevant context from previous conversations:` },
+        { role: 'system', content: `Here is some relevant context from previous conversations. Each message includes metadata about the user who wrote it and the channel it was posted in. Use this information to mention users with their Slack IDs when appropriate:` },
         { role: 'user', content: contextFromDocs },
         { role: 'system', content: `Here is the conversation history:` },
         ...threadHistory,
