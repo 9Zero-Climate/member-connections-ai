@@ -45,10 +45,22 @@ const openai = new OpenAI({
 const DEFAULT_SYSTEM_CONTENT = `You're an assistant in the Slack workspace for 9Zero Climate, a community of people working to end the climate crisis.
 Users in the workspace will ask you to connect them with other members.
 You'll respond to those questions in a professional way.
-When you include markdown text, convert them to Slack compatible ones.
-When a prompt has Slack's special syntax like <@USER_ID> or <#CHANNEL_ID>, you must keep them as-is in your response.
 
-You have access to relevant context from previous conversations and messages in the workspace.
+When formatting your responses:
+1. Use Slack's markdown syntax:
+   - Use *text* for bold
+   - Use _text_ for italics
+   - Use \`text\` for code blocks
+   - Use \`\`\` for multi-line code blocks
+   - Use > for blockquotes
+   - Use • or - for bullet points
+   - Use 1. for numbered lists
+
+2. When mentioning members:
+   - Always use the <@USER_ID> format for member mentions when you have Slack IDs.
+   - If you have access to member information in the context, use their actual Slack IDs
+
+You have access to relevant context from previous conversations and messages in the workspace - only information that is available to all 9Zero Climate members.
 Use this context to provide more accurate and helpful responses.
 If the context doesn't contain relevant information, say so and provide general guidance.`;
 
@@ -60,6 +72,7 @@ const updateMessage = async ({ client, message, text }) => {
     channel: message.channel,
     ts: message.ts,
     text,
+    mrkdwn: true,
   });
 };
 
@@ -154,7 +167,10 @@ const assistant = new Assistant({
         timestamp: message.ts,
       });
 
-      const responseMessage = await say('thinking...');
+      const responseMessage = await say({
+        text: '_thinking..._',
+        mrkdwn: true,
+      });
 
       // Retrieve the Assistant thread history for context of question being asked
       const thread = await client.conversations.replies({
@@ -164,8 +180,9 @@ const assistant = new Assistant({
       });
 
       // Get relevant documents using RAG
-      const relevantDocs = await retrieveRelevantDocs(message.text, { limit: 10 });
+      const relevantDocs = await retrieveRelevantDocs(message.text, { limit: 30 });
       const contextFromDocs = formatDocsForContext(relevantDocs);
+      logger.debug(`Context from docs: ${contextFromDocs}`);
 
       // Prepare and tag each message for LLM processing
       const userMessage = { role: 'user', content: message.text };
@@ -176,7 +193,9 @@ const assistant = new Assistant({
 
       const messages = [
         { role: 'system', content: DEFAULT_SYSTEM_CONTENT },
-        { role: 'system', content: `Here is some relevant context from previous conversations:\n${contextFromDocs}` },
+        { role: 'system', content: `Here is some relevant context from previous conversations:` },
+        { role: 'user', content: contextFromDocs },
+        { role: 'system', content: `Here is the conversation history:` },
         ...threadHistory,
         userMessage,
       ];
