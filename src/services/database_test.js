@@ -2,8 +2,10 @@ const { insertDoc, getDocBySource, updateDoc, deleteDoc, findSimilar, close, set
 const { Client } = require('pg');
 
 // Helper function to generate test vectors of the correct dimension
+// the "real" dimension is 1536, but the mock dimension is 12 for easier debugging
+const vectorDimension = process.env.CI ? 1536 : 10;
 function generateTestVector(seed = 0) {
-  return Array.from({ length: 12 }, (_, i) => (i + seed) / 12);
+  return Array.from({ length: vectorDimension }, (_, i) => (i + seed) / vectorDimension);
 }
 
 function normalizeWhitespace(str) {
