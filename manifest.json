@@ -15,12 +15,7 @@
     },
     "assistant_view": {
       "assistant_description": "An AI bot to assist in making member connections, at your service!",
-      "suggested_prompts": [
-        {
-          "title": "Find experts in a particular field",
-          "message": "Do we have any experts in distributed generation?"
-        }
-      ]
+      "suggested_prompts": []
     }
   },
   "oauth_config": {
@@ -42,7 +37,11 @@
   },
   "settings": {
     "event_subscriptions": {
-      "bot_events": ["assistant_thread_context_changed", "assistant_thread_started", "message.im"]
+      "bot_events": [
+        "assistant_thread_context_changed",
+        "assistant_thread_started",
+        "message.im"
+      ]
     },
     "interactivity": {
       "is_enabled": false

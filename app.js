@@ -117,13 +117,7 @@ const assistant = new Assistant({
         });
       }
 
-      /**
-       * Provide the user up to 4 optional, preset prompts to choose from.
-       * The optional `title` prop serves as a label above the prompts. If
-       * not, provided, 'Try these prompts:' will be displayed.
-       * https://api.slack.com/methods/assistant.threads.setSuggestedPrompts
-       */
-      await setSuggestedPrompts({ prompts, title: 'Here are some suggested options:' });
+      await setSuggestedPrompts({ prompts });
     } catch (e) {
       logger.error(e);
     }
