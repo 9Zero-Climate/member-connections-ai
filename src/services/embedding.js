@@ -3,10 +3,13 @@ const { config } = require('dotenv');
 
 config();
 
-// Internal OpenAI client instance
-const client = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// Internal OpenAI client instance - use a no-op client in test env
+const client =
+  process.env.NODE_ENV === 'test'
+    ? { embeddings: { create: () => ({ data: [{ embedding: [] }] }) } }
+    : new OpenAI({
+        apiKey: process.env.OPENAI_API_KEY,
+      });
 
 /**
  * Generate embeddings for a text using OpenAI's API
@@ -90,4 +93,5 @@ async function generateEmbeddings(texts) {
 module.exports = {
   generateEmbedding,
   generateEmbeddings,
+  client,
 };
