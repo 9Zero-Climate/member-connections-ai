@@ -1,166 +1,182 @@
-const database = require('./database');
-const { Pool } = require('pg');
+const { insertDoc, getDocBySource, updateDoc, deleteDoc, findSimilar, close, setTestClient } = require('./database');
+const { Client } = require('pg');
 
-// Mock pg Pool
-jest.mock('pg', () => {
-    const mPool = {
-        query: jest.fn(),
-        end: jest.fn(),
-    };
-    return { Pool: jest.fn(() => mPool) };
-});
+// Mock pg Client
+jest.mock('pg', () => ({
+    Client: jest.fn().mockImplementation(() => ({
+        connect: jest.fn().mockResolvedValue(),
+        query: jest.fn().mockResolvedValue({ rows: [] }),
+        end: jest.fn().mockResolvedValue(),
+    })),
+}));
 
 describe('database', () => {
-    let mockPool;
-    const mockEmbedding = [0.1, 0.2, 0.3];
-    const mockDoc = {
-        source_type: 'slack',
-        source_unique_id: 'C123:1234567890.123456',
-        content: 'Test message',
-        embedding: mockEmbedding,
-    };
+    let mockClient;
+    let mockQuery;
 
     beforeEach(() => {
-        // Clear all mocks before each test
         jest.clearAllMocks();
-        mockPool = new Pool();
-    });
-
-    afterAll(async () => {
-        await database.close();
+        mockClient = new Client();
+        mockQuery = mockClient.query;
+        setTestClient(mockClient);
     });
 
     describe('insertDoc', () => {
         it('should insert a document and return it', async () => {
-            const mockResult = {
-                rows: [{ id: 1, ...mockDoc, created_at: new Date() }],
+            const mockDoc = {
+                source_type: 'test',
+                source_unique_id: 'test123',
+                content: 'test content',
+                embedding: [0.1, 0.2, 0.3],
             };
-            mockPool.query.mockResolvedValueOnce(mockResult);
+            mockQuery.mockResolvedValueOnce({
+                rows: [mockDoc]
+            });
 
-            const result = await database.insertDoc(mockDoc);
+            const result = await insertDoc(mockDoc);
 
-            expect(mockPool.query).toHaveBeenCalledWith(
-                expect.stringContaining('INSERT INTO rag_docs'),
-                [mockDoc.source_type, mockDoc.source_unique_id, mockDoc.content, mockDoc.embedding]
+            expect(mockQuery).toHaveBeenCalledWith(
+                'INSERT INTO rag_docs (source_type, source_unique_id, content, embedding) VALUES ($1, $2, $3, $4) RETURNING *',
+                [mockDoc.source_type, mockDoc.source_unique_id, mockDoc.content, JSON.stringify(mockDoc.embedding)]
             );
-            expect(result).toEqual(mockResult.rows[0]);
+            expect(result).toEqual(mockDoc);
         });
     });
 
     describe('getDocBySource', () => {
         it('should return a document when found', async () => {
-            const mockResult = {
-                rows: [{ id: 1, ...mockDoc, created_at: new Date() }],
+            const mockDoc = {
+                source_type: 'test',
+                source_unique_id: 'test123',
+                content: 'test content',
+                embedding: [0.1, 0.2, 0.3],
             };
-            mockPool.query.mockResolvedValueOnce(mockResult);
+            mockQuery.mockResolvedValueOnce({
+                rows: [mockDoc]
+            });
 
-            const result = await database.getDocBySource(
-                mockDoc.source_type,
-                mockDoc.source_unique_id
-            );
+            const result = await getDocBySource('test123');
 
-            expect(mockPool.query).toHaveBeenCalledWith(
-                expect.stringContaining('SELECT * FROM rag_docs'),
-                [mockDoc.source_type, mockDoc.source_unique_id]
+            expect(mockQuery).toHaveBeenCalledWith(
+                'SELECT * FROM rag_docs WHERE source_unique_id = $1',
+                ['test123']
             );
-            expect(result).toEqual(mockResult.rows[0]);
+            expect(result).toEqual(mockDoc);
         });
 
         it('should return null when document not found', async () => {
-            mockPool.query.mockResolvedValueOnce({ rows: [] });
+            mockQuery.mockResolvedValueOnce({
+                rows: []
+            });
 
-            const result = await database.getDocBySource(
-                mockDoc.source_type,
-                mockDoc.source_unique_id
+            const result = await getDocBySource('nonexistent');
+
+            expect(mockQuery).toHaveBeenCalledWith(
+                'SELECT * FROM rag_docs WHERE source_unique_id = $1',
+                ['nonexistent']
             );
-
             expect(result).toBeNull();
         });
     });
 
     describe('updateDoc', () => {
         it('should update document content and embedding', async () => {
-            const newContent = 'Updated content';
-            const newEmbedding = [0.4, 0.5, 0.6];
-            const mockResult = {
-                rows: [{
-                    id: 1,
-                    ...mockDoc,
-                    content: newContent,
-                    embedding: newEmbedding,
-                    created_at: new Date(),
-                    updated_at: new Date()
-                }],
+            const mockDoc = {
+                source_type: 'test',
+                source_unique_id: 'test123',
+                content: 'updated content',
+                embedding: [0.4, 0.5, 0.6],
             };
-            mockPool.query.mockResolvedValueOnce(mockResult);
+            mockQuery.mockResolvedValueOnce({
+                rows: [mockDoc]
+            });
 
-            const result = await database.updateDoc(1, newContent, newEmbedding);
+            const result = await updateDoc('test123', {
+                content: 'updated content',
+                embedding: [0.4, 0.5, 0.6],
+            });
 
-            expect(mockPool.query).toHaveBeenCalledWith(
-                expect.stringContaining('UPDATE rag_docs'),
-                [newContent, newEmbedding, 1]
+            expect(mockQuery).toHaveBeenCalledWith(
+                'UPDATE rag_docs SET content = $1, embedding = $2 WHERE source_unique_id = $3 RETURNING *',
+                ['updated content', JSON.stringify([0.4, 0.5, 0.6]), 'test123']
             );
-            expect(result).toEqual(mockResult.rows[0]);
+            expect(result).toEqual(mockDoc);
         });
     });
 
     describe('deleteDoc', () => {
         it('should delete a document and return true', async () => {
-            mockPool.query.mockResolvedValueOnce({ rowCount: 1 });
+            mockQuery.mockResolvedValueOnce({
+                rows: [{ id: 1 }]
+            });
 
-            const result = await database.deleteDoc(1);
+            const result = await deleteDoc('test123');
 
-            expect(mockPool.query).toHaveBeenCalledWith(
-                expect.stringContaining('DELETE FROM rag_docs'),
-                [1]
+            expect(mockQuery).toHaveBeenCalledWith(
+                'DELETE FROM rag_docs WHERE source_unique_id = $1 RETURNING *',
+                ['test123']
             );
             expect(result).toBe(true);
         });
 
         it('should return false when document not found', async () => {
-            mockPool.query.mockResolvedValueOnce({ rowCount: 0 });
+            mockQuery.mockResolvedValueOnce({
+                rows: []
+            });
 
-            const result = await database.deleteDoc(1);
+            const result = await deleteDoc('nonexistent');
 
+            expect(mockQuery).toHaveBeenCalledWith(
+                'DELETE FROM rag_docs WHERE source_unique_id = $1 RETURNING *',
+                ['nonexistent']
+            );
             expect(result).toBe(false);
         });
     });
 
     describe('findSimilar', () => {
         it('should find similar documents using vector similarity', async () => {
-            const mockResults = {
-                rows: [
-                    { id: 1, ...mockDoc, similarity: 0.95 },
-                    { id: 2, ...mockDoc, similarity: 0.85 },
-                ],
-            };
-            mockPool.query.mockResolvedValueOnce(mockResults);
+            const mockDocs = [
+                { id: 1, content: 'doc1', similarity: 0.9 },
+                { id: 2, content: 'doc2', similarity: 0.8 },
+            ];
+            mockQuery.mockResolvedValueOnce({
+                rows: mockDocs
+            });
 
-            const results = await database.findSimilar(mockEmbedding, 2);
+            const result = await findSimilar([0.1, 0.2, 0.3], { limit: 2 });
 
-            expect(mockPool.query).toHaveBeenCalledWith(
-                expect.stringContaining('SELECT *, 1 - (embedding <=> $1) as similarity'),
-                [mockEmbedding, 2]
+            expect(mockQuery).toHaveBeenCalledWith(
+                `SELECT *, 1 - (embedding <=> $1) as similarity
+             FROM rag_docs
+             ORDER BY embedding <=> $1
+             LIMIT $2`,
+                [JSON.stringify([0.1, 0.2, 0.3]), 2]
             );
-            expect(results).toEqual(mockResults.rows);
+            expect(result).toEqual(mockDocs);
         });
 
         it('should use default limit of 5', async () => {
-            mockPool.query.mockResolvedValueOnce({ rows: [] });
+            mockQuery.mockResolvedValueOnce({
+                rows: []
+            });
 
-            await database.findSimilar(mockEmbedding);
+            await findSimilar([0.1, 0.2, 0.3]);
 
-            expect(mockPool.query).toHaveBeenCalledWith(
-                expect.stringContaining('SELECT *, 1 - (embedding <=> $1) as similarity'),
-                [mockEmbedding, 5]
+            expect(mockQuery).toHaveBeenCalledWith(
+                `SELECT *, 1 - (embedding <=> $1) as similarity
+             FROM rag_docs
+             ORDER BY embedding <=> $1
+             LIMIT $2`,
+                [JSON.stringify([0.1, 0.2, 0.3]), 5]
             );
         });
     });
 
     describe('close', () => {
         it('should close the database connection', async () => {
-            await database.close();
-            expect(mockPool.end).toHaveBeenCalled();
+            await close();
+            expect(mockClient.end).toHaveBeenCalled();
         });
     });
 }); 

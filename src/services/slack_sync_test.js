@@ -1,20 +1,11 @@
 const { WebClient } = require('@slack/web-api');
+const { generateEmbeddings } = require('./embedding');
 
-// Mock Slack WebClient
-const mockConversations = {
-    history: jest.fn(),
-    list: jest.fn(),
-    join: jest.fn(),
-};
+// Mock dependencies
+jest.mock('@slack/web-api');
+jest.mock('./embedding');
 
-jest.mock('@slack/web-api', () => ({
-    WebClient: jest.fn().mockImplementation(() => ({
-        conversations: mockConversations,
-    })),
-}));
-
-// Require the module after mocking
-const slackSync = require('./slack_sync');
+const { setTestClient, ...slackSync } = require('./slack_sync');
 
 describe('slackSync', () => {
     const mockChannelId = 'C1234567890';
@@ -27,10 +18,38 @@ describe('slackSync', () => {
             reply_count: 2,
             reactions: [{ name: 'thumbsup', count: 1 }],
         },
+        {
+            ts: '1234567890.123458',
+            text: 'Another message',
+            user: 'U0987654321',
+            thread_ts: '1234567890.123459',
+            reply_count: 1,
+            reactions: [{ name: 'heart', count: 1 }],
+        },
     ];
+
+    let mockClient;
+    let mockConversations;
 
     beforeEach(() => {
         jest.clearAllMocks();
+
+        // Setup mock client
+        mockConversations = {
+            history: jest.fn(),
+            list: jest.fn(),
+            join: jest.fn(),
+        };
+        mockClient = {
+            conversations: mockConversations,
+        };
+        setTestClient(mockClient);
+
+        // Setup mock embeddings
+        generateEmbeddings.mockResolvedValue([
+            [0.1, 0.2, 0.3],
+            [0.4, 0.5, 0.6],
+        ]);
     });
 
     describe('joinChannel', () => {
@@ -106,7 +125,7 @@ describe('slackSync', () => {
                 channel: mockChannelId,
             });
             expect(mockConversations.history).toHaveBeenCalledTimes(2);
-            expect(messages).toHaveLength(2);
+            expect(messages).toHaveLength(3);
         });
 
         it('should respect the limit parameter', async () => {
@@ -175,6 +194,38 @@ describe('slackSync', () => {
                     reactions: mockMessages[0].reactions,
                 },
             });
+        });
+    });
+
+    describe('processMessageBatch', () => {
+        it('should process messages and generate embeddings', async () => {
+            const processed = await slackSync.processMessageBatch(mockMessages, mockChannelId);
+
+            expect(generateEmbeddings).toHaveBeenCalledWith([
+                mockMessages[0].text,
+                mockMessages[1].text,
+            ]);
+            expect(processed).toHaveLength(2);
+            expect(processed[0]).toEqual({
+                source_type: 'slack',
+                source_unique_id: `${mockChannelId}:${mockMessages[0].ts}`,
+                content: mockMessages[0].text,
+                metadata: {
+                    user: mockMessages[0].user,
+                    thread_ts: mockMessages[0].thread_ts,
+                    reply_count: mockMessages[0].reply_count,
+                    reactions: mockMessages[0].reactions,
+                },
+                embedding: [0.1, 0.2, 0.3],
+            });
+        });
+
+        it('should handle embedding generation errors', async () => {
+            generateEmbeddings.mockRejectedValueOnce(new Error('API error'));
+
+            await expect(slackSync.processMessageBatch(mockMessages, mockChannelId)).rejects.toThrow(
+                'API error'
+            );
         });
     });
 }); 
