@@ -35,14 +35,50 @@ function getClient() {
 client = getClient();
 
 /**
- * Format embedding for database storage
- * @param {number[]|string} embedding - The embedding vector or JSON string
- * @returns {string} Formatted embedding for database
+ * Parse a stored embedding from the database
+ * @param {string|null} storedEmbedding - The stored embedding string
+ * @returns {number[]|null} Parsed embedding vector or null
  */
-function formatEmbedding(embedding) {
+function parseStoredEmbedding(storedEmbedding) {
+  if (!storedEmbedding) return null;
+  // Remove the [ and ] and split by comma
+  return storedEmbedding.slice(1, -1).split(',').map(Number);
+}
+
+/**
+ * Format an embedding for database storage
+ * @param {number[]|string|null} embedding - The embedding vector or JSON string
+ * @returns {string|null} PostgreSQL vector format string
+ */
+function formatForStorage(embedding) {
   if (!embedding) return null;
-  if (typeof embedding === 'string') return embedding;
-  return JSON.stringify(embedding);
+  if (Array.isArray(embedding)) {
+    // PostgreSQL vector format: [1,2,3]
+    return `[${embedding.join(',')}]`;
+  }
+  if (typeof embedding === 'string') {
+    // If it's already a string, ensure it's in the right format
+    return embedding.startsWith('[') ? embedding : `[${embedding}]`;
+  }
+  return null;
+}
+
+/**
+ * Format an embedding for vector similarity comparison
+ * @param {number[]|string|null} embedding - The embedding vector or JSON string
+ * @returns {string|null} PostgreSQL vector format string
+ */
+function formatForComparison(embedding) {
+  if (!embedding) return null;
+  if (Array.isArray(embedding)) {
+    // PostgreSQL vector format: [1,2,3]
+    return `[${embedding.join(',')}]`;
+  }
+  if (typeof embedding === 'string') {
+    // If it's already a string, ensure it's in the right format
+    return embedding.startsWith('[') ? embedding : `[${embedding}]`;
+  }
+  return null;
 }
 
 /**
@@ -52,7 +88,7 @@ function formatEmbedding(embedding) {
  */
 async function insertDoc(doc) {
   try {
-    const embeddingVector = formatEmbedding(doc.embedding);
+    const embeddingVector = formatForStorage(doc.embedding);
     const result = await client.query(
       'INSERT INTO rag_docs (source_type, source_unique_id, content, embedding, metadata) VALUES ($1, $2, $3, $4, $5) RETURNING *',
       [doc.source_type, doc.source_unique_id, doc.content, embeddingVector, doc.metadata],
@@ -72,7 +108,12 @@ async function insertDoc(doc) {
 async function getDocBySource(sourceUniqueId) {
   try {
     const result = await client.query('SELECT * FROM rag_docs WHERE source_unique_id = $1', [sourceUniqueId]);
-    return result.rows[0] || null;
+    if (!result.rows[0]) return null;
+
+    // Convert stored vector format back to array
+    const doc = result.rows[0];
+    doc.embedding = parseStoredEmbedding(doc.embedding);
+    return doc;
   } catch (error) {
     console.error('Error getting document:', error);
     throw error;
@@ -87,7 +128,7 @@ async function getDocBySource(sourceUniqueId) {
  */
 async function updateDoc(sourceUniqueId, updates) {
   try {
-    const embeddingVector = formatEmbedding(updates.embedding);
+    const embeddingVector = formatForStorage(updates.embedding);
     const result = await client.query(
       'UPDATE rag_docs SET content = $1, embedding = $2, metadata = $3 WHERE source_unique_id = $4 RETURNING *',
       [updates.content, embeddingVector, updates.metadata, sourceUniqueId],
@@ -123,11 +164,11 @@ async function deleteDoc(sourceUniqueId) {
  */
 async function findSimilar(embedding, options = {}) {
   try {
-    const embeddingVector = formatEmbedding(embedding);
+    const embeddingVector = formatForComparison(embedding);
     const limit = options.limit || 5;
 
     const result = await client.query(
-      `SELECT 
+      `SELECT
         source_type,
         source_unique_id,
         content,
@@ -141,7 +182,12 @@ async function findSimilar(embedding, options = {}) {
       LIMIT $2`,
       [embeddingVector, limit],
     );
-    return result.rows;
+
+    // Convert stored vector format back to array for each result
+    return result.rows.map(doc => ({
+      ...doc,
+      embedding: parseStoredEmbedding(doc.embedding)
+    }));
   } catch (error) {
     console.error('Error finding similar documents:', error);
     throw error;

@@ -3,7 +3,11 @@ const { Client } = require('pg');
 
 // Helper function to generate test vectors of the correct dimension
 function generateTestVector(seed = 0) {
-  return Array.from({ length: 1536 }, (_, i) => (i + seed) / 1536);
+  return Array.from({ length: 12 }, (_, i) => (i + seed) / 12);
+}
+
+function normalizeWhitespace(str) {
+  return str.replace(/\s+/g, ' ').trim();
 }
 
 describe('database', () => {
@@ -49,6 +53,14 @@ describe('database', () => {
         source_unique_id: 'test123',
         content: 'test content',
         embedding: generateTestVector(),
+        metadata: {
+          user: 'U1234567890',
+          channel: 'C1234567890',
+          thread_ts: '1234567890.123456',
+          reply_count: 2,
+          reactions: [{ name: 'thumbsup', count: 1 }],
+          permalink: 'https://slack.com/archives/C1234567890/p1234567890123456'
+        }
       };
 
       if (process.env.CI) {
@@ -57,6 +69,7 @@ describe('database', () => {
           source_type: testDoc.source_type,
           source_unique_id: testDoc.source_unique_id,
           content: testDoc.content,
+          metadata: testDoc.metadata
         });
         expect(result.embedding).toBeDefined();
       } else {
@@ -67,8 +80,8 @@ describe('database', () => {
         const result = await insertDoc(testDoc);
 
         expect(mockQuery).toHaveBeenCalledWith(
-          'INSERT INTO rag_docs (source_type, source_unique_id, content, embedding) VALUES ($1, $2, $3, $4) RETURNING *',
-          [testDoc.source_type, testDoc.source_unique_id, testDoc.content, JSON.stringify(testDoc.embedding)],
+          'INSERT INTO rag_docs (source_type, source_unique_id, content, embedding, metadata) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+          [testDoc.source_type, testDoc.source_unique_id, testDoc.content, `[${testDoc.embedding.join(',')}]`, testDoc.metadata],
         );
         expect(result).toEqual(testDoc);
       }
@@ -84,6 +97,14 @@ describe('database', () => {
           source_unique_id: 'test123',
           content: 'test content',
           embedding: generateTestVector(),
+          metadata: {
+            user: 'U1234567890',
+            channel: 'C1234567890',
+            thread_ts: '1234567890.123456',
+            reply_count: 2,
+            reactions: [{ name: 'thumbsup', count: 1 }],
+            permalink: 'https://slack.com/archives/C1234567890/p1234567890123456'
+          }
         };
         await insertDoc(testDoc);
 
@@ -92,6 +113,7 @@ describe('database', () => {
           source_type: testDoc.source_type,
           source_unique_id: testDoc.source_unique_id,
           content: testDoc.content,
+          metadata: testDoc.metadata
         });
         expect(result.embedding).toBeDefined();
       } else {
@@ -99,7 +121,15 @@ describe('database', () => {
           source_type: 'test',
           source_unique_id: 'test123',
           content: 'test content',
-          embedding: generateTestVector(),
+          embedding: `[${generateTestVector().join(',')}]`,
+          metadata: {
+            user: 'U1234567890',
+            channel: 'C1234567890',
+            thread_ts: '1234567890.123456',
+            reply_count: 2,
+            reactions: [{ name: 'thumbsup', count: 1 }],
+            permalink: 'https://slack.com/archives/C1234567890/p1234567890123456'
+          }
         };
         mockQuery.mockResolvedValueOnce({
           rows: [mockDoc],
@@ -107,7 +137,10 @@ describe('database', () => {
 
         const result = await getDocBySource('test123');
         expect(mockQuery).toHaveBeenCalledWith('SELECT * FROM rag_docs WHERE source_unique_id = $1', ['test123']);
-        expect(result).toEqual(mockDoc);
+        expect(result).toEqual({
+          ...mockDoc,
+          embedding: generateTestVector()
+        });
       }
     });
 
@@ -136,12 +169,25 @@ describe('database', () => {
           source_unique_id: 'test123',
           content: 'test content',
           embedding: generateTestVector(),
+          metadata: {
+            user: 'U1234567890',
+            channel: 'C1234567890',
+            thread_ts: '1234567890.123456',
+            reply_count: 2,
+            reactions: [{ name: 'thumbsup', count: 1 }],
+            permalink: 'https://slack.com/archives/C1234567890/p1234567890123456'
+          }
         };
         await insertDoc(testDoc);
 
         const update = {
           content: 'updated content',
           embedding: generateTestVector(1),
+          metadata: {
+            ...testDoc.metadata,
+            reply_count: 3,
+            reactions: [{ name: 'thumbsup', count: 2 }]
+          }
         };
 
         const result = await updateDoc('test123', update);
@@ -149,6 +195,7 @@ describe('database', () => {
           source_type: testDoc.source_type,
           source_unique_id: testDoc.source_unique_id,
           content: update.content,
+          metadata: update.metadata
         });
         expect(result.embedding).toBeDefined();
       } else {
@@ -157,6 +204,14 @@ describe('database', () => {
           source_unique_id: 'test123',
           content: 'updated content',
           embedding: generateTestVector(1),
+          metadata: {
+            user: 'U1234567890',
+            channel: 'C1234567890',
+            thread_ts: '1234567890.123456',
+            reply_count: 3,
+            reactions: [{ name: 'thumbsup', count: 2 }],
+            permalink: 'https://slack.com/archives/C1234567890/p1234567890123456'
+          }
         };
         mockQuery.mockResolvedValueOnce({
           rows: [mockDoc],
@@ -165,11 +220,12 @@ describe('database', () => {
         const result = await updateDoc('test123', {
           content: 'updated content',
           embedding: generateTestVector(1),
+          metadata: mockDoc.metadata
         });
 
         expect(mockQuery).toHaveBeenCalledWith(
-          'UPDATE rag_docs SET content = $1, embedding = $2 WHERE source_unique_id = $3 RETURNING *',
-          ['updated content', JSON.stringify(generateTestVector(1)), 'test123'],
+          'UPDATE rag_docs SET content = $1, embedding = $2, metadata = $3 WHERE source_unique_id = $4 RETURNING *',
+          ['updated content', `[${generateTestVector(1).join(',')}]`, mockDoc.metadata, 'test123'],
         );
         expect(result).toEqual(mockDoc);
       }
@@ -185,6 +241,14 @@ describe('database', () => {
           source_unique_id: 'test123',
           content: 'test content',
           embedding: generateTestVector(),
+          metadata: {
+            user: 'U1234567890',
+            channel: 'C1234567890',
+            thread_ts: '1234567890.123456',
+            reply_count: 2,
+            reactions: [{ name: 'thumbsup', count: 1 }],
+            permalink: 'https://slack.com/archives/C1234567890/p1234567890123456'
+          }
         };
         await insertDoc(testDoc);
 
@@ -235,12 +299,28 @@ describe('database', () => {
             source_unique_id: 'test1',
             content: 'doc1',
             embedding: generateTestVector(),
+            metadata: {
+              user: 'U1234567890',
+              channel: 'C1234567890',
+              thread_ts: '1234567890.123456',
+              reply_count: 2,
+              reactions: [{ name: 'thumbsup', count: 1 }],
+              permalink: 'https://slack.com/archives/C1234567890/p1234567890123456'
+            }
           },
           {
             source_type: 'test',
             source_unique_id: 'test2',
             content: 'doc2',
             embedding: generateTestVector(1),
+            metadata: {
+              user: 'U0987654321',
+              channel: 'C0987654321',
+              thread_ts: '1234567890.123457',
+              reply_count: 1,
+              reactions: [{ name: 'heart', count: 1 }],
+              permalink: 'https://slack.com/archives/C0987654321/p1234567890123457'
+            }
           },
         ];
         await Promise.all(docs.map((doc) => insertDoc(doc)));
@@ -251,23 +331,45 @@ describe('database', () => {
         expect(result[0].similarity).toBeGreaterThan(result[1].similarity);
       } else {
         const mockDocs = [
-          { id: 1, content: 'doc1', similarity: 0.9 },
-          { id: 2, content: 'doc2', similarity: 0.8 },
+          {
+            id: 1,
+            content: 'doc1',
+            similarity: 0.9,
+            embedding: `[${generateTestVector().join(',')}]`
+          },
+          {
+            id: 2,
+            content: 'doc2',
+            similarity: 0.8,
+            embedding: `[${generateTestVector(1).join(',')}]`
+          },
         ];
         mockQuery.mockResolvedValueOnce({
           rows: mockDocs,
         });
 
-        const result = await findSimilar(generateTestVector(), { limit: 2 });
+        const result = await findSimilar(generateTestVector(3), { limit: 2 });
 
-        expect(mockQuery).toHaveBeenCalledWith(
-          `SELECT *, 1 - (embedding <=> $1) as similarity
-             FROM rag_docs
-             ORDER BY embedding <=> $1
-             LIMIT $2`,
-          [JSON.stringify(generateTestVector()), 2],
-        );
-        expect(result).toEqual(mockDocs);
+        const expectedQuery = normalizeWhitespace(`SELECT
+          source_type,
+          source_unique_id,
+          content,
+          embedding,
+          metadata,
+          created_at,
+          updated_at,
+          1 - (embedding <=> $1) as similarity
+        FROM rag_docs
+        ORDER BY embedding <=> $1
+        LIMIT $2`);
+
+        const actualQuery = normalizeWhitespace(mockQuery.mock.calls[0][0]);
+        expect(actualQuery).toBe(expectedQuery);
+        expect(mockQuery.mock.calls[0][1]).toEqual([`[${generateTestVector(3).join(',')}]`, 2]);
+        expect(result).toEqual(mockDocs.map(doc => ({
+          ...doc,
+          embedding: doc.id === 1 ? generateTestVector() : generateTestVector(1)
+        })));
       }
     });
 
@@ -291,13 +393,21 @@ describe('database', () => {
 
         await findSimilar(generateTestVector());
 
-        expect(mockQuery).toHaveBeenCalledWith(
-          `SELECT *, 1 - (embedding <=> $1) as similarity
-             FROM rag_docs
-             ORDER BY embedding <=> $1
-             LIMIT $2`,
-          [JSON.stringify(generateTestVector()), 5],
-        );
+        const expectedQuery = normalizeWhitespace(`SELECT source_type,
+          source_unique_id,
+          content,
+          embedding,
+          metadata,
+          created_at,
+          updated_at,
+          1 - (embedding <=> $1) as similarity
+        FROM rag_docs
+        ORDER BY embedding <=> $1
+        LIMIT $2`);
+
+        const actualQuery = normalizeWhitespace(mockQuery.mock.calls[0][0]);
+        expect(actualQuery).toBe(expectedQuery);
+        expect(mockQuery.mock.calls[0][1]).toEqual([`[${generateTestVector().join(',')}]`, 5]);
       }
     });
   });

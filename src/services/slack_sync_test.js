@@ -44,7 +44,16 @@ describe('slackSync', () => {
       join: jest.fn(),
     };
     mockClient = {
+      chat: {
+        getPermalink: jest.fn().mockResolvedValue({ permalink: 'https://slack.com/archives/C1234567890/p1234567890123456' }),
+        postMessage: jest.fn().mockResolvedValue({ ts: '1234567890.123456' }),
+        update: jest.fn().mockResolvedValue({ ts: '1234567890.123456' }),
+        delete: jest.fn().mockResolvedValue({ ts: '1234567890.123456' }),
+      },
       conversations: mockConversations,
+      users: {
+        info: jest.fn().mockResolvedValue({ user: { name: 'test_user', real_name: 'Test User' } }),
+      },
     };
     setTestClient(mockClient);
 
@@ -179,8 +188,8 @@ describe('slackSync', () => {
   });
 
   describe('formatMessage', () => {
-    it('should format message correctly', () => {
-      const formatted = slackSync.formatMessage(mockMessages[0], mockChannelId);
+    it('should format message correctly', async () => {
+      const formatted = await slackSync.formatMessage(mockMessages[0], mockChannelId);
 
       expect(formatted).toEqual({
         source_type: 'slack',
@@ -191,7 +200,9 @@ describe('slackSync', () => {
           thread_ts: mockMessages[0].thread_ts,
           reply_count: mockMessages[0].reply_count,
           reactions: mockMessages[0].reactions,
-        },
+          channel: mockChannelId,
+          permalink: 'https://slack.com/archives/C1234567890/p1234567890123456'
+        }
       });
     });
   });
@@ -206,13 +217,15 @@ describe('slackSync', () => {
         source_type: 'slack',
         source_unique_id: `${mockChannelId}:${mockMessages[0].ts}`,
         content: mockMessages[0].text,
+        embedding: [0.1, 0.2, 0.3],
         metadata: {
           user: mockMessages[0].user,
           thread_ts: mockMessages[0].thread_ts,
           reply_count: mockMessages[0].reply_count,
           reactions: mockMessages[0].reactions,
-        },
-        embedding: [0.1, 0.2, 0.3],
+          channel: mockChannelId,
+          permalink: 'https://slack.com/archives/C1234567890/p1234567890123456'
+        }
       });
     });
 
