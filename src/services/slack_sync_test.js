@@ -3,7 +3,10 @@ const { generateEmbeddings } = require('./embedding');
 
 // Mock dependencies
 jest.mock('@slack/web-api');
-jest.mock('./embedding');
+jest.mock('./embedding', () => ({
+  ...jest.requireActual('./embedding'),
+  generateEmbeddings: jest.fn(),
+}));
 
 const { setTestClient, ...slackSync } = require('./slack_sync');
 

@@ -1,18 +1,26 @@
-const { generateEmbedding, generateEmbeddings, client } = require('./embedding');
+const { generateEmbedding, generateEmbeddings } = require('./embedding');
 
-// No need to mock the entire OpenAI module
-jest.mock('openai', () => ({
-  OpenAI: jest.fn(),
-}));
+// Mock the OpenAI module
+jest.mock('openai', () => {
+  const mockCreate = jest.fn();
+  return {
+    OpenAI: jest.fn().mockImplementation(() => ({
+      embeddings: {
+        create: mockCreate,
+      },
+    })),
+  };
+});
 
 describe('embedding', () => {
   let mockEmbeddingsCreate;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    mockEmbeddingsCreate = jest.fn();
-    // Mock the client's embeddings.create method
-    client.embeddings = { create: mockEmbeddingsCreate };
+    // Get the mock client from the mocked OpenAI module
+    const OpenAI = require('openai').OpenAI;
+    const mockClient = new OpenAI();
+    mockEmbeddingsCreate = mockClient.embeddings.create;
   });
 
   describe('generateEmbedding', () => {

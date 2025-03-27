@@ -3,7 +3,7 @@ const { config } = require('dotenv');
 
 config();
 
-// Export the client for testing
+// Internal OpenAI client instance
 const client = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
@@ -90,5 +90,4 @@ async function generateEmbeddings(texts) {
 module.exports = {
   generateEmbedding,
   generateEmbeddings,
-  client, // Export for testing
 };
