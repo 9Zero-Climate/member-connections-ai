@@ -5,20 +5,20 @@ const { config } = require('dotenv');
 config();
 
 async function setupTestDb() {
-    const client = new Client({
-        connectionString: process.env.DB_URL,
-    });
+  const client = new Client({
+    connectionString: process.env.DB_URL,
+  });
 
-    try {
-        await client.connect();
-        console.log('Connected to test database');
+  try {
+    await client.connect();
+    console.log('Connected to test database');
 
-        // Create the pgvector extension
-        await client.query('CREATE EXTENSION IF NOT EXISTS vector;');
-        console.log('pgvector extension created successfully');
+    // Create the pgvector extension
+    await client.query('CREATE EXTENSION IF NOT EXISTS vector;');
+    console.log('pgvector extension created successfully');
 
-        // Create the table if it doesn't exist
-        await client.query(`
+    // Create the table if it doesn't exist
+    await client.query(`
       CREATE TABLE IF NOT EXISTS rag_docs (
         id SERIAL PRIMARY KEY,
         source_type VARCHAR(255) NOT NULL,
@@ -32,13 +32,13 @@ async function setupTestDb() {
       CREATE INDEX IF NOT EXISTS rag_docs_source_unique_id_idx ON rag_docs(source_unique_id);
       CREATE INDEX IF NOT EXISTS rag_docs_embedding_idx ON rag_docs USING ivfflat (embedding vector_cosine_ops);
     `);
-        console.log('Test database schema created successfully');
-    } catch (error) {
-        console.error('Error setting up test database:', error);
-        process.exit(1);
-    } finally {
-        await client.end();
-    }
+    console.log('Test database schema created successfully');
+  } catch (error) {
+    console.error('Error setting up test database:', error);
+    process.exit(1);
+  } finally {
+    await client.end();
+  }
 }
 
-setupTestDb(); 
+setupTestDb();

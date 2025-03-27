@@ -1,6 +1,11 @@
 const { insertDoc, getDocBySource, updateDoc, deleteDoc, findSimilar, close, setTestClient } = require('./database');
 const { Client } = require('pg');
 
+// Helper function to generate test vectors of the correct dimension
+function generateTestVector(seed = 0) {
+  return Array.from({ length: 1536 }, (_, i) => (i + seed) / 1536);
+}
+
 describe('database', () => {
   let mockClient;
   let mockQuery;
@@ -43,7 +48,7 @@ describe('database', () => {
         source_type: 'test',
         source_unique_id: 'test123',
         content: 'test content',
-        embedding: [0.1, 0.2, 0.3],
+        embedding: generateTestVector(),
       };
 
       if (process.env.CI) {
@@ -78,7 +83,7 @@ describe('database', () => {
           source_type: 'test',
           source_unique_id: 'test123',
           content: 'test content',
-          embedding: [0.1, 0.2, 0.3],
+          embedding: generateTestVector(),
         };
         await insertDoc(testDoc);
 
@@ -94,7 +99,7 @@ describe('database', () => {
           source_type: 'test',
           source_unique_id: 'test123',
           content: 'test content',
-          embedding: [0.1, 0.2, 0.3],
+          embedding: generateTestVector(),
         };
         mockQuery.mockResolvedValueOnce({
           rows: [mockDoc],
@@ -130,13 +135,13 @@ describe('database', () => {
           source_type: 'test',
           source_unique_id: 'test123',
           content: 'test content',
-          embedding: [0.1, 0.2, 0.3],
+          embedding: generateTestVector(),
         };
         await insertDoc(testDoc);
 
         const update = {
           content: 'updated content',
-          embedding: [0.4, 0.5, 0.6],
+          embedding: generateTestVector(1),
         };
 
         const result = await updateDoc('test123', update);
@@ -151,7 +156,7 @@ describe('database', () => {
           source_type: 'test',
           source_unique_id: 'test123',
           content: 'updated content',
-          embedding: [0.4, 0.5, 0.6],
+          embedding: generateTestVector(1),
         };
         mockQuery.mockResolvedValueOnce({
           rows: [mockDoc],
@@ -159,12 +164,12 @@ describe('database', () => {
 
         const result = await updateDoc('test123', {
           content: 'updated content',
-          embedding: [0.4, 0.5, 0.6],
+          embedding: generateTestVector(1),
         });
 
         expect(mockQuery).toHaveBeenCalledWith(
           'UPDATE rag_docs SET content = $1, embedding = $2 WHERE source_unique_id = $3 RETURNING *',
-          ['updated content', JSON.stringify([0.4, 0.5, 0.6]), 'test123'],
+          ['updated content', JSON.stringify(generateTestVector(1)), 'test123'],
         );
         expect(result).toEqual(mockDoc);
       }
@@ -179,7 +184,7 @@ describe('database', () => {
           source_type: 'test',
           source_unique_id: 'test123',
           content: 'test content',
-          embedding: [0.1, 0.2, 0.3],
+          embedding: generateTestVector(),
         };
         await insertDoc(testDoc);
 
@@ -229,18 +234,18 @@ describe('database', () => {
             source_type: 'test',
             source_unique_id: 'test1',
             content: 'doc1',
-            embedding: [0.1, 0.2, 0.3],
+            embedding: generateTestVector(),
           },
           {
             source_type: 'test',
             source_unique_id: 'test2',
             content: 'doc2',
-            embedding: [0.2, 0.3, 0.4],
+            embedding: generateTestVector(1),
           },
         ];
-        await Promise.all(docs.map(doc => insertDoc(doc)));
+        await Promise.all(docs.map((doc) => insertDoc(doc)));
 
-        const result = await findSimilar([0.1, 0.2, 0.3], { limit: 2 });
+        const result = await findSimilar(generateTestVector(), { limit: 2 });
         expect(result).toHaveLength(2);
         expect(result[0]).toHaveProperty('similarity');
         expect(result[0].similarity).toBeGreaterThan(result[1].similarity);
@@ -253,14 +258,14 @@ describe('database', () => {
           rows: mockDocs,
         });
 
-        const result = await findSimilar([0.1, 0.2, 0.3], { limit: 2 });
+        const result = await findSimilar(generateTestVector(), { limit: 2 });
 
         expect(mockQuery).toHaveBeenCalledWith(
           `SELECT *, 1 - (embedding <=> $1) as similarity
              FROM rag_docs
              ORDER BY embedding <=> $1
              LIMIT $2`,
-          [JSON.stringify([0.1, 0.2, 0.3]), 2],
+          [JSON.stringify(generateTestVector()), 2],
         );
         expect(result).toEqual(mockDocs);
       }
@@ -273,25 +278,25 @@ describe('database', () => {
           source_type: 'test',
           source_unique_id: `test${i}`,
           content: `doc${i}`,
-          embedding: [0.1 + i * 0.1, 0.2 + i * 0.1, 0.3 + i * 0.1],
+          embedding: generateTestVector(i),
         }));
-        await Promise.all(docs.map(doc => insertDoc(doc)));
+        await Promise.all(docs.map((doc) => insertDoc(doc)));
 
-        const result = await findSimilar([0.1, 0.2, 0.3]);
+        const result = await findSimilar(generateTestVector());
         expect(result).toHaveLength(5);
       } else {
         mockQuery.mockResolvedValueOnce({
           rows: [],
         });
 
-        await findSimilar([0.1, 0.2, 0.3]);
+        await findSimilar(generateTestVector());
 
         expect(mockQuery).toHaveBeenCalledWith(
           `SELECT *, 1 - (embedding <=> $1) as similarity
              FROM rag_docs
              ORDER BY embedding <=> $1
              LIMIT $2`,
-          [JSON.stringify([0.1, 0.2, 0.3]), 5],
+          [JSON.stringify(generateTestVector()), 5],
         );
       }
     });
