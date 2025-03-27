@@ -83,12 +83,6 @@ const assistant = new Assistant({
     const { context } = event.assistant_thread;
 
     try {
-      // Since context is not sent along with individual user messages, it's necessary to keep
-      // track of the context of the conversation to better assist the user. Sending an initial
-      // message to the user with context metadata facilitates this, and allows us to update it
-      // whenever the user changes context (via the `assistant_thread_context_changed` event).
-      // The `say` utility sends this metadata along automatically behind the scenes.
-      // !! Please note: this is only intended for development and demonstrative purposes.
       await say('Hi, how can I help?');
 
       await saveThreadContext();

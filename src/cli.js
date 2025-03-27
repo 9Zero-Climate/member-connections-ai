@@ -5,119 +5,119 @@ const { generateEmbeddings } = require('./services/embedding');
 
 const program = new Command();
 
-program
-    .name('member-connections-ai')
-    .description('CLI tool for member connections AI');
+program.name('member-connections-ai').description('CLI tool for member connections AI');
 
 program
-    .command('sync-channel')
-    .description('Sync messages from a specific Slack channel')
-    .argument('<channelName>', 'Name of the channel to sync')
-    .option('-l, --limit <number>', 'Maximum number of messages to sync', '100')
-    .option('-o, --oldest <timestamp>', 'Start time in Unix timestamp')
-    .option('-n, --newest <timestamp>', 'End time in Unix timestamp')
-    .option('-b, --batch-size <number>', 'Number of messages to process in each batch', '10')
-    .action(async (channelName, options) => {
-        try {
-            console.log(`Syncing channel: ${channelName}`);
+  .command('sync-channel')
+  .description('Sync messages from a specific Slack channel')
+  .argument('<channelName>', 'Name of the channel to sync')
+  .option('-l, --limit <number>', 'Maximum number of messages to sync', '100')
+  .option('-o, --oldest <timestamp>', 'Start time in Unix timestamp')
+  .option('-n, --newest <timestamp>', 'End time in Unix timestamp')
+  .option('-b, --batch-size <number>', 'Number of messages to process in each batch', '10')
+  .action(async (channelName, options) => {
+    try {
+      console.log(`Syncing channel: ${channelName}`);
 
-            // Get channel ID
-            const channelId = await slackSync.getChannelId(channelName);
-            console.log(`Found channel ID: ${channelId}`);
+      // Get channel ID
+      const channelId = await slackSync.getChannelId(channelName);
+      console.log(`Found channel ID: ${channelId}`);
 
-            // Fetch messages
-            const messages = await slackSync.fetchChannelHistory(channelId, {
-                limit: parseInt(options.limit),
-                oldest: options.oldest,
-                latest: options.newest,
-            });
-            console.log(`Fetched ${messages.length} messages`);
+      // Fetch messages
+      const messages = await slackSync.fetchChannelHistory(channelId, {
+        limit: Number.parseInt(options.limit),
+        oldest: options.oldest,
+        latest: options.newest,
+      });
+      console.log(`Fetched ${messages.length} messages`);
 
-            // Process messages in batches
-            const batchSize = parseInt(options.batchSize);
-            const batches = [];
-            for (let i = 0; i < messages.length; i += batchSize) {
-                batches.push(messages.slice(i, i + batchSize));
+      // Process messages in batches
+      const batchSize = Number.parseInt(options.batchSize);
+      const batches = [];
+      for (let i = 0; i < messages.length; i += batchSize) {
+        batches.push(messages.slice(i, i + batchSize));
+      }
+
+      console.log(`Processing ${batches.length} batches of ${batchSize} messages each`);
+
+      for (const [batchIndex, batch] of batches.entries()) {
+        console.log(`Processing batch ${batchIndex + 1}/${batches.length}`);
+
+        // Process batch (format + generate embeddings)
+        const processedMessages = await slackSync.processMessageBatch(batch, channelId);
+
+        // Store messages
+        for (const msg of processedMessages) {
+          // Check if document already exists
+          const existingDoc = await getDocBySource(msg.source_unique_id);
+          if (existingDoc) {
+            // Update if content or metadata has changed
+            if (
+              existingDoc.content !== msg.content ||
+              JSON.stringify(existingDoc.metadata) !== JSON.stringify(msg.metadata)
+            ) {
+              await updateDoc(msg.source_unique_id, msg);
+              console.log(`Updated document ${msg.source_unique_id}`);
+            } else {
+              console.log(`Skipping unchanged document ${msg.source_unique_id}`);
             }
-
-            console.log(`Processing ${batches.length} batches of ${batchSize} messages each`);
-
-            for (const [batchIndex, batch] of batches.entries()) {
-                console.log(`Processing batch ${batchIndex + 1}/${batches.length}`);
-
-                // Process batch (format + generate embeddings)
-                const processedMessages = await slackSync.processMessageBatch(batch, channelId);
-
-                // Store messages
-                for (const msg of processedMessages) {
-                    // Check if document already exists
-                    const existingDoc = await getDocBySource(msg.source_unique_id);
-                    if (existingDoc) {
-                        // Update if content or metadata has changed
-                        if (existingDoc.content !== msg.content ||
-                            JSON.stringify(existingDoc.metadata) !== JSON.stringify(msg.metadata)) {
-                            await updateDoc(msg.source_unique_id, msg);
-                            console.log(`Updated document ${msg.source_unique_id}`);
-                        } else {
-                            console.log(`Skipping unchanged document ${msg.source_unique_id}`);
-                        }
-                    } else {
-                        // Insert new document
-                        await insertDoc(msg);
-                        console.log(`Inserted new document ${msg.source_unique_id}`);
-                    }
-                }
-
-                console.log(`Completed batch ${batchIndex + 1}`);
-            }
-
-            console.log(`Successfully synced ${messages.length} messages to database`);
-        } catch (error) {
-            console.error('Error syncing channel:', error);
-            process.exit(1);
+          } else {
+            // Insert new document
+            await insertDoc(msg);
+            console.log(`Inserted new document ${msg.source_unique_id}`);
+          }
         }
-    });
+
+        console.log(`Completed batch ${batchIndex + 1}`);
+      }
+
+      console.log(`Successfully synced ${messages.length} messages to database`);
+    } catch (error) {
+      console.error('Error syncing channel:', error);
+      process.exit(1);
+    }
+  });
 
 program
-    .command('generate-embeddings')
-    .description('Generate embeddings for all documents in the database')
-    .option('-b, --batch-size <number>', 'Number of documents to process in each batch', '10')
-    .action(async (options) => {
-        try {
-            console.log('Fetching all documents from database...');
-            const docs = await getAllDocs();
-            console.log(`Found ${docs.length} documents to process`);
+  .command('generate-embeddings')
+  .description('Generate embeddings for all documents in the database')
+  .option('-b, --batch-size <number>', 'Number of documents to process in each batch', '10')
+  .action(async (options) => {
+    try {
+      console.log('Fetching all documents from database...');
+      const docs = await getAllDocs();
+      console.log(`Found ${docs.length} documents to process`);
 
-            const batchSize = parseInt(options.batchSize);
-            const batches = [];
-            for (let i = 0; i < docs.length; i += batchSize) {
-                batches.push(docs.slice(i, i + batchSize));
-            }
+      const batchSize = Number.parseInt(options.batchSize);
+      const batches = [];
+      for (let i = 0; i < docs.length; i += batchSize) {
+        batches.push(docs.slice(i, i + batchSize));
+      }
 
-            console.log(`Processing ${batches.length} batches of ${batchSize} documents each`);
+      console.log(`Processing ${batches.length} batches of ${batchSize} documents each`);
 
-            for (const [batchIndex, batch] of batches.entries()) {
-                console.log(`Processing batch ${batchIndex + 1}/${batches.length}`);
+      for (const [batchIndex, batch] of batches.entries()) {
+        console.log(`Processing batch ${batchIndex + 1}/${batches.length}`);
 
-                // Generate embeddings for the batch
-                const texts = batch.map(doc => doc.content);
-                const embeddings = await generateEmbeddings(texts);
+        // Generate embeddings for the batch
+        const texts = batch.map((doc) => doc.content);
+        const embeddings = await generateEmbeddings(texts);
 
-                // Update documents with their embeddings
-                for (const [docIndex, doc] of batch.entries()) {
-                    await updateDoc(doc.source_unique_id, {
-                        embedding: embeddings[docIndex],
-                    });
-                }
-
-                console.log(`Completed batch ${batchIndex + 1}`);
-            }
-
-            console.log('Successfully generated embeddings for all documents');
-        } catch (error) {
-            console.error('Error generating embeddings:', error);
-            process.exit(1);
+        // Update documents with their embeddings
+        for (const [docIndex, doc] of batch.entries()) {
+          await updateDoc(doc.source_unique_id, {
+            embedding: embeddings[docIndex],
+          });
         }
-    });
 
-program.parse(); 
+        console.log(`Completed batch ${batchIndex + 1}`);
+      }
+
+      console.log('Successfully generated embeddings for all documents');
+    } catch (error) {
+      console.error('Error generating embeddings:', error);
+      process.exit(1);
+    }
+  });
+
+program.parse();

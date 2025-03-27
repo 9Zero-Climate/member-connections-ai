@@ -9,18 +9,18 @@ const { findSimilar } = require('./database');
  * @returns {Promise<Object[]>} Relevant documents with similarity scores
  */
 async function retrieveRelevantDocs(query, options = {}) {
-    try {
-        // Generate embedding for the query
-        const queryEmbedding = await generateEmbedding(query);
+  try {
+    // Generate embedding for the query
+    const queryEmbedding = await generateEmbedding(query);
 
-        // Find similar documents
-        const similarDocs = await findSimilar(queryEmbedding, options);
+    // Find similar documents
+    const similarDocs = await findSimilar(queryEmbedding, options);
 
-        return similarDocs;
-    } catch (error) {
-        console.error('Error in RAG retrieval:', error);
-        throw error;
-    }
+    return similarDocs;
+  } catch (error) {
+    console.error('Error in RAG retrieval:', error);
+    throw error;
+  }
 }
 
 /**
@@ -29,13 +29,15 @@ async function retrieveRelevantDocs(query, options = {}) {
  * @returns {string} Formatted context string
  */
 function formatDocsForContext(docs) {
-    return docs.map(doc => {
-        const metadata = doc.metadata ? `\nMetadata: ${JSON.stringify(doc.metadata)}` : '';
-        return `Content: ${doc.content}${metadata}\n`;
-    }).join('\n');
+  return docs
+    .map((doc) => {
+      const metadata = doc.metadata ? `\nMetadata: ${JSON.stringify(doc.metadata)}` : '';
+      return `Content: ${doc.content}${metadata}\n`;
+    })
+    .join('\n');
 }
 
 module.exports = {
-    retrieveRelevantDocs,
-    formatDocsForContext,
-}; 
+  retrieveRelevantDocs,
+  formatDocsForContext,
+};
