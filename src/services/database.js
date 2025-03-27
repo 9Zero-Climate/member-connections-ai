@@ -7,16 +7,32 @@ config();
 // Debug logging
 console.log('Database URL:', process.env.DB_URL ? 'Present' : 'Missing');
 
-// Initialize database connection
-let client = new Client({
-  connectionString: process.env.DB_URL,
-});
+let client;
 
-// Connect to the database
-client.connect().catch((err) => {
-  console.error('Failed to connect to database:', err);
-  process.exit(1);
-});
+function getClient() {
+  if (client) return client;
+
+  if (process.env.NODE_ENV === 'test') {
+    client = {
+      query: jest.fn().mockResolvedValue({ rows: [] }),
+      connect: jest.fn().mockResolvedValue(),
+      end: jest.fn().mockResolvedValue(),
+    };
+  } else {
+    client = new Client({
+      connectionString: process.env.DB_URL,
+    });
+    // Connect to the database
+    client.connect().catch((err) => {
+      console.error('Failed to connect to database:', err);
+      process.exit(1);
+    });
+  }
+  return client;
+}
+
+// Initialize client
+client = getClient();
 
 /**
  * Format embedding for database storage

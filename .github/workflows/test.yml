@@ -9,8 +9,26 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: ankane/pgvector:latest
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: testdb
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     env:
       NODE_ENV: test
+      DB_URL: postgresql://test:test@localhost:5432/testdb
+
     steps:
       - uses: actions/checkout@v4
 
@@ -28,6 +46,9 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install
+
+      - name: Setup test database
+        run: node src/scripts/setup_test_db.js
 
       - name: Run tests
         run: pnpm test

@@ -1,24 +1,40 @@
 const { insertDoc, getDocBySource, updateDoc, deleteDoc, findSimilar, close, setTestClient } = require('./database');
 const { Client } = require('pg');
 
-// Mock pg Client
-jest.mock('pg', () => ({
-  Client: jest.fn().mockImplementation(() => ({
-    connect: jest.fn().mockResolvedValue(),
-    query: jest.fn().mockResolvedValue({ rows: [] }),
-    end: jest.fn().mockResolvedValue(),
-  })),
-}));
-
 describe('database', () => {
   let mockClient;
   let mockQuery;
+  let realClient;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     jest.clearAllMocks();
-    mockClient = new Client();
-    mockQuery = mockClient.query;
-    setTestClient(mockClient);
+
+    if (process.env.CI) {
+      // In CI, use real database
+      realClient = new Client({
+        connectionString: process.env.DB_URL,
+      });
+      await realClient.connect();
+      setTestClient(realClient);
+
+      // Clear the table before each test
+      await realClient.query('DELETE FROM rag_docs');
+    } else {
+      // In local development, use mocks
+      mockClient = {
+        query: jest.fn().mockResolvedValue({ rows: [] }),
+        connect: jest.fn().mockResolvedValue(),
+        end: jest.fn().mockResolvedValue(),
+      };
+      setTestClient(mockClient);
+      mockQuery = mockClient.query;
+    }
+  });
+
+  afterEach(async () => {
+    if (process.env.CI && realClient) {
+      await realClient.end();
+    }
   });
 
   describe('insertDoc', () => {
