@@ -2,6 +2,7 @@ const { App, LogLevel, Assistant } = require('@slack/bolt');
 const { config } = require('dotenv');
 const { OpenAI } = require('openai');
 const express = require('express');
+const { retrieveRelevantDocs, formatDocsForContext } = require('./src/services/rag');
 
 config();
 
@@ -45,7 +46,11 @@ const DEFAULT_SYSTEM_CONTENT = `You're an assistant in the Slack workspace for 9
 Users in the workspace will ask you to connect them with other members.
 You'll respond to those questions in a professional way.
 When you include markdown text, convert them to Slack compatible ones.
-When a prompt has Slack's special syntax like <@USER_ID> or <#CHANNEL_ID>, you must keep them as-is in your response.`;
+When a prompt has Slack's special syntax like <@USER_ID> or <#CHANNEL_ID>, you must keep them as-is in your response.
+
+You have access to relevant context from previous conversations and messages in the workspace.
+Use this context to provide more accurate and helpful responses.
+If the context doesn't contain relevant information, say so and provide general guidance.`;
 
 // Slack has a limit of 4000 characters per message
 const MAX_MESSAGE_LENGTH = 3900;
@@ -90,11 +95,8 @@ const assistant = new Assistant({
 
       const prompts = [
         {
-          title: 'This is a suggested prompt',
-          message:
-            'When a user clicks a prompt, the resulting prompt message text can be passed ' +
-            'directly to your LLM for processing.\n\nAssistant, please create some helpful prompts ' +
-            'I can provide to my users.',
+          title: 'Find experts in a particular field',
+          message: 'Do we have any experts in distributed generation?',
         },
       ];
 
@@ -141,7 +143,7 @@ const assistant = new Assistant({
    * be deduced based on their shape and metadata (if provided).
    * https://api.slack.com/events/message
    */
-  userMessage: async ({ message, client, logger, say, setTitle, setStatus }) => {
+  userMessage: async ({ message, logger, say, setTitle, setStatus, client }) => {
     const { channel, thread_ts } = message;
     let currentText = '';
     let lastUpdateTime = Date.now();
@@ -167,6 +169,10 @@ const assistant = new Assistant({
         oldest: thread_ts,
       });
 
+      // Get relevant documents using RAG
+      const relevantDocs = await retrieveRelevantDocs(message.text, { limit: 10 });
+      const contextFromDocs = formatDocsForContext(relevantDocs);
+
       // Prepare and tag each message for LLM processing
       const userMessage = { role: 'user', content: message.text };
       const threadHistory = thread.messages.map((m) => {
@@ -174,7 +180,12 @@ const assistant = new Assistant({
         return { role, content: m.text };
       });
 
-      const messages = [{ role: 'system', content: DEFAULT_SYSTEM_CONTENT }, ...threadHistory, userMessage];
+      const messages = [
+        { role: 'system', content: DEFAULT_SYSTEM_CONTENT },
+        { role: 'system', content: `Here is some relevant context from previous conversations:\n${contextFromDocs}` },
+        ...threadHistory,
+        userMessage,
+      ];
 
       // Stream the response from OpenRouter
       const stream = await openai.chat.completions.create({
