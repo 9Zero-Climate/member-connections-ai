@@ -1,5 +1,5 @@
 import { App, Assistant, LogLevel } from '@slack/bolt';
-import type { WebClient } from '@slack/web-api';
+import type { ChatPostMessageResponse, WebClient } from '@slack/web-api';
 import { config } from 'dotenv';
 import express from 'express';
 import type { Express } from 'express';
@@ -75,18 +75,20 @@ const MAX_MESSAGE_LENGTH = 3900;
 
 interface UpdateMessageParams {
   client: WebClient;
-  message: {
-    channel: string;
-    ts: string;
-  };
+  message: ChatPostMessageResponse;
   text: string;
 }
 
 const updateMessage = async ({ client, message, text }: UpdateMessageParams): Promise<void> => {
+  if (!message.channel || !message.ts) {
+    throw new Error(`Failed to get channel or timestamp from response message: ${JSON.stringify(message)}`);
+  }
+
   await client.chat.update({
     channel: message.channel,
     ts: message.ts,
     text: text,
+    parse: 'full',
   });
 };
 
@@ -151,6 +153,8 @@ const assistant = new Assistant({
   userMessage: async ({ message, logger, say, setTitle, setStatus, client }) => {
     const { channel, thread_ts, text, ts } = message as SlackMessage;
     let currentText = '';
+    let responseMessage: ChatPostMessageResponse;
+
     let lastUpdateTime = Date.now();
     const UPDATE_INTERVAL = 500; // 0.5 seconds
 
@@ -165,15 +169,16 @@ const assistant = new Assistant({
         timestamp: ts,
       });
 
-      const responseMessage = await say({
+      responseMessage = await say({
         text: '_thinking..._',
         parse: 'full',
       });
+    } catch (e) {
+      logger.error(e);
+      throw new Error('Failed to set up response message');
+    }
 
-      if (!responseMessage.channel || !responseMessage.ts) {
-        throw new Error('Failed to get channel or timestamp from response message');
-      }
-
+    try {
       // Retrieve the Assistant thread history for context of question being asked
       const thread = thread_ts
         ? await client.conversations.replies({
@@ -227,10 +232,7 @@ const assistant = new Assistant({
           if (now - lastUpdateTime >= UPDATE_INTERVAL) {
             await updateMessage({
               client,
-              message: {
-                channel: responseMessage.channel,
-                ts: responseMessage.ts,
-              },
+              message: responseMessage,
               text: currentText,
             });
             lastUpdateTime = now;
@@ -241,10 +243,7 @@ const assistant = new Assistant({
       // Final update to ensure we have the complete message
       await updateMessage({
         client,
-        message: {
-          channel: responseMessage.channel,
-          ts: responseMessage.ts,
-        },
+        message: responseMessage,
         text: currentText,
       });
 
@@ -263,6 +262,9 @@ const assistant = new Assistant({
           name: 'thinking_face',
           channel: message.channel,
           timestamp: message.ts,
+        });
+        await say({
+          text: `Sorry, something went wrong.\n You may want to forward this error message to an admin: \`\`\`\n${JSON.stringify(e, null, 2)}\n\`\`\``,
         });
       } catch (reactionError) {
         logger.error('Failed to remove thinking reaction:', reactionError);
