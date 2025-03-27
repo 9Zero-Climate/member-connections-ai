@@ -13,6 +13,10 @@ async function setupTestDb() {
         await client.connect();
         console.log('Connected to test database');
 
+        // Create the pgvector extension
+        await client.query('CREATE EXTENSION IF NOT EXISTS vector;');
+        console.log('pgvector extension created successfully');
+
         // Create the table if it doesn't exist
         await client.query(`
       CREATE TABLE IF NOT EXISTS rag_docs (
