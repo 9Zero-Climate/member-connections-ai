@@ -72,50 +72,9 @@ program
       }
 
       console.log(`Successfully synced ${messages.length} messages to database`);
+      process.exit(0);
     } catch (error) {
       console.error('Error syncing channel:', error);
-      process.exit(1);
-    }
-  });
-
-program
-  .command('generate-embeddings')
-  .description('Generate embeddings for all documents in the database')
-  .option('-b, --batch-size <number>', 'Number of documents to process in each batch', '10')
-  .action(async (options) => {
-    try {
-      console.log('Fetching all documents from database...');
-      const docs = await getAllDocs();
-      console.log(`Found ${docs.length} documents to process`);
-
-      const batchSize = Number.parseInt(options.batchSize);
-      const batches = [];
-      for (let i = 0; i < docs.length; i += batchSize) {
-        batches.push(docs.slice(i, i + batchSize));
-      }
-
-      console.log(`Processing ${batches.length} batches of ${batchSize} documents each`);
-
-      for (const [batchIndex, batch] of batches.entries()) {
-        console.log(`Processing batch ${batchIndex + 1}/${batches.length}`);
-
-        // Generate embeddings for the batch
-        const texts = batch.map((doc) => doc.content);
-        const embeddings = await generateEmbeddings(texts);
-
-        // Update documents with their embeddings
-        for (const [docIndex, doc] of batch.entries()) {
-          await updateDoc(doc.source_unique_id, {
-            embedding: embeddings[docIndex],
-          });
-        }
-
-        console.log(`Completed batch ${batchIndex + 1}`);
-      }
-
-      console.log('Successfully generated embeddings for all documents');
-    } catch (error) {
-      console.error('Error generating embeddings:', error);
       process.exit(1);
     }
   });
