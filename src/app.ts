@@ -1,8 +1,10 @@
-const { App, LogLevel, Assistant } = require('@slack/bolt');
-const { config } = require('dotenv');
-const { OpenAI } = require('openai');
-const express = require('express');
-const { retrieveRelevantDocs, formatDocsForContext } = require('./src/services/rag');
+import { App, Assistant, LogLevel } from '@slack/bolt';
+import type { WebClient } from '@slack/web-api';
+import { config } from 'dotenv';
+import express from 'express';
+import type { Express } from 'express';
+import { OpenAI } from 'openai';
+import { formatDocsForContext, retrieveRelevantDocs } from './services/rag';
 
 config();
 
@@ -15,10 +17,10 @@ const app = new App({
 });
 
 // Create an Express app for health checks
-const expressApp = express();
+const expressApp: Express = express();
 
 // Health check endpoint
-expressApp.get('/', (req, res) => {
+expressApp.get('/', (_req, res) => {
   res.status(200).json({
     status: 'ok',
     timestamp: new Date().toISOString(),
@@ -71,31 +73,42 @@ If the context doesn't contain relevant information, say so and provide general 
 // Slack has a limit of 4000 characters per message
 const MAX_MESSAGE_LENGTH = 3900;
 
-const updateMessage = async ({ client, message, text }) => {
+interface UpdateMessageParams {
+  client: WebClient;
+  message: {
+    channel: string;
+    ts: string;
+  };
+  text: string;
+}
+
+const updateMessage = async ({ client, message, text }: UpdateMessageParams): Promise<void> => {
   await client.chat.update({
     channel: message.channel,
     ts: message.ts,
-    text,
-    mrkdwn: true,
+    text: text,
   });
 };
 
-const assistant = new Assistant({
-  /**
-   * (Recommended) A custom ThreadContextStore can be provided, inclusive of methods to
-   * get and save thread context. When provided, these methods will override the `getThreadContext`
-   * and `saveThreadContext` utilities that are made available in other Assistant event listeners.
-   */
-  // threadContextStore: {
-  //   get: async ({ context, client, payload }) => {},
-  //   save: async ({ context, client, payload }) => {},
-  // },
+interface AssistantPrompt {
+  title: string;
+  message: string;
+}
 
-  /**
-   * `assistant_thread_started` is sent when a user opens the Assistant container.
-   * This can happen via DM with the app or as a side-container within a channel.
-   * https://api.slack.com/events/assistant_thread_started
-   */
+interface ChatMessage {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+}
+
+interface SlackMessage {
+  channel: string;
+  thread_ts?: string;
+  text: string;
+  ts: string;
+  bot_id?: string;
+}
+
+const assistant = new Assistant({
   threadStarted: async ({ event, logger, say, setSuggestedPrompts, saveThreadContext }) => {
     const { context } = event.assistant_thread;
 
@@ -104,7 +117,7 @@ const assistant = new Assistant({
 
       await saveThreadContext();
 
-      const prompts = [
+      const prompts: [AssistantPrompt, ...AssistantPrompt[]] = [
         {
           title: 'Find experts in a particular field',
           message: 'Do we have any experts in distributed generation?',
@@ -127,15 +140,7 @@ const assistant = new Assistant({
     }
   },
 
-  /**
-   * `assistant_thread_context_changed` is sent when a user switches channels
-   * while the Assistant container is open. If `threadContextChanged` is not
-   * provided, context will be saved using the AssistantContextStore's `save`
-   * method (either the DefaultAssistantContextStore or custom, if provided).
-   * https://api.slack.com/events/assistant_thread_context_changed
-   */
   threadContextChanged: async ({ logger, saveThreadContext }) => {
-    // const { channel_id, thread_ts, context: assistantContext } = event.assistant_thread;
     try {
       await saveThreadContext();
     } catch (e) {
@@ -143,53 +148,54 @@ const assistant = new Assistant({
     }
   },
 
-  /**
-   * Messages sent to the Assistant do not contain a subtype and must
-   * be deduced based on their shape and metadata (if provided).
-   * https://api.slack.com/events/message
-   */
   userMessage: async ({ message, logger, say, setTitle, setStatus, client }) => {
-    const { channel, thread_ts } = message;
+    const { channel, thread_ts, text, ts } = message as SlackMessage;
     let currentText = '';
     let lastUpdateTime = Date.now();
     const UPDATE_INTERVAL = 500; // 0.5 seconds
 
     try {
-      await setTitle(message.text);
+      await setTitle(text);
       await setStatus('is typing..');
 
       // Add thinking reaction to the original message
       await client.reactions.add({
         name: 'thinking_face',
         channel: channel,
-        timestamp: message.ts,
+        timestamp: ts,
       });
 
       const responseMessage = await say({
         text: '_thinking..._',
-        mrkdwn: true,
+        parse: 'full',
       });
+
+      if (!responseMessage.channel || !responseMessage.ts) {
+        throw new Error('Failed to get channel or timestamp from response message');
+      }
 
       // Retrieve the Assistant thread history for context of question being asked
-      const thread = await client.conversations.replies({
-        channel,
-        ts: thread_ts,
-        oldest: thread_ts,
-      });
+      const thread = thread_ts
+        ? await client.conversations.replies({
+            channel,
+            ts: thread_ts,
+            oldest: thread_ts,
+          })
+        : { messages: [] };
 
       // Get relevant documents using RAG
-      const relevantDocs = await retrieveRelevantDocs(message.text, { limit: 30 });
+      const relevantDocs = await retrieveRelevantDocs(text, { limit: 30 });
       const contextFromDocs = formatDocsForContext(relevantDocs);
       logger.debug(`Context from docs: ${contextFromDocs}`);
 
       // Prepare and tag each message for LLM processing
-      const userMessage = { role: 'user', content: message.text };
-      const threadHistory = thread.messages.map((m) => {
+      const userMessage: ChatMessage = { role: 'user', content: text };
+      const threadHistory = (thread.messages || []).map((m) => {
         const role = m.bot_id ? 'assistant' : 'user';
-        return { role, content: m.text };
+        return { role, content: m.text } as ChatMessage;
       });
 
-      const messages = [
+      const messages: ChatMessage[] = [
         { role: 'system', content: DEFAULT_SYSTEM_CONTENT },
         {
           role: 'system',
@@ -219,19 +225,33 @@ const assistant = new Assistant({
           // to avoid upsetting the Slack API.
           const now = Date.now();
           if (now - lastUpdateTime >= UPDATE_INTERVAL) {
-            await updateMessage({ client, message: responseMessage, text: currentText });
+            await updateMessage({
+              client,
+              message: {
+                channel: responseMessage.channel,
+                ts: responseMessage.ts,
+              },
+              text: currentText,
+            });
             lastUpdateTime = now;
           }
         }
       }
 
       // Final update to ensure we have the complete message
-      await updateMessage({ client, message: responseMessage, text: currentText });
+      await updateMessage({
+        client,
+        message: {
+          channel: responseMessage.channel,
+          ts: responseMessage.ts,
+        },
+        text: currentText,
+      });
 
       // Remove thinking reaction
       await client.reactions.remove({
         name: 'thinking_face',
-        channel: channel,
+        channel: message.channel,
         timestamp: message.ts,
       });
     } catch (e) {
@@ -247,22 +267,15 @@ const assistant = new Assistant({
       } catch (reactionError) {
         logger.error('Failed to remove thinking reaction:', reactionError);
       }
-
-      await say({
-        text: `Sorry, something went wrong.\n You may want to forward this error message to an admin: \`\`\`\n${JSON.stringify(e, null, 2)}\n\`\`\``,
-      });
     }
   },
 });
 
+// Register the assistant with the Slack app
 app.assistant(assistant);
 
-/** Start the Bolt App */
+// Start the Slack app
 (async () => {
-  try {
-    await app.start();
-    app.logger.info('⚡️ Bolt app is running!');
-  } catch (error) {
-    app.logger.error('Failed to start the app', error);
-  }
+  await app.start();
+  app.logger.info('⚡️ Bolt app is running!');
 })();

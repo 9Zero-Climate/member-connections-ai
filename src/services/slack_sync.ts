@@ -1,17 +1,52 @@
-const { WebClient } = require('@slack/web-api');
-const { config } = require('dotenv');
-const { generateEmbeddings } = require('./embedding.js');
-const { getDocBySource } = require('./database');
+import { WebClient } from '@slack/web-api';
+import { config } from 'dotenv';
+import { getDocBySource } from './database';
+import { generateEmbeddings } from './embedding';
 
 // config();
 
-let client = null;
+let client: WebClient | null = null;
+
+interface FetchOptions {
+  limit?: number;
+  oldest?: string;
+  latest?: string;
+}
+
+interface SlackMessage {
+  ts: string;
+  text: string;
+  user: string;
+  thread_ts?: string;
+  reply_count?: number;
+  reactions?: Array<{ name: string; count: number }>;
+}
+
+interface FormattedMessage {
+  source_type: string;
+  source_unique_id: string;
+  content: string;
+  metadata: {
+    user: string;
+    channel: string;
+    thread_ts?: string;
+    reply_count?: number;
+    reactions?: Array<{ name: string; count: number }>;
+    permalink?: string;
+  };
+}
+
+interface SlackError extends Error {
+  data?: {
+    error?: string;
+  };
+}
 
 /**
  * Initialize or get the Slack client
  * @returns {WebClient} The Slack client instance
  */
-function getClient() {
+function getClient(): WebClient {
   if (!client) {
     client = new WebClient(process.env.SLACK_BOT_TOKEN);
   }
@@ -22,7 +57,7 @@ function getClient() {
  * Set a test client for testing purposes
  * @param {WebClient} testClient - The test client to use
  */
-function setTestClient(testClient) {
+function setTestClient(testClient: WebClient): void {
   client = testClient;
 }
 
@@ -35,12 +70,12 @@ const slackSync = {
    * @param {string} channelId - The channel ID to join
    * @returns {Promise<void>}
    */
-  async joinChannel(channelId) {
+  async joinChannel(channelId: string): Promise<void> {
     try {
       await getClient().conversations.join({ channel: channelId });
     } catch (error) {
       // Ignore "already_in_channel" errors
-      if (error.data?.error !== 'already_in_channel') {
+      if ((error as SlackError).data?.error !== 'already_in_channel') {
         throw error;
       }
     }
@@ -55,10 +90,10 @@ const slackSync = {
    * @param {string} options.latest - End time in Unix timestamp
    * @returns {Promise<Array>} Array of messages
    */
-  async fetchChannelHistory(channelId, options = {}) {
+  async fetchChannelHistory(channelId: string, options: FetchOptions = {}): Promise<SlackMessage[]> {
     const { limit = 100, oldest, latest } = options;
-    const messages = [];
-    let cursor;
+    const messages: SlackMessage[] = [];
+    let cursor: string | undefined;
 
     // Join the channel first
     await this.joinChannel(channelId);
@@ -72,7 +107,7 @@ const slackSync = {
         latest,
       });
 
-      messages.push(...result.messages);
+      messages.push(...(result.messages as SlackMessage[]));
       cursor = result.response_metadata?.next_cursor;
     } while (cursor && messages.length < limit);
 
@@ -84,10 +119,11 @@ const slackSync = {
    * @param {string} channelName - Channel name (e.g., 'introductions')
    * @returns {Promise<string>} Channel ID
    */
-  async getChannelId(channelName) {
+  async getChannelId(channelName: string): Promise<string> {
     const result = await getClient().conversations.list();
-    const channel = result.channels.find((c) => c.name === channelName);
-    if (!channel) {
+    const channels = result.channels || [];
+    const channel = channels.find((c) => c.name === channelName);
+    if (!channel?.id) {
       throw new Error(`Channel '${channelName}' not found`);
     }
     return channel.id;
@@ -99,7 +135,7 @@ const slackSync = {
    * @param {string} channelId - Channel ID
    * @returns {Object} Formatted message
    */
-  async formatMessage(message, channelId) {
+  async formatMessage(message: SlackMessage, channelId: string): Promise<FormattedMessage> {
     // Get the permalink for the message
     const permalinkResult = await getClient().chat.getPermalink({
       channel: channelId,
@@ -127,7 +163,10 @@ const slackSync = {
    * @param {string} channelId - Channel ID
    * @returns {Promise<Array>} Array of formatted messages with embeddings
    */
-  async processMessageBatch(messages, channelId) {
+  async processMessageBatch(
+    messages: SlackMessage[],
+    channelId: string,
+  ): Promise<(FormattedMessage & { embedding: number[] })[]> {
     const formattedMessages = await Promise.all(messages.map((msg) => this.formatMessage(msg, channelId)));
     const embeddings = await generateEmbeddings(formattedMessages.map((msg) => msg.content));
     return formattedMessages.map((msg, index) => ({
@@ -137,4 +176,5 @@ const slackSync = {
   },
 };
 
-module.exports = { ...slackSync, setTestClient };
+export default { ...slackSync, setTestClient };
+export type { SlackMessage, FormattedMessage, FetchOptions };

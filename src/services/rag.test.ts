@@ -1,6 +1,6 @@
-const { retrieveRelevantDocs, formatDocsForContext } = require('./rag');
-const { generateEmbedding } = require('./embedding');
-const { findSimilar } = require('./database');
+import { findSimilar } from './database';
+import { generateEmbedding } from './embedding';
+import { formatDocsForContext, retrieveRelevantDocs } from './rag';
 
 // Mock dependencies
 jest.mock('./embedding');
@@ -20,8 +20,8 @@ describe('rag', () => {
         { content: 'doc2', metadata: { user: 'user2' } },
       ];
 
-      generateEmbedding.mockResolvedValue(mockEmbedding);
-      findSimilar.mockResolvedValue(mockDocs);
+      (generateEmbedding as jest.Mock).mockResolvedValue(mockEmbedding);
+      (findSimilar as jest.Mock).mockResolvedValue(mockDocs);
 
       const result = await retrieveRelevantDocs(mockQuery, { limit: 2 });
 
@@ -32,7 +32,7 @@ describe('rag', () => {
 
     it('should handle errors gracefully', async () => {
       const mockError = new Error('Test error');
-      generateEmbedding.mockRejectedValue(mockError);
+      (generateEmbedding as jest.Mock).mockRejectedValue(mockError);
 
       await expect(retrieveRelevantDocs('test')).rejects.toThrow(mockError);
     });

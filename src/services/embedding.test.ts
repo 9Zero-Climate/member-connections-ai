@@ -2,19 +2,19 @@
 jest.mock('./embedding', () => {
   const mockCreate = jest.fn();
   return {
-    generateEmbedding: async (text) => {
+    generateEmbedding: async (text: string) => {
       const response = await mockCreate({
         model: 'text-embedding-3-small',
         input: text,
       });
       return response.data[0].embedding;
     },
-    generateEmbeddings: async (texts) => {
+    generateEmbeddings: async (texts: string[]) => {
       const response = await mockCreate({
         model: 'text-embedding-3-small',
         input: texts,
       });
-      return response.data.map((item) => item.embedding);
+      return response.data.map((item: { embedding: number[] }) => item.embedding);
     },
     client: {
       embeddings: {
@@ -24,14 +24,14 @@ jest.mock('./embedding', () => {
   };
 });
 
-const { generateEmbedding, generateEmbeddings, client } = require('./embedding');
+import { client, generateEmbedding, generateEmbeddings } from './embedding';
 
 describe('embedding', () => {
-  let mockEmbeddingsCreate;
+  let mockEmbeddingsCreate: jest.Mock;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    mockEmbeddingsCreate = client.embeddings.create;
+    mockEmbeddingsCreate = client.embeddings.create as jest.Mock;
   });
 
   describe('generateEmbedding', () => {

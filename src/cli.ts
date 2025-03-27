@@ -1,7 +1,14 @@
-const { Command } = require('commander');
-const slackSync = require('./services/slack_sync');
-const { insertDoc, getAllDocs, updateDoc, getDocBySource } = require('./services/database');
-const { generateEmbeddings } = require('./services/embedding');
+import { Command } from 'commander';
+import { getDocBySource, insertDoc, updateDoc } from './services/database';
+import slackSync from './services/slack_sync';
+import type { SlackMessage } from './services/slack_sync';
+
+interface SyncOptions {
+  limit: string;
+  oldest?: string;
+  newest?: string;
+  batchSize: string;
+}
 
 const program = new Command();
 
@@ -15,7 +22,7 @@ program
   .option('-o, --oldest <timestamp>', 'Start time in Unix timestamp')
   .option('-n, --newest <timestamp>', 'End time in Unix timestamp')
   .option('-b, --batch-size <number>', 'Number of messages to process in each batch', '10')
-  .action(async (channelName, options) => {
+  .action(async (channelName: string, options: SyncOptions) => {
     try {
       console.log(`Syncing channel: ${channelName}`);
 
@@ -33,7 +40,7 @@ program
 
       // Process messages in batches
       const batchSize = Number.parseInt(options.batchSize);
-      const batches = [];
+      const batches: SlackMessage[][] = [];
       for (let i = 0; i < messages.length; i += batchSize) {
         batches.push(messages.slice(i, i + batchSize));
       }

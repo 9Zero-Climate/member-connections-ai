@@ -1,22 +1,37 @@
-const { OpenAI } = require('openai');
-const { config } = require('dotenv');
+import { config } from 'dotenv';
+import { OpenAI } from 'openai';
 
 config();
+
+interface OpenAIError extends Error {
+  status?: number;
+  type?: string;
+  code?: string;
+  response?: {
+    data?: unknown;
+  };
+}
 
 // Internal OpenAI client instance - use a no-op client in test env
 const client =
   process.env.NODE_ENV === 'test'
-    ? { embeddings: { create: () => ({ data: [{ embedding: [] }] }) } }
+    ? {
+        embeddings: {
+          create: async () => ({
+            data: [{ embedding: new Array(1536).fill(0) }] as const,
+          }),
+        },
+      }
     : new OpenAI({
         apiKey: process.env.OPENAI_API_KEY,
       });
 
 /**
  * Generate embeddings for a text using OpenAI's API
- * @param {string} text - The text to generate embeddings for
- * @returns {Promise<number[]>} The embedding vector
+ * @param text - The text to generate embeddings for
+ * @returns The embedding vector
  */
-async function generateEmbedding(text) {
+async function generateEmbedding(text: string): Promise<number[]> {
   try {
     if (!text || typeof text !== 'string') {
       throw new Error('Invalid text input for embedding generation');
@@ -31,11 +46,11 @@ async function generateEmbedding(text) {
     return response.data[0].embedding;
   } catch (error) {
     console.error('Error generating embedding:', {
-      message: error.message,
-      status: error.status,
-      type: error.type,
-      code: error.code,
-      response: error.response?.data,
+      message: error instanceof Error ? error.message : 'Unknown error',
+      status: (error as OpenAIError).status,
+      type: (error as OpenAIError).type,
+      code: (error as OpenAIError).code,
+      response: (error as OpenAIError).response?.data,
     });
     throw error;
   }
@@ -43,10 +58,10 @@ async function generateEmbedding(text) {
 
 /**
  * Generate embeddings for a batch of texts
- * @param {string[]} texts - Array of texts to generate embeddings for
- * @returns {Promise<number[][]>} Array of embedding vectors
+ * @param texts - Array of texts to generate embeddings for
+ * @returns Array of embedding vectors
  */
-async function generateEmbeddings(texts) {
+async function generateEmbeddings(texts: string[]): Promise<number[][]> {
   try {
     // Filter out invalid texts
     const validTexts = texts.filter((text) => text && typeof text === 'string');
@@ -80,18 +95,14 @@ async function generateEmbeddings(texts) {
     return allEmbeddings;
   } catch (error) {
     console.error('Error generating embeddings:', {
-      message: error.message,
-      status: error.status,
-      type: error.type,
-      code: error.code,
-      response: error.response?.data,
+      message: error instanceof Error ? error.message : 'Unknown error',
+      status: (error as OpenAIError).status,
+      type: (error as OpenAIError).type,
+      code: (error as OpenAIError).code,
+      response: (error as OpenAIError).response?.data,
     });
     throw error;
   }
 }
 
-module.exports = {
-  generateEmbedding,
-  generateEmbeddings,
-  client,
-};
+export { generateEmbedding, generateEmbeddings, client };

@@ -1,5 +1,5 @@
-const { Client } = require('pg');
-const { config } = require('dotenv');
+import { config } from 'dotenv';
+import { Client } from 'pg';
 
 // Load environment variables
 config();
@@ -7,16 +7,44 @@ config();
 // Debug logging
 console.log('Database URL:', process.env.DB_URL ? 'Present' : 'Missing');
 
-let client;
+interface Document {
+  source_type: string;
+  source_unique_id: string;
+  content: string;
+  embedding: number[] | null;
+  metadata?: Record<string, unknown>;
+  created_at?: Date;
+  updated_at?: Date;
+}
 
-function getClient() {
+interface DocumentUpdate {
+  content?: string;
+  embedding?: number[];
+  metadata?: Record<string, unknown>;
+}
+
+export interface SearchOptions {
+  limit?: number;
+}
+
+export interface TestClient {
+  query: jest.Mock;
+  connect: jest.Mock;
+  end: jest.Mock;
+}
+
+type QueryParams = (string | number | Record<string, unknown> | null)[];
+
+let client: Client | TestClient;
+
+function getClient(): Client | TestClient {
   if (client) return client;
 
   if (process.env.NODE_ENV === 'test') {
     client = {
-      query: jest.fn().mockResolvedValue({ rows: [] }),
-      connect: jest.fn().mockResolvedValue(),
-      end: jest.fn().mockResolvedValue(),
+      query: jest.fn().mockImplementation((query: string, params?: QueryParams) => Promise.resolve({ rows: [] })),
+      connect: jest.fn().mockImplementation(() => Promise.resolve()),
+      end: jest.fn().mockImplementation(() => Promise.resolve()),
     };
   } else {
     client = new Client({
@@ -36,21 +64,22 @@ client = getClient();
 
 /**
  * Parse a stored embedding from the database
- * @param {string|null} storedEmbedding - The stored embedding string
- * @returns {number[]|null} Parsed embedding vector or null
+ * @param storedEmbedding - The stored embedding string or array
+ * @returns Parsed embedding vector or null
  */
-function parseStoredEmbedding(storedEmbedding) {
+function parseStoredEmbedding(storedEmbedding: string | number[] | null): number[] | null {
   if (!storedEmbedding) return null;
+  if (Array.isArray(storedEmbedding)) return storedEmbedding;
   // Remove the [ and ] and split by comma
   return storedEmbedding.slice(1, -1).split(',').map(Number);
 }
 
 /**
  * Format an embedding for database storage
- * @param {number[]|string|null} embedding - The embedding vector or JSON string
- * @returns {string|null} PostgreSQL vector format string
+ * @param embedding - The embedding vector or JSON string
+ * @returns PostgreSQL vector format string
  */
-function formatForStorage(embedding) {
+function formatForStorage(embedding: number[] | string | null): string | null {
   if (!embedding) return null;
   if (Array.isArray(embedding)) {
     // PostgreSQL vector format: [1,2,3]
@@ -65,10 +94,10 @@ function formatForStorage(embedding) {
 
 /**
  * Format an embedding for vector similarity comparison
- * @param {number[]|string|null} embedding - The embedding vector or JSON string
- * @returns {string|null} PostgreSQL vector format string
+ * @param embedding - The embedding vector or JSON string
+ * @returns PostgreSQL vector format string
  */
-function formatForComparison(embedding) {
+function formatForComparison(embedding: number[] | string | null): string | null {
   if (!embedding) return null;
   if (Array.isArray(embedding)) {
     // PostgreSQL vector format: [1,2,3]
@@ -83,10 +112,10 @@ function formatForComparison(embedding) {
 
 /**
  * Insert a document into the database
- * @param {Object} doc - The document to insert
- * @returns {Promise<Object>} The inserted document
+ * @param doc - The document to insert
+ * @returns The inserted document
  */
-async function insertDoc(doc) {
+async function insertDoc(doc: Document): Promise<Document> {
   try {
     const embeddingVector = formatForStorage(doc.embedding);
     const result = await client.query(
@@ -102,17 +131,17 @@ async function insertDoc(doc) {
 
 /**
  * Get a document by its source unique ID
- * @param {string} sourceUniqueId - The unique ID of the document
- * @returns {Promise<Object|null>} The document or null if not found
+ * @param sourceUniqueId - The unique ID of the document
+ * @returns The document or null if not found
  */
-async function getDocBySource(sourceUniqueId) {
+async function getDocBySource(sourceUniqueId: string): Promise<Document | null> {
   try {
     const result = await client.query('SELECT * FROM rag_docs WHERE source_unique_id = $1', [sourceUniqueId]);
     if (!result.rows[0]) return null;
 
     // Convert stored vector format back to array
     const doc = result.rows[0];
-    doc.embedding = parseStoredEmbedding(doc.embedding);
+    doc.embedding = parseStoredEmbedding(doc.embedding as string | null);
     return doc;
   } catch (error) {
     console.error('Error getting document:', error);
@@ -122,13 +151,13 @@ async function getDocBySource(sourceUniqueId) {
 
 /**
  * Update a document's content and embedding
- * @param {string} sourceUniqueId - The unique ID of the document
- * @param {Object} updates - The updates to apply
- * @returns {Promise<Object>} The updated document
+ * @param sourceUniqueId - The unique ID of the document
+ * @param updates - The updates to apply
+ * @returns The updated document
  */
-async function updateDoc(sourceUniqueId, updates) {
+async function updateDoc(sourceUniqueId: string, updates: DocumentUpdate): Promise<Document> {
   try {
-    const embeddingVector = formatForStorage(updates.embedding);
+    const embeddingVector = formatForStorage(updates.embedding || null);
     const result = await client.query(
       'UPDATE rag_docs SET content = $1, embedding = $2, metadata = $3 WHERE source_unique_id = $4 RETURNING *',
       [updates.content, embeddingVector, updates.metadata, sourceUniqueId],
@@ -142,10 +171,10 @@ async function updateDoc(sourceUniqueId, updates) {
 
 /**
  * Delete a document
- * @param {string} sourceUniqueId - The unique ID of the document
- * @returns {Promise<boolean>} True if deleted, false if not found
+ * @param sourceUniqueId - The unique ID of the document
+ * @returns True if deleted, false if not found
  */
-async function deleteDoc(sourceUniqueId) {
+async function deleteDoc(sourceUniqueId: string): Promise<boolean> {
   try {
     const result = await client.query('DELETE FROM rag_docs WHERE source_unique_id = $1 RETURNING *', [sourceUniqueId]);
     return result.rows.length > 0;
@@ -157,12 +186,11 @@ async function deleteDoc(sourceUniqueId) {
 
 /**
  * Find similar documents using vector similarity
- * @param {number[]} embedding - The embedding vector to compare against
- * @param {Object} options - Search options
- * @param {number} options.limit - Maximum number of results to return
- * @returns {Promise<Object[]>} Similar documents with similarity scores
+ * @param embedding - The embedding vector to compare against
+ * @param options - Search options
+ * @returns Similar documents with similarity scores
  */
-async function findSimilar(embedding, options = {}) {
+async function findSimilar(embedding: number[], options: SearchOptions = {}): Promise<Document[]> {
   try {
     const embeddingVector = formatForComparison(embedding);
     const limit = options.limit || 5;
@@ -184,9 +212,9 @@ async function findSimilar(embedding, options = {}) {
     );
 
     // Convert stored vector format back to array for each result
-    return result.rows.map((doc) => ({
+    return result.rows.map((doc: Document) => ({
       ...doc,
-      embedding: parseStoredEmbedding(doc.embedding),
+      embedding: parseStoredEmbedding(doc.embedding as string | null),
     }));
   } catch (error) {
     console.error('Error finding similar documents:', error);
@@ -197,7 +225,7 @@ async function findSimilar(embedding, options = {}) {
 /**
  * Close the database connection
  */
-async function close() {
+async function close(): Promise<void> {
   try {
     await client.end();
   } catch (error) {
@@ -207,11 +235,11 @@ async function close() {
 }
 
 // For testing
-function setTestClient(testClient) {
+function setTestClient(testClient: TestClient): void {
   client = testClient;
 }
 
-module.exports = {
+export {
   insertDoc,
   getDocBySource,
   updateDoc,
