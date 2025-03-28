@@ -36,8 +36,10 @@ expressApp.listen(PORT, () => {
 
 /** OpenRouter Setup */
 const openai = new OpenAI({
-  apiKey: process.env.OPENROUTER_API_KEY,
-  baseURL: 'https://openrouter.ai/api/v1',
+  apiKey: process.env.OPENAI_API_KEY,
+  // TODO #20: Uncomment this when we have a paid OpenRouter account
+  // apiKey: process.env.OPENROUTER_API_KEY,
+  // baseURL: 'https://openrouter.ai/api/v1',
   defaultHeaders: {
     'HTTP-Referer': process.env.APP_URL || 'https://github.com/9Zero-Climate/member-connections-ai',
     'X-Title': 'Member Connections AI',
@@ -215,7 +217,9 @@ const assistant = new Assistant({
 
       // Stream the response from OpenRouter
       const stream = await openai.chat.completions.create({
-        model: 'google/gemini-2.0-flash-001',
+        // TODO #20: Uncomment this when we have a paid OpenRouter account
+        // model: 'google/gemini-2.0-flash-001',
+        model: 'gpt-4o-mini',
         messages,
         stream: true,
         max_tokens: MAX_MESSAGE_LENGTH / 4,
