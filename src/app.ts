@@ -60,6 +60,7 @@ When formatting your responses:
 
 2. When mentioning members:
    - Always use the <@USER_ID> format for member mentions when you have Slack IDs. When you do this, never mention the member's name explicitly alongside the <@USER_ID> since Slack will automatically show a tile with the member's name.
+   - Never URLencode or escape the <@USER_ID> format. Use literal < and > characters.
 
 3. When referencing messages:
    - Always include the permalink URL from the message metadata to create clickable links
@@ -88,7 +89,6 @@ const updateMessage = async ({ client, message, text }: UpdateMessageParams): Pr
     channel: message.channel,
     ts: message.ts,
     text: text,
-    parse: 'full',
   });
 };
 
