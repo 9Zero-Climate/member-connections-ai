@@ -42,7 +42,7 @@ jobs:
         run: |
           CHANNEL="${{ github.event.inputs.channel }}"
           echo "Syncing channel: $CHANNEL"
-          pnpm sync sync-channel "$CHANNEL"
+          pnpm sync "$CHANNEL"
 
       - name: Sync configured channels (scheduled or manual default)
         if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.event.inputs.channel == '')
@@ -53,5 +53,5 @@ jobs:
         run: |
           echo "Running sync for all configured channels"
           # Add more channels as needed
-          pnpm sync sync-channel introductions
-          pnpm sync sync-channel general
+          pnpm sync introductions
+          pnpm sync general
