@@ -45,10 +45,8 @@ expressApp.listen(PORT, () => {
 
 /** OpenRouter Setup */
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-  // TODO #20: Uncomment this when we have a paid OpenRouter account
-  // apiKey: process.env.OPENROUTER_API_KEY,
-  // baseURL: 'https://openrouter.ai/api/v1',
+  apiKey: process.env.OPENROUTER_API_KEY,
+  baseURL: 'https://openrouter.ai/api/v1',
   defaultHeaders: {
     'HTTP-Referer': process.env.APP_URL || 'https://github.com/9Zero-Climate/member-connections-ai',
     'X-Title': 'Member Connections AI',
@@ -112,7 +110,6 @@ const updateMessage = async ({ client, message, text }: UpdateMessageParams): Pr
     channel: message.channel,
     ts: message.ts,
     text: messageText,
-    parse: 'full',
   });
 };
 
@@ -237,7 +234,7 @@ const assistant = new Assistant({
 
         // Get response from OpenRouter with tool calling enabled
         const streamFromLlm = await openai.chat.completions.create({
-          model: 'gpt-4o-mini',
+          model: 'google/gemini-2.0-flash-001',
           messages: llmThread,
           tools: tools as ChatCompletionTool[],
           tool_choice: remainingLlmLoopsAllowed > 0 ? 'auto' : 'none',
