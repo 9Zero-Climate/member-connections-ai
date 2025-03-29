@@ -7,7 +7,7 @@ config();
 // Debug logging
 console.log('Database URL:', process.env.DB_URL ? 'Present' : 'Missing');
 
-interface Document {
+export interface Document {
   source_type: string;
   source_unique_id: string;
   content: string;

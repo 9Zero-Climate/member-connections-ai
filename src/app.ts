@@ -4,7 +4,16 @@ import { config } from 'dotenv';
 import express from 'express';
 import type { Express } from 'express';
 import { OpenAI } from 'openai';
-import { formatDocsForContext, retrieveRelevantDocs } from './services/rag';
+import type {
+  ChatCompletionAssistantMessageParam,
+  ChatCompletionChunk,
+  ChatCompletionMessage,
+  ChatCompletionSystemMessageParam,
+  ChatCompletionTool,
+  ChatCompletionToolMessageParam,
+  ChatCompletionUserMessageParam,
+} from 'openai/resources/chat';
+import { objectToXml, toolImplementations, tools } from './services/tools';
 
 config();
 
@@ -50,6 +59,14 @@ const DEFAULT_SYSTEM_CONTENT = `You're an assistant in the Slack workspace for 9
 Users in the workspace will ask you to connect them with other members.
 You'll respond to those questions in a professional way.
 
+You have access to a search tool that can find relevant messages based on semantic similarity.
+When a user asks a question, you should:
+
+1. Analyze their question to determine what information they need
+2. Use the search tool to find relevant messages, applying appropriate filters if needed
+3. Format the results in a clear and helpful way
+4. If needed, ask follow-up questions to clarify their needs
+
 When formatting your responses:
 1. Use Slack's markdown syntax:
    - Use *text* for bold
@@ -66,7 +83,7 @@ When formatting your responses:
 
 3. When referencing messages:
    - Always include the permalink URL from the message metadata to create clickable links
-   - Format links as <URL|text> where URL is the permalink and text is a brief description
+   - Format links as <URL|text> where URL is the permalink and text is a brief description. Do not escape the brackets.
    - Example: <@USER_ID> mentioned <https://slack.com/archives/C1234567890/p1234567890123456|here> that[...]
 
 You have access to relevant context from previous conversations and messages in the workspace - only information that is available to all 9Zero Climate members.
@@ -75,6 +92,7 @@ If the context doesn't contain relevant information, say so and provide general 
 
 // Slack has a limit of 4000 characters per message
 const MAX_MESSAGE_LENGTH = 3900;
+const MAX_TOOL_CALL_ITERATIONS = 3;
 
 interface UpdateMessageParams {
   client: WebClient;
@@ -87,10 +105,14 @@ const updateMessage = async ({ client, message, text }: UpdateMessageParams): Pr
     throw new Error(`Failed to get channel or timestamp from response message: ${JSON.stringify(message)}`);
   }
 
+  // Ensure we always have some text content
+  const messageText = text || '_thinking..._';
+
   await client.chat.update({
     channel: message.channel,
     ts: message.ts,
-    text: text,
+    text: messageText,
+    parse: 'full',
   });
 };
 
@@ -99,10 +121,11 @@ interface AssistantPrompt {
   message: string;
 }
 
-interface ChatMessage {
-  role: 'system' | 'user' | 'assistant';
-  content: string;
-}
+type ChatMessage =
+  | ChatCompletionSystemMessageParam
+  | ChatCompletionUserMessageParam
+  | ChatCompletionAssistantMessageParam
+  | ChatCompletionToolMessageParam;
 
 interface SlackMessage {
   channel: string;
@@ -110,6 +133,15 @@ interface SlackMessage {
   text: string;
   ts: string;
   bot_id?: string;
+}
+
+interface ToolCall {
+  id: string;
+  type: 'function';
+  function: {
+    name: string;
+    arguments: string;
+  };
 }
 
 const assistant = new Assistant({
@@ -152,127 +184,167 @@ const assistant = new Assistant({
     }
   },
 
-  userMessage: async ({ message, logger, say, setTitle, setStatus, client }) => {
-    const { channel, thread_ts, text, ts } = message as SlackMessage;
-    let currentText = '';
-    let responseMessage: ChatPostMessageResponse;
+  userMessage: async ({ message: slackMessage, logger, say, setTitle, client }) => {
+    const { channel: slackChannel, thread_ts, text, ts: userSlackMessageTs } = slackMessage as SlackMessage;
+    let currentResponseText = '';
+    let mainSlackResponseMessage: ChatPostMessageResponse;
 
     let lastUpdateTime = Date.now();
     const UPDATE_INTERVAL = 500; // 0.5 seconds
 
-    try {
-      await setTitle(text);
-      await setStatus('is typing..');
+    await setTitle(text);
 
-      // Add thinking reaction to the original message
-      await client.reactions.add({
-        name: 'thinking_face',
-        channel: channel,
-        timestamp: ts,
-      });
-
-      responseMessage = await say({
-        text: '_thinking..._',
-        parse: 'full',
-      });
-    } catch (e) {
-      logger.error(e);
-      throw new Error('Failed to set up response message');
-    }
+    // Add thinking reaction to the original message
+    await client.reactions.add({
+      name: 'thinking_face',
+      channel: slackChannel,
+      timestamp: userSlackMessageTs,
+    });
 
     try {
-      // Retrieve the Assistant thread history for context of question being asked
-      const thread = thread_ts
+      const slackThread = thread_ts
         ? await client.conversations.replies({
-            channel,
+            channel: slackChannel,
             ts: thread_ts,
             oldest: thread_ts,
           })
         : { messages: [] };
 
-      // Get relevant documents using RAG
-      const relevantDocs = await retrieveRelevantDocs(text, { limit: 30 });
-      const contextFromDocs = formatDocsForContext(relevantDocs);
-      logger.debug(`Context from docs: ${contextFromDocs}`);
-
-      // Prepare and tag each message for LLM processing
-      const userMessage: ChatMessage = { role: 'user', content: text };
-      const threadHistory = (thread.messages || []).map((m) => {
+      // Prepare messages for the LLM
+      const userMessage: ChatCompletionUserMessageParam = { role: 'user', content: text };
+      const threadHistory = (slackThread.messages || []).map((m) => {
         const role = m.bot_id ? 'assistant' : 'user';
         return { role, content: m.text } as ChatMessage;
       });
 
-      const messages: ChatMessage[] = [
+      const llmThread: ChatMessage[] = [
         { role: 'system', content: DEFAULT_SYSTEM_CONTENT },
-        {
-          role: 'system',
-          content:
-            'Here is some relevant context from previous conversations. Each message includes metadata about the user who wrote it and the channel it was posted in. Use this information to mention users with their Slack IDs when appropriate:',
-        },
-        { role: 'user', content: contextFromDocs },
         { role: 'system', content: 'Here is the conversation history:' },
         ...threadHistory,
         userMessage,
       ];
 
-      // Stream the response from OpenRouter
-      const stream = await openai.chat.completions.create({
-        // TODO #20: Uncomment this when we have a paid OpenRouter account
-        // model: 'google/gemini-2.0-flash-001',
-        model: 'gpt-4o-mini',
-        messages,
-        stream: true,
-        max_tokens: MAX_MESSAGE_LENGTH / 4,
-      });
+      // Tool calling loop
+      // We don't want to let the LLM loop indefinitely, so we limit the number of tool calls
+      let remainingLlmLoopsAllowed = MAX_TOOL_CALL_ITERATIONS;
+      while (remainingLlmLoopsAllowed > 0) {
+        mainSlackResponseMessage = await say({
+          text: '_thinking..._',
+          parse: 'full',
+        });
+        currentResponseText = '';
+        remainingLlmLoopsAllowed--;
 
-      for await (const chunk of stream) {
-        const content = chunk.choices[0]?.delta?.content || '';
-        if (content) {
-          currentText += content;
+        // Get response from OpenRouter with tool calling enabled
+        const streamFromLlm = await openai.chat.completions.create({
+          model: 'gpt-4o-mini',
+          messages: llmThread,
+          tools: tools as ChatCompletionTool[],
+          tool_choice: remainingLlmLoopsAllowed > 0 ? 'auto' : 'none',
+          stream: true,
+          max_tokens: MAX_MESSAGE_LENGTH / 4,
+        });
 
-          // Rather than updating the message on every received chunk, throttle it to an interval
-          // to avoid upsetting the Slack API.
-          const now = Date.now();
-          if (now - lastUpdateTime >= UPDATE_INTERVAL) {
-            await updateMessage({
-              client,
-              message: responseMessage,
-              text: currentText,
-            });
-            lastUpdateTime = now;
+        // Process the stream
+        const toolCalls: ToolCall[] = [];
+        for await (const chunk of streamFromLlm) {
+          const delta = chunk.choices[0]?.delta;
+          if (!delta) continue;
+
+          // Handle content streaming: immediately update the chat message
+          if (delta.content) {
+            currentResponseText += delta.content;
+
+            // Update periodically to avoid rate limiting
+            if (Date.now() - lastUpdateTime > UPDATE_INTERVAL) {
+              await updateMessage({
+                client,
+                message: mainSlackResponseMessage,
+                text: currentResponseText,
+              });
+              lastUpdateTime = Date.now();
+            }
+          }
+
+          // Handle tool calls: buffer them until we have the complete set
+          if (delta.tool_calls) {
+            for (const toolCall of delta.tool_calls) {
+              if (toolCall.index === undefined) continue;
+
+              // Initialize or update tool call
+              if (!toolCalls[toolCall.index]) {
+                toolCalls[toolCall.index] = {
+                  id: toolCall.id || '',
+                  type: 'function',
+                  function: {
+                    name: toolCall.function?.name || '',
+                    arguments: toolCall.function?.arguments || '',
+                  },
+                };
+              } else {
+                // Update existing tool call
+                if (toolCall.function?.name) {
+                  toolCalls[toolCall.index].function.name = toolCall.function.name;
+                }
+                if (toolCall.function?.arguments) {
+                  toolCalls[toolCall.index].function.arguments += toolCall.function.arguments;
+                }
+              }
+            }
+          }
+
+          if (chunk.choices[0]?.finish_reason === 'stop') {
+            remainingLlmLoopsAllowed = 0;
           }
         }
+        // Update message with final chunk
+        await updateMessage({
+          client,
+          message: mainSlackResponseMessage,
+          text: currentResponseText,
+        });
+
+        // LLM stream is done, we have the complete message
+        // If we have tool calls, execute them
+        if (toolCalls.length > 0) {
+          mainSlackResponseMessage = await say({
+            text: '_collecting data..._',
+            parse: 'full',
+          });
+
+          llmThread.push({
+            role: 'assistant',
+            tool_calls: toolCalls,
+          });
+          for (const toolCall of toolCalls) {
+            const toolName = toolCall.function.name;
+            const toolArgs = JSON.parse(toolCall.function.arguments);
+            const toolCallResult = await toolImplementations[toolName as keyof typeof toolImplementations](toolArgs);
+            llmThread.push({
+              role: 'tool',
+              tool_call_id: toolCall.id,
+              content: objectToXml(toolCallResult),
+            });
+          }
+        }
+        llmThread.push({
+          role: 'assistant',
+          content: currentResponseText,
+        });
       }
-
-      // Final update to ensure we have the complete message
-      await updateMessage({
-        client,
-        message: responseMessage,
-        text: currentText,
-      });
-
-      // Remove thinking reaction
-      await client.reactions.remove({
-        name: 'thinking_face',
-        channel: message.channel,
-        timestamp: message.ts,
-      });
     } catch (e) {
       logger.error(e);
 
-      // Make sure to remove the thinking reaction even if there's an error
-      try {
-        await client.reactions.remove({
-          name: 'thinking_face',
-          channel: message.channel,
-          timestamp: message.ts,
-        });
-        await say({
-          text: `Sorry, something went wrong.\n You may want to forward this error message to an admin: \`\`\`\n${JSON.stringify(e, null, 2)}\n\`\`\``,
-        });
-      } catch (reactionError) {
-        logger.error('Failed to remove thinking reaction:', reactionError);
-      }
+      await say({
+        text: `Sorry, something went wrong.\n You may want to forward this error message to an admin:
+              \`\`\`\n${JSON.stringify(e, null, 2)}\n\`\`\``,
+      });
+    } finally {
+      await client.reactions.remove({
+        name: 'thinking_face',
+        channel: slackChannel,
+        timestamp: userSlackMessageTs,
+      });
     }
   },
 });
