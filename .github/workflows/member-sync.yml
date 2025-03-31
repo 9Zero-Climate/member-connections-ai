@@ -1,0 +1,36 @@
+name: Member Sync
+
+on:
+  schedule:
+    # Run at midnight Pacific time (UTC-7/8)
+    - cron: '0 7 * * *'
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8.15.4
+          run_install: false # Wait for node setup before running install
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Sync members
+        env:
+          DB_URL: ${{ secrets.DB_URL }}
+          OFFICERND_CLIENT_ID: ${{ secrets.OFFICERND_CLIENT_ID }}
+          OFFICERND_CLIENT_SECRET: ${{ secrets.OFFICERND_CLIENT_SECRET }}
+          OFFICERND_ORG_SLUG: ${{ secrets.OFFICERND_ORG_SLUG }}
+        run: pnpm ts-node src/scripts/sync-members.ts 

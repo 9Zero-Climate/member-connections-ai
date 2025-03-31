@@ -4,9 +4,6 @@ import { Client } from 'pg';
 // Load environment variables
 config();
 
-// Debug logging
-console.log('Database URL:', process.env.DB_URL ? 'Present' : 'Missing');
-
 export interface Document {
   source_type: string;
   source_unique_id: string;
@@ -31,6 +28,15 @@ export interface TestClient {
   query: jest.Mock;
   connect: jest.Mock;
   end: jest.Mock;
+}
+
+export interface Member {
+  officernd_id: string;
+  name: string;
+  slack_id: string | null;
+  linkedin_url: string | null;
+  created_at?: Date;
+  updated_at?: Date;
 }
 
 type QueryParams = (string | number | Record<string, unknown> | null)[];
@@ -239,12 +245,37 @@ function setTestClient(testClient: TestClient): void {
   client = testClient;
 }
 
-export {
-  insertDoc,
-  getDocBySource,
-  updateDoc,
-  deleteDoc,
-  findSimilar,
-  close,
-  setTestClient, // Export for testing
-};
+/**
+ * Bulk insert or update members
+ * @param members - Array of members to insert/update
+ * @returns The inserted/updated members
+ */
+async function bulkUpsertMembers(members: Member[]): Promise<Member[]> {
+  if (members.length === 0) return [];
+
+  try {
+    const result = await client.query(
+      `INSERT INTO members (officernd_id, name, slack_id, linkedin_url)
+       SELECT unnest($1::text[]), unnest($2::text[]), unnest($3::text[]), unnest($4::text[])
+       ON CONFLICT (officernd_id) 
+       DO UPDATE SET 
+         name = EXCLUDED.name,
+         slack_id = EXCLUDED.slack_id,
+         linkedin_url = EXCLUDED.linkedin_url,
+         updated_at = CURRENT_TIMESTAMP
+       RETURNING *`,
+      [
+        members.map((m) => m.officernd_id),
+        members.map((m) => m.name),
+        members.map((m) => m.slack_id),
+        members.map((m) => m.linkedin_url),
+      ],
+    );
+    return result.rows;
+  } catch (error) {
+    console.error('Error bulk upserting members:', error);
+    throw error;
+  }
+}
+
+export { insertDoc, getDocBySource, updateDoc, deleteDoc, findSimilar, close, setTestClient, bulkUpsertMembers };
