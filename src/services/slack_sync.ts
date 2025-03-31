@@ -29,6 +29,7 @@ interface FormattedMessage {
   metadata: {
     user: string;
     channel: string;
+    channel_name?: string;
     thread_ts?: string;
     reply_count?: number;
     reactions?: Array<{ name: string; count: number }>;
@@ -130,6 +131,19 @@ const slackSync = {
   },
 
   /**
+   * Get channel name from channel ID
+   * @param {string} channelId - Channel ID
+   * @returns {Promise<string>} Channel name
+   */
+  async getChannelName(channelId: string): Promise<string> {
+    const result = await getClient().conversations.info({ channel: channelId });
+    if (!result.channel?.name) {
+      throw new Error(`Channel name not found for ID '${channelId}'`);
+    }
+    return result.channel.name;
+  },
+
+  /**
    * Format message for database storage
    * @param {Object} message - Slack message object
    * @param {string} channelId - Channel ID
@@ -137,10 +151,13 @@ const slackSync = {
    */
   async formatMessage(message: SlackMessage, channelId: string): Promise<FormattedMessage> {
     // Get the permalink for the message
-    const permalinkResult = await getClient().chat.getPermalink({
-      channel: channelId,
-      message_ts: message.ts,
-    });
+    const [permalinkResult, channelName] = await Promise.all([
+      getClient().chat.getPermalink({
+        channel: channelId,
+        message_ts: message.ts,
+      }),
+      this.getChannelName(channelId),
+    ]);
 
     return {
       source_type: 'slack',
@@ -149,6 +166,7 @@ const slackSync = {
       metadata: {
         user: message.user,
         channel: channelId,
+        channel_name: channelName,
         thread_ts: message.thread_ts,
         reply_count: message.reply_count,
         reactions: message.reactions,
