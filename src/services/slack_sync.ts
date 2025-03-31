@@ -34,6 +34,7 @@ interface FormattedMessage {
     reply_count?: number;
     reactions?: Array<{ name: string; count: number }>;
     permalink?: string;
+    datetime?: string;
   };
 }
 
@@ -144,6 +145,17 @@ const slackSync = {
   },
 
   /**
+   * Convert Slack timestamp to ISO string
+   * @param {string} ts - Slack timestamp (Unix timestamp with microseconds)
+   * @returns {string} ISO string
+   */
+  tsToISOString(ts: string): string {
+    // Convert microseconds to milliseconds
+    const milliseconds = Number.parseFloat(ts) * 1000;
+    return new Date(milliseconds).toISOString();
+  },
+
+  /**
    * Format message for database storage
    * @param {Object} message - Slack message object
    * @param {string} channelId - Channel ID
@@ -171,6 +183,7 @@ const slackSync = {
         reply_count: message.reply_count,
         reactions: message.reactions,
         permalink: permalinkResult.permalink,
+        datetime: this.tsToISOString(message.ts),
       },
     };
   },
