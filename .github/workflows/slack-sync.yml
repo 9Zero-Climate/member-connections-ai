@@ -33,19 +33,7 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
-      - name: Sync specified channel (manual trigger)
-        if: github.event_name == 'workflow_dispatch' && github.event.inputs.channel != ''
-        env:
-          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
-          DB_URL: ${{ secrets.DB_URL }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        run: |
-          CHANNEL="${{ github.event.inputs.channel }}"
-          echo "Syncing channel: $CHANNEL"
-          pnpm sync "$CHANNEL"
-
-      - name: Sync configured channels (scheduled or manual default)
-        if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && github.event.inputs.channel == '')
+      - name: Sync configured channels
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
           DB_URL: ${{ secrets.DB_URL }}
