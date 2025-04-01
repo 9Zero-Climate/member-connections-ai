@@ -23,7 +23,7 @@ async function syncMembers() {
     const membersWithLinkedIn = members.filter(
       (member): member is typeof member & { linkedin_url: string } => member.linkedin_url !== null,
     );
-    console.log(`Found ${membersWithLinkedIn.length} members with LinkedIn profiles`);
+    console.log(`Found ${membersWithLinkedIn.length} members with LinkedIn profiles. Prioritizing updates...`);
 
     // Get last update times for all members
     const membersWithLastUpdate = await Promise.all(
@@ -43,7 +43,7 @@ async function syncMembers() {
 
     // Get members that need updates, limited to 100 per run
     const membersToUpdate = getMembersToUpdate(membersWithLastUpdate);
-    console.log(`Found ${membersToUpdate.length} members needing LinkedIn updates`);
+    console.log(`Chose ${membersToUpdate.length} members needing LinkedIn updates`);
 
     for (const member of membersToUpdate) {
       console.log(`Fetching LinkedIn profile for ${member.name}...`);

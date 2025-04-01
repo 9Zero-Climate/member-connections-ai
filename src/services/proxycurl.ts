@@ -34,38 +34,7 @@ interface ProxycurlProfile {
     date_range?: string | null;
   }>;
   skills: string[];
-  languages: Array<{
-    name: string;
-    proficiency: string | null;
-  }>;
-}
-
-interface ProxycurlApiResponse {
-  headline: string | null;
-  summary: string | null;
-  experiences: Array<{
-    title: string | null;
-    company: string;
-    description: string | null;
-    starts_at: DateObject | null;
-    ends_at: DateObject | null;
-    location: string | null;
-    date_range?: string | null;
-  }>;
-  education: Array<{
-    school: string;
-    degree_name: string | null;
-    field_of_study: string | null;
-    starts_at: DateObject | null;
-    ends_at: DateObject | null;
-    description: string | null;
-    date_range?: string | null;
-  }>;
-  skills: string[];
-  languages: Array<{
-    name: string;
-    proficiency: string | null;
-  }>;
+  languages: string[];
 }
 
 // Constants for time calculations
@@ -129,50 +98,6 @@ export async function getLinkedInProfile(linkedinUrl: string): Promise<Proxycurl
     }
 
     const data = (await response.json()) as ProxycurlProfile;
-
-    // Log date ranges for debugging
-    if (data.experiences) {
-      console.log(
-        'Experience date ranges:',
-        data.experiences.map((exp) => ({
-          company: exp.company,
-          date_range: formatDateRange(exp.starts_at, exp.ends_at),
-          title: exp.title,
-        })),
-      );
-    }
-
-    if (data.education) {
-      console.log(
-        'Education date ranges:',
-        data.education.map((edu) => ({
-          school: edu.school,
-          date_range: formatDateRange(edu.starts_at, edu.ends_at),
-          degree: edu.degree_name,
-        })),
-      );
-    }
-
-    // Transform the data to include date_range for backward compatibility
-    if (data.experiences) {
-      data.experiences = data.experiences.map((exp) => {
-        const dateRange = formatDateRange(exp.starts_at, exp.ends_at);
-        return {
-          ...exp,
-          date_range: dateRange || null,
-        };
-      });
-    }
-
-    if (data.education) {
-      data.education = data.education.map((edu) => {
-        const dateRange = formatDateRange(edu.starts_at, edu.ends_at);
-        return {
-          ...edu,
-          date_range: dateRange || null,
-        };
-      });
-    }
 
     return data;
   } catch (error) {
@@ -355,20 +280,14 @@ export async function createLinkedInDocuments(
 
     // Create languages document
     if (profile.languages.length > 0) {
-      const content = profile.languages
-        .map((lang) => `${lang.name}${lang.proficiency ? ` (${lang.proficiency})` : ''}`)
-        .join('\n');
+      const content = profile.languages.join('\n');
       const languagesId = `officernd_member_${officerndMemberId}:languages`;
-      const docMetadata = {
-        ...baseMetadata,
-        languages: profile.languages,
-      };
 
       await insertOrUpdateDoc({
         source_type: 'linkedin_languages',
         source_unique_id: languagesId,
         content,
-        metadata: docMetadata,
+        metadata: baseMetadata,
         embedding: null,
       });
     }

@@ -38,7 +38,7 @@ describe('Member Sync Script', () => {
         },
       ],
       skills: ['Python', 'TypeScript'],
-      languages: [{ name: 'English', proficiency: 'Native' }],
+      languages: ['English'],
     });
 
     // Mock getMembersToUpdate to return the same members

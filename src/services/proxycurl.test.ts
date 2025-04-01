@@ -76,7 +76,7 @@ describe('Proxycurl Service', () => {
               },
             ],
             skills: ['Python', 'TypeScript'],
-            languages: [{ name: 'English', proficiency: 'Native' }],
+            languages: ['English'],
           }),
           {
             status: 200,
@@ -172,7 +172,7 @@ describe('Proxycurl Service', () => {
         },
       ],
       skills: ['Python', 'TypeScript'],
-      languages: [{ name: 'English', proficiency: 'Native' }],
+      languages: ['English'],
     };
 
     it('should create all document types', async () => {
@@ -334,12 +334,7 @@ describe('Proxycurl Service', () => {
     it('should handle languages with missing proficiency', async () => {
       const profileWithMissingLanguageProficiency = {
         ...mockProfile,
-        languages: [
-          {
-            name: 'English',
-            proficiency: null,
-          },
-        ],
+        languages: ['English'],
       };
 
       await createLinkedInDocuments(
@@ -356,7 +351,7 @@ describe('Proxycurl Service', () => {
           source_unique_id: expect.stringContaining('officernd_member_123:languages'),
           content: 'English',
           metadata: expect.objectContaining({
-            languages: [{ name: 'English', proficiency: null }],
+            languages: ['English'],
           }),
         }),
       );
