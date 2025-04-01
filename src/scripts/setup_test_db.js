@@ -21,8 +21,9 @@ async function setupTestDb() {
 
     // Get all migration files
     const migrationsDir = path.join(__dirname, '..', 'migrations');
-    const migrationFiles = fs.readdirSync(migrationsDir)
-      .filter(file => file.endsWith('.sql'))
+    const migrationFiles = fs
+      .readdirSync(migrationsDir)
+      .filter((file) => file.endsWith('.sql'))
       .sort(); // Ensure migrations run in order
 
     // Run each migration
