@@ -93,7 +93,7 @@ const slackSync = {
    * @returns {Promise<Array>} Array of messages
    */
   async fetchChannelHistory(channelId: string, options: FetchOptions = {}): Promise<SlackMessage[]> {
-    const { limit = 100, oldest, latest } = options;
+    const { limit = 1000, oldest, latest } = options;
     const messages: SlackMessage[] = [];
     let cursor: string | undefined;
 
