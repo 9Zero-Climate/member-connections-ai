@@ -78,7 +78,7 @@ describe('database', () => {
         source_unique_id: 'test-id',
         content: 'test content',
         embedding: null,
-        metadata: undefined,
+        metadata: {},
       };
 
       if (process.env.CI) {
@@ -112,7 +112,7 @@ describe('database', () => {
         source_unique_id: 'test-id',
         content: 'updated content',
         embedding: null,
-        metadata: undefined,
+        metadata: {},
       };
 
       if (process.env.CI) {
