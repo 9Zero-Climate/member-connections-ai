@@ -1,29 +1,23 @@
 import { Client } from 'pg';
 import {
-  SearchOptions,
-  type TestClient,
+  bulkUpsertMembers,
   close,
   deleteDoc,
+  deleteLinkedInDocuments,
   findSimilar,
   getDocBySource,
-  insertDoc,
+  insertOrUpdateDoc,
   setTestClient,
-  updateDoc,
 } from './database';
+import type { QueryParams, TestClient } from './database';
+import { generateEmbeddings } from './embedding';
 
 interface TestDoc {
   source_type: string;
   source_unique_id: string;
   content: string;
-  embedding: number[];
-  metadata: {
-    user: string;
-    channel: string;
-    thread_ts: string;
-    reply_count: number;
-    reactions: Array<{ name: string; count: number }>;
-    permalink: string;
-  };
+  embedding: number[] | null;
+  metadata?: Record<string, unknown>;
 }
 
 // Helper function to generate test vectors of the correct dimension
@@ -36,6 +30,10 @@ function generateTestVector(seed = 0): number[] {
 function normalizeWhitespace(str: string): string {
   return str.replace(/\s+/g, ' ').trim();
 }
+
+jest.mock('./embedding', () => ({
+  generateEmbeddings: jest.fn().mockResolvedValue([null]),
+}));
 
 describe('database', () => {
   let mockClient: TestClient;
@@ -58,10 +56,10 @@ describe('database', () => {
     } else {
       // In local development, use mocks
       mockClient = {
-        query: jest.fn().mockResolvedValue({ rows: [] }),
-        connect: jest.fn().mockResolvedValue(undefined),
-        end: jest.fn().mockResolvedValue(undefined),
-      } as unknown as TestClient;
+        query: jest.fn().mockImplementation((query: string, params?: QueryParams) => Promise.resolve({ rows: [] })),
+        connect: jest.fn().mockImplementation(() => Promise.resolve()),
+        end: jest.fn().mockImplementation(() => Promise.resolve()),
+      };
       setTestClient(mockClient);
       mockQuery = mockClient.query as jest.Mock;
     }
@@ -73,51 +71,51 @@ describe('database', () => {
     }
   });
 
-  describe('insertDoc', () => {
+  describe('insertOrUpdateDoc', () => {
     it('should insert a document and return it', async () => {
-      const testDoc: TestDoc = {
+      const doc = {
         source_type: 'test',
-        source_unique_id: 'test123',
+        source_unique_id: 'test-id',
         content: 'test content',
-        embedding: generateTestVector(),
-        metadata: {
-          user: 'U1234567890',
-          channel: 'C1234567890',
-          thread_ts: '1234567890.123456',
-          reply_count: 2,
-          reactions: [{ name: 'thumbsup', count: 1 }],
-          permalink: 'https://slack.com/archives/C1234567890/p1234567890123456',
-        },
+        embedding: null,
+        metadata: undefined,
       };
 
-      if (process.env.CI) {
-        const result = await insertDoc(testDoc);
-        expect(result).toMatchObject({
-          source_type: testDoc.source_type,
-          source_unique_id: testDoc.source_unique_id,
-          content: testDoc.content,
-          metadata: testDoc.metadata,
-        });
-        expect(result.embedding).toBeDefined();
-      } else {
-        mockQuery.mockResolvedValueOnce({
-          rows: [testDoc],
-        });
+      mockClient.query.mockResolvedValueOnce({ rows: [doc] });
 
-        const result = await insertDoc(testDoc);
+      const result = await insertOrUpdateDoc(doc);
 
-        expect(mockQuery).toHaveBeenCalledWith(
-          'INSERT INTO rag_docs (source_type, source_unique_id, content, embedding, metadata) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-          [
-            testDoc.source_type,
-            testDoc.source_unique_id,
-            testDoc.content,
-            `[${testDoc.embedding.join(',')}]`,
-            testDoc.metadata,
-          ],
-        );
-        expect(result).toEqual(testDoc);
-      }
+      expect(result).toEqual(doc);
+      expect(mockClient.query).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO rag_docs'), [
+        doc.source_type,
+        doc.source_unique_id,
+        doc.content,
+        null,
+        doc.metadata,
+      ]);
+    });
+
+    it('should update an existing document', async () => {
+      const updatedDoc = {
+        source_type: 'test',
+        source_unique_id: 'test-id',
+        content: 'updated content',
+        embedding: null,
+        metadata: undefined,
+      };
+
+      mockClient.query.mockResolvedValueOnce({ rows: [updatedDoc] });
+
+      const result = await insertOrUpdateDoc(updatedDoc);
+
+      expect(result).toEqual(updatedDoc);
+      expect(mockClient.query).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO rag_docs'), [
+        updatedDoc.source_type,
+        updatedDoc.source_unique_id,
+        updatedDoc.content,
+        null,
+        updatedDoc.metadata,
+      ]);
     });
   });
 
@@ -139,7 +137,7 @@ describe('database', () => {
             permalink: 'https://slack.com/archives/C1234567890/p1234567890123456',
           },
         };
-        await insertDoc(testDoc);
+        await insertOrUpdateDoc(testDoc);
 
         const result = await getDocBySource('test123');
         expect(result).not.toBeNull();
@@ -196,78 +194,6 @@ describe('database', () => {
     });
   });
 
-  describe('updateDoc', () => {
-    it('should update document content and embedding', async () => {
-      if (process.env.CI) {
-        // First insert a test document
-        const testDoc: TestDoc = {
-          source_type: 'test',
-          source_unique_id: 'test123',
-          content: 'test content',
-          embedding: generateTestVector(),
-          metadata: {
-            user: 'U1234567890',
-            channel: 'C1234567890',
-            thread_ts: '1234567890.123456',
-            reply_count: 2,
-            reactions: [{ name: 'thumbsup', count: 1 }],
-            permalink: 'https://slack.com/archives/C1234567890/p1234567890123456',
-          },
-        };
-        await insertDoc(testDoc);
-
-        const update = {
-          content: 'updated content',
-          embedding: generateTestVector(1),
-          metadata: {
-            ...testDoc.metadata,
-            reply_count: 3,
-            reactions: [{ name: 'thumbsup', count: 2 }],
-          },
-        };
-
-        const result = await updateDoc('test123', update);
-        expect(result).toMatchObject({
-          source_type: testDoc.source_type,
-          source_unique_id: testDoc.source_unique_id,
-          content: update.content,
-          metadata: update.metadata,
-        });
-        expect(result.embedding).toBeDefined();
-      } else {
-        const mockDoc: TestDoc = {
-          source_type: 'test',
-          source_unique_id: 'test123',
-          content: 'updated content',
-          embedding: generateTestVector(1),
-          metadata: {
-            user: 'U1234567890',
-            channel: 'C1234567890',
-            thread_ts: '1234567890.123456',
-            reply_count: 3,
-            reactions: [{ name: 'thumbsup', count: 2 }],
-            permalink: 'https://slack.com/archives/C1234567890/p1234567890123456',
-          },
-        };
-        mockQuery.mockResolvedValueOnce({
-          rows: [mockDoc],
-        });
-
-        const result = await updateDoc('test123', {
-          content: 'updated content',
-          embedding: generateTestVector(1),
-          metadata: mockDoc.metadata,
-        });
-
-        expect(mockQuery).toHaveBeenCalledWith(
-          'UPDATE rag_docs SET content = $1, embedding = $2, metadata = $3 WHERE source_unique_id = $4 RETURNING *',
-          ['updated content', `[${generateTestVector(1).join(',')}]`, mockDoc.metadata, 'test123'],
-        );
-        expect(result).toEqual(mockDoc);
-      }
-    });
-  });
-
   describe('deleteDoc', () => {
     it('should delete a document and return true', async () => {
       if (process.env.CI) {
@@ -286,7 +212,7 @@ describe('database', () => {
             permalink: 'https://slack.com/archives/C1234567890/p1234567890123456',
           },
         };
-        await insertDoc(testDoc);
+        await insertOrUpdateDoc(testDoc);
 
         const result = await deleteDoc('test123');
         expect(result).toBe(true);
@@ -358,7 +284,7 @@ describe('database', () => {
             },
           },
         ];
-        await Promise.all(testDocs.map((doc) => insertDoc(doc)));
+        await Promise.all(testDocs.map((doc) => insertOrUpdateDoc(doc)));
 
         const result = await findSimilar(generateTestVector(), { limit: 2 });
         expect(result).toHaveLength(2);

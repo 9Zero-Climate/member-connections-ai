@@ -1,5 +1,5 @@
 import { config } from 'dotenv';
-import { upsertMember } from '../services/database';
+import { bulkUpsertMembers } from '../services/database';
 import { getAllMembers as getOfficeRnDMembers } from '../services/officernd';
 import { syncMembers } from './sync-members';
 
@@ -33,16 +33,15 @@ describe('Member Sync Script', () => {
     ];
 
     (getOfficeRnDMembers as jest.Mock).mockResolvedValue(mockMembers);
-    (upsertMember as jest.Mock).mockImplementation((member) => Promise.resolve(member));
+    (bulkUpsertMembers as jest.Mock).mockResolvedValue(mockMembers);
 
     // Run sync
     await syncMembers();
 
     // Verify calls
     expect(getOfficeRnDMembers).toHaveBeenCalledTimes(1);
-    expect(upsertMember).toHaveBeenCalledTimes(2);
-    expect(upsertMember).toHaveBeenCalledWith(mockMembers[0]);
-    expect(upsertMember).toHaveBeenCalledWith(mockMembers[1]);
+    expect(bulkUpsertMembers).toHaveBeenCalledTimes(1);
+    expect(bulkUpsertMembers).toHaveBeenCalledWith(mockMembers);
   });
 
   it('should handle errors gracefully', async () => {

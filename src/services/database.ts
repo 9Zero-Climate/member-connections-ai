@@ -1,5 +1,6 @@
 import { config } from 'dotenv';
 import { Client } from 'pg';
+import { generateEmbeddings } from './embedding';
 
 // Load environment variables
 config();
@@ -12,12 +13,6 @@ export interface Document {
   metadata?: Record<string, unknown>;
   created_at?: Date;
   updated_at?: Date;
-}
-
-interface DocumentUpdate {
-  content?: string;
-  embedding?: number[];
-  metadata?: Record<string, unknown>;
 }
 
 export interface SearchOptions {
@@ -39,7 +34,7 @@ export interface Member {
   updated_at?: Date;
 }
 
-type QueryParams = (string | number | Record<string, unknown> | null)[];
+export type QueryParams = (string | number | Record<string, unknown> | null)[];
 
 let client: Client | TestClient;
 
@@ -117,20 +112,32 @@ function formatForComparison(embedding: number[] | string | null): string | null
 }
 
 /**
- * Insert a document into the database
- * @param doc - The document to insert
- * @returns The inserted document
+ * Insert or update a document in the database, generating embeddings if not provided
+ * @param doc - The document to insert or update. The source_unique_id is used to determine if the document already exists.
+ * @returns The inserted/updated document
  */
-async function insertDoc(doc: Document): Promise<Document> {
+async function insertOrUpdateDoc(doc: Document): Promise<Document> {
   try {
-    const embeddingVector = formatForStorage(doc.embedding);
+    // Generate embeddings if not provided
+    const embedding = doc.embedding ?? (await generateEmbeddings([doc.content]))[0];
+    const embeddingVector = formatForStorage(embedding);
+
     const result = await client.query(
-      'INSERT INTO rag_docs (source_type, source_unique_id, content, embedding, metadata) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      `INSERT INTO rag_docs (source_type, source_unique_id, content, embedding, metadata)
+       VALUES ($1, $2, $3, $4, $5)
+       ON CONFLICT (source_unique_id) 
+       DO UPDATE SET 
+          updated_at = CURRENT_TIMESTAMP,
+          source_type = EXCLUDED.source_type,
+          content = EXCLUDED.content,
+          embedding = EXCLUDED.embedding,
+          metadata = EXCLUDED.metadata
+       RETURNING *`,
       [doc.source_type, doc.source_unique_id, doc.content, embeddingVector, doc.metadata],
     );
     return result.rows[0];
   } catch (error) {
-    console.error('Error inserting document:', error);
+    console.error('Error inserting/updating document:', error);
     throw error;
   }
 }
@@ -151,26 +158,6 @@ async function getDocBySource(sourceUniqueId: string): Promise<Document | null> 
     return doc;
   } catch (error) {
     console.error('Error getting document:', error);
-    throw error;
-  }
-}
-
-/**
- * Update a document's content and embedding
- * @param sourceUniqueId - The unique ID of the document
- * @param updates - The updates to apply
- * @returns The updated document
- */
-async function updateDoc(sourceUniqueId: string, updates: DocumentUpdate): Promise<Document> {
-  try {
-    const embeddingVector = formatForStorage(updates.embedding || null);
-    const result = await client.query(
-      'UPDATE rag_docs SET content = $1, embedding = $2, metadata = $3 WHERE source_unique_id = $4 RETURNING *',
-      [updates.content, embeddingVector, updates.metadata, sourceUniqueId],
-    );
-    return result.rows[0];
-  } catch (error) {
-    console.error('Error updating document:', error);
     throw error;
   }
 }
@@ -278,4 +265,66 @@ async function bulkUpsertMembers(members: Member[]): Promise<Member[]> {
   }
 }
 
-export { insertDoc, getDocBySource, updateDoc, deleteDoc, findSimilar, close, setTestClient, bulkUpsertMembers };
+/**
+ * Delete all LinkedIn documents for a member
+ * @param officerndMemberId - OfficeRnD member ID
+ */
+async function deleteLinkedInDocuments(officerndMemberId: string): Promise<void> {
+  try {
+    await client.query(
+      `DELETE FROM rag_docs 
+       WHERE source_type LIKE 'linkedin_%' 
+       AND source_unique_id LIKE 'officernd_member_${officerndMemberId}:%'`,
+    );
+  } catch (error) {
+    console.error('Error deleting LinkedIn documents:', error);
+    throw error;
+  }
+}
+
+/**
+ * Generate embeddings for a document's content
+ * @param content - The text content to embed
+ * @returns The embedding vector or null if embedding fails
+ */
+async function embedDocument(content: string): Promise<number[] | null> {
+  try {
+    const embeddings = await generateEmbeddings([content]);
+    return embeddings[0] || null;
+  } catch (error) {
+    console.error('Error generating embeddings:', error);
+    return null;
+  }
+}
+
+/**
+ * Get the last update time for a member's LinkedIn documents
+ * @param officerndMemberId - The OfficeRnD member ID
+ * @returns The last update timestamp in milliseconds, or null if no documents exist
+ */
+async function getLastLinkedInUpdate(officerndMemberId: string): Promise<number | null> {
+  try {
+    const result = await client.query(
+      `SELECT MAX(updated_at) as last_update
+       FROM rag_docs
+       WHERE source_unique_id LIKE $1`,
+      [`officernd_member_${officerndMemberId}:%`],
+    );
+    return result.rows[0]?.last_update ? new Date(result.rows[0].last_update).getTime() : null;
+  } catch (error) {
+    console.error('Error getting last LinkedIn update:', error);
+    throw error;
+  }
+}
+
+export {
+  insertOrUpdateDoc,
+  getDocBySource,
+  deleteDoc,
+  findSimilar,
+  close,
+  getLastLinkedInUpdate,
+  bulkUpsertMembers,
+  deleteLinkedInDocuments,
+  setTestClient,
+};
