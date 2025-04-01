@@ -88,7 +88,7 @@ describe('database', () => {
           source_unique_id: doc.source_unique_id,
           content: doc.content,
           embedding: doc.embedding,
-          metadata: null, // PostgreSQL converts undefined to null
+          metadata: {}, // PostgreSQL JSONB NOT NULL DEFAULT '{}'::jsonb
         });
         expect(result.created_at).toBeInstanceOf(Date);
         expect(result.updated_at).toBeInstanceOf(Date);
@@ -122,7 +122,7 @@ describe('database', () => {
           source_unique_id: updatedDoc.source_unique_id,
           content: updatedDoc.content,
           embedding: updatedDoc.embedding,
-          metadata: null, // PostgreSQL converts undefined to null
+          metadata: {}, // PostgreSQL JSONB NOT NULL DEFAULT '{}'::jsonb
         });
         expect(result.created_at).toBeInstanceOf(Date);
         expect(result.updated_at).toBeInstanceOf(Date);
