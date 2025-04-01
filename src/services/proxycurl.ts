@@ -10,7 +10,7 @@ interface ProxycurlProfile {
   headline: string | null;
   summary: string | null;
   experiences: Array<{
-    title: string;
+    title: string | null;
     company: string;
     description: string | null;
     date_range: string | null;
@@ -34,7 +34,7 @@ interface ProxycurlApiResponse {
   headline: string | null;
   summary: string | null;
   experiences: Array<{
-    title: string;
+    title: string | null;
     company: string;
     description: string | null;
     date_range: string | null;
@@ -134,13 +134,15 @@ function createExperienceId(company: string | null, dateRange: string | null): s
  * @returns A stable unique identifier
  */
 function createEducationId(
-  school: string,
+  school: string | null,
   degree: string | null,
   fieldOfStudy: string | null,
   dateRange: string | null,
 ): string {
+  // Handle null school name
+  const schoolName = school || 'unknown-school';
   // Create URL-friendly versions of the identifiers
-  const schoolSlug = school.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+  const schoolSlug = schoolName.toLowerCase().replace(/[^a-z0-9]+/g, '-');
   const degreeSlug = degree?.toLowerCase().replace(/[^a-z0-9]+/g, '-') || '';
   const fieldSlug = fieldOfStudy?.toLowerCase().replace(/[^a-z0-9]+/g, '-') || '';
   const dateSlug = dateRange?.replace(/[^a-z0-9]+/g, '-') || '';
@@ -203,7 +205,12 @@ export async function createLinkedInDocuments(
 
     // Create experience documents
     for (const exp of profile.experiences) {
-      const content = [`${exp.title} at ${exp.company}`, exp.date_range, exp.location, exp.description]
+      const content = [
+        exp.title ? `${exp.title} at ${exp.company}` : exp.company,
+        exp.date_range,
+        exp.location,
+        exp.description,
+      ]
         .filter(Boolean)
         .join('\n');
 
@@ -211,10 +218,10 @@ export async function createLinkedInDocuments(
       const docId = `officernd_member_${officerndMemberId}:experience_${experienceId}`;
       const docMetadata = {
         ...baseMetadata,
-        title: exp.title,
+        title: exp.title || null,
         company: exp.company,
-        date_range: exp.date_range,
-        location: exp.location,
+        date_range: exp.date_range || null,
+        location: exp.location || null,
       };
 
       await insertOrUpdateDoc({
@@ -237,9 +244,9 @@ export async function createLinkedInDocuments(
       const docMetadata = {
         ...baseMetadata,
         school: edu.school,
-        degree_name: edu.degree_name,
-        field_of_study: edu.field_of_study,
-        date_range: edu.date_range,
+        degree_name: edu.degree_name || null,
+        field_of_study: edu.field_of_study || null,
+        date_range: edu.date_range || null,
       };
 
       await insertOrUpdateDoc({
@@ -271,7 +278,9 @@ export async function createLinkedInDocuments(
 
     // Create languages document
     if (profile.languages.length > 0) {
-      const content = profile.languages.join('\n');
+      const content = profile.languages
+        .map((lang) => `${lang.name}${lang.proficiency ? ` (${lang.proficiency})` : ''}`)
+        .join('\n');
       const languagesId = `officernd_member_${officerndMemberId}:languages`;
       const docMetadata = {
         ...baseMetadata,

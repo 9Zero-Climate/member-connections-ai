@@ -219,6 +219,111 @@ describe('Proxycurl Service', () => {
       expect(insertOrUpdateDoc).not.toHaveBeenCalled();
     });
 
+    it('should handle experiences with missing fields', async () => {
+      const profileWithMissingExperienceFields = {
+        ...mockProfile,
+        experiences: [
+          {
+            title: null,
+            company: '9Zero',
+            description: null,
+            date_range: null,
+            location: null,
+          },
+        ],
+      };
+
+      await createLinkedInDocuments(
+        '123',
+        'John Doe',
+        'https://linkedin.com/in/johndoe',
+        profileWithMissingExperienceFields,
+      );
+
+      // Verify experience document was created with null fields
+      expect(insertOrUpdateDoc).toHaveBeenCalledWith(
+        expect.objectContaining({
+          source_type: 'linkedin_experience',
+          source_unique_id: expect.stringContaining('officernd_member_123:experience_9zero-9zero'),
+          content: '9Zero',
+          metadata: expect.objectContaining({
+            title: null,
+            company: '9Zero',
+            date_range: null,
+            location: null,
+          }),
+        }),
+      );
+    });
+
+    it('should handle education with missing fields', async () => {
+      const profileWithMissingEducationFields = {
+        ...mockProfile,
+        education: [
+          {
+            school: 'Stanford',
+            degree_name: null,
+            field_of_study: null,
+            date_range: null,
+            description: null,
+          },
+        ],
+      };
+
+      await createLinkedInDocuments(
+        '123',
+        'John Doe',
+        'https://linkedin.com/in/johndoe',
+        profileWithMissingEducationFields,
+      );
+
+      // Verify education document was created with null fields
+      expect(insertOrUpdateDoc).toHaveBeenCalledWith(
+        expect.objectContaining({
+          source_type: 'linkedin_education',
+          source_unique_id: expect.stringContaining('officernd_member_123:education_stanford-unknown'),
+          content: 'Stanford',
+          metadata: expect.objectContaining({
+            school: 'Stanford',
+            degree_name: null,
+            field_of_study: null,
+            date_range: null,
+          }),
+        }),
+      );
+    });
+
+    it('should handle languages with missing proficiency', async () => {
+      const profileWithMissingLanguageProficiency = {
+        ...mockProfile,
+        languages: [
+          {
+            name: 'English',
+            proficiency: null,
+          },
+        ],
+      };
+
+      await createLinkedInDocuments(
+        '123',
+        'John Doe',
+        'https://linkedin.com/in/johndoe',
+        profileWithMissingLanguageProficiency,
+      );
+
+      // Verify language document was created without proficiency
+      expect(insertOrUpdateDoc).toHaveBeenCalledWith(
+        expect.objectContaining({
+          source_type: 'linkedin_languages',
+          source_unique_id: expect.stringContaining('officernd_member_123:languages'),
+          content: 'English',
+          metadata: expect.objectContaining({
+            languages: [{ name: 'English', proficiency: null }],
+          }),
+        }),
+      );
+    });
+
     it('should handle errors gracefully', async () => {
       // Mock database error
       (deleteLinkedInDocuments as jest.Mock).mockRejectedValueOnce(new Error('Database error'));
