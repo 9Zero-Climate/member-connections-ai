@@ -314,6 +314,7 @@ const assistant = new Assistant({
             tool_calls: toolCalls,
           });
           for (const toolCall of toolCalls) {
+            logger.info(`Executing tool call: ${JSON.stringify(toolCall, null, 2)}`);
             const toolName = toolCall.function.name;
             const toolArgs = JSON.parse(toolCall.function.arguments);
             const toolCallResult = await toolImplementations[toolName as keyof typeof toolImplementations](toolArgs);

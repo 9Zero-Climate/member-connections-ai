@@ -13,11 +13,12 @@ export interface SearchToolResult {
   query: string;
 }
 
+const DEFAULT_DOCUMENT_LIMIT = 20;
 /**
  * Search for relevant documents using semantic search
  */
 export async function searchDocuments(params: SearchToolParams): Promise<SearchToolResult> {
-  const { query, limit = 10 } = params;
+  const { query, limit = DEFAULT_DOCUMENT_LIMIT } = params;
 
   // Generate embedding for the query
   const queryEmbedding = await generateEmbedding(query);
@@ -53,7 +54,8 @@ export const tools = [
     type: 'function',
     function: {
       name: 'searchDocuments',
-      description: 'Search for relevant messages in the workspace using semantic similarity',
+      description:
+        'Search for relevant messages in the workspace and LinkeddIn profiles for members using semantic similarity',
       parameters: {
         type: 'object',
         properties: {
@@ -64,7 +66,7 @@ export const tools = [
           limit: {
             type: 'number',
             description: 'Maximum number of results to return',
-            default: 10,
+            default: DEFAULT_DOCUMENT_LIMIT,
           },
         },
         required: ['query'],
