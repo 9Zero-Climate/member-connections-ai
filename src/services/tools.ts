@@ -1,4 +1,5 @@
 import { XMLBuilder } from 'fast-xml-parser';
+import type { ToolCall } from 'openai/resources/beta/threads/runs/steps';
 import { findSimilar } from './database';
 import type { Document } from './database';
 import { generateEmbedding } from './embedding';
@@ -24,7 +25,7 @@ export async function searchDocuments(params: SearchToolParams): Promise<SearchT
   const queryEmbedding = await generateEmbedding(query);
 
   // Find similar documents
-  const documents = await findSimilar(queryEmbedding, { limit });
+  const documents = await findSimilar(queryEmbedding, { limit, excludeEmbeddingsFromResults: true });
 
   return {
     documents,
@@ -55,7 +56,7 @@ export const tools = [
     function: {
       name: 'searchDocuments',
       description:
-        'Search for relevant messages in the workspace and LinkeddIn profiles for members using semantic similarity',
+        'Search for relevant messages in the Slack workspace and LinkeddIn profile content for members using semantic similarity.',
       parameters: {
         type: 'object',
         properties: {
@@ -75,6 +76,21 @@ export const tools = [
   },
 ];
 
+export const getToolCallShortDescription = (toolCall: ToolCall) => {
+  if (toolCall.type !== 'function') {
+    throw new Error(`Unhandled tool call type - not a function: ${JSON.stringify(toolCall, null, 2)}`);
+  }
+
+  const toolName = toolCall.function.name;
+  const toolArgs = JSON.parse(toolCall.function.arguments);
+
+  switch (toolName) {
+    case 'searchDocuments':
+      return `Semantic search for "${toolArgs.query}"`;
+    default:
+      throw new Error(`Unhandled tool call: ${toolName}`);
+  }
+};
 // Map of tool names to their implementations
 export const toolImplementations = {
   searchDocuments,

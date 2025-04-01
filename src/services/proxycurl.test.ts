@@ -44,7 +44,16 @@ describe('Proxycurl Service', () => {
                 title: 'Software Engineer',
                 company: '9Zero',
                 description: 'Led development',
-                date_range: '2020-2024',
+                starts_at: {
+                  day: 1,
+                  month: 1,
+                  year: 2020,
+                },
+                ends_at: {
+                  day: 31,
+                  month: 12,
+                  year: 2024,
+                },
                 location: 'San Francisco',
               },
             ],
@@ -53,7 +62,16 @@ describe('Proxycurl Service', () => {
                 school: 'Stanford',
                 degree_name: 'BS',
                 field_of_study: 'Computer Science',
-                date_range: '2016-2020',
+                starts_at: {
+                  day: 1,
+                  month: 9,
+                  year: 2016,
+                },
+                ends_at: {
+                  day: 30,
+                  month: 6,
+                  year: 2020,
+                },
                 description: 'Focus on AI',
               },
             ],
@@ -122,7 +140,16 @@ describe('Proxycurl Service', () => {
           title: 'Software Engineer',
           company: '9Zero',
           description: 'Led development',
-          date_range: '2020-2024',
+          starts_at: {
+            day: 1,
+            month: 1,
+            year: 2020,
+          },
+          ends_at: {
+            day: 31,
+            month: 12,
+            year: 2024,
+          },
           location: 'San Francisco',
         },
       ],
@@ -131,7 +158,16 @@ describe('Proxycurl Service', () => {
           school: 'Stanford',
           degree_name: 'BS',
           field_of_study: 'Computer Science',
-          date_range: '2016-2020',
+          starts_at: {
+            day: 1,
+            month: 9,
+            year: 2016,
+          },
+          ends_at: {
+            day: 30,
+            month: 6,
+            year: 2020,
+          },
           description: 'Focus on AI',
         },
       ],
@@ -166,7 +202,7 @@ describe('Proxycurl Service', () => {
       expect(insertOrUpdateDoc).toHaveBeenCalledWith(
         expect.objectContaining({
           source_type: 'linkedin_experience',
-          source_unique_id: expect.stringContaining('officernd_member_123:experience_9zero-2020-2024'),
+          source_unique_id: expect.stringContaining('officernd_member_123:experience_9zero-2020-01-01-2024-12-31'),
           content: expect.stringContaining('Software Engineer at 9Zero'),
           embedding: null,
           metadata: expect.objectContaining({
@@ -174,7 +210,7 @@ describe('Proxycurl Service', () => {
             linkedin_url: 'https://linkedin.com/in/johndoe',
             title: 'Software Engineer',
             company: '9Zero',
-            date_range: '2020-2024',
+            date_range: '2020-01-01 - 2024-12-31',
             location: 'San Francisco',
           }),
         }),
@@ -184,7 +220,7 @@ describe('Proxycurl Service', () => {
       expect(insertOrUpdateDoc).toHaveBeenCalledWith(
         expect.objectContaining({
           source_type: 'linkedin_education',
-          source_unique_id: expect.stringContaining('officernd_member_123:education_stanford-2016-2020'),
+          source_unique_id: expect.stringContaining('officernd_member_123:education_stanford-2016-09-01-2020-06-30'),
           content: expect.stringContaining('Stanford'),
           embedding: null,
           metadata: expect.objectContaining({
@@ -193,7 +229,7 @@ describe('Proxycurl Service', () => {
             school: 'Stanford',
             degree_name: 'BS',
             field_of_study: 'Computer Science',
-            date_range: '2016-2020',
+            date_range: '2016-09-01 - 2020-06-30',
           }),
         }),
       );
@@ -227,7 +263,8 @@ describe('Proxycurl Service', () => {
             title: null,
             company: '9Zero',
             description: null,
-            date_range: null,
+            starts_at: null,
+            ends_at: null,
             location: null,
           },
         ],
@@ -264,7 +301,8 @@ describe('Proxycurl Service', () => {
             school: 'Stanford',
             degree_name: null,
             field_of_study: null,
-            date_range: null,
+            starts_at: null,
+            ends_at: null,
             description: null,
           },
         ],

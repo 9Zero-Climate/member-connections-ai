@@ -27,7 +27,7 @@ interface FormattedMessage {
   source_unique_id: string;
   content: string;
   metadata: {
-    user: string;
+    slack_user_id: string;
     channel: string;
     channel_name?: string;
     thread_ts?: string;
@@ -176,7 +176,7 @@ const slackSync = {
       source_unique_id: `${channelId}:${message.ts}`,
       content: message.text,
       metadata: {
-        user: message.user,
+        slack_user_id: message.user,
         channel: channelId,
         channel_name: channelName,
         thread_ts: message.thread_ts,

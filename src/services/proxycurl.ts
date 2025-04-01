@@ -6,6 +6,12 @@ config();
 
 const PROXYCURL_API_URL = 'https://nubela.co/proxycurl/api/v2';
 
+interface DateObject {
+  day: number;
+  month: number;
+  year: number;
+}
+
 interface ProxycurlProfile {
   headline: string | null;
   summary: string | null;
@@ -13,15 +19,19 @@ interface ProxycurlProfile {
     title: string | null;
     company: string;
     description: string | null;
-    date_range: string | null;
+    starts_at: DateObject | null;
+    ends_at: DateObject | null;
     location: string | null;
+    date_range?: string | null;
   }>;
   education: Array<{
     school: string;
     degree_name: string | null;
     field_of_study: string | null;
-    date_range: string | null;
+    starts_at: DateObject | null;
+    ends_at: DateObject | null;
     description: string | null;
+    date_range?: string | null;
   }>;
   skills: string[];
   languages: Array<{
@@ -37,15 +47,19 @@ interface ProxycurlApiResponse {
     title: string | null;
     company: string;
     description: string | null;
-    date_range: string | null;
+    starts_at: DateObject | null;
+    ends_at: DateObject | null;
     location: string | null;
+    date_range?: string | null;
   }>;
   education: Array<{
     school: string;
     degree_name: string | null;
     field_of_study: string | null;
-    date_range: string | null;
+    starts_at: DateObject | null;
+    ends_at: DateObject | null;
     description: string | null;
+    date_range?: string | null;
   }>;
   skills: string[];
   languages: Array<{
@@ -68,6 +82,22 @@ export function needsLinkedInUpdate(lastUpdate: number | null, maxAge: number = 
   if (!lastUpdate) return true;
   const now = Date.now();
   return now - lastUpdate > maxAge;
+}
+
+/**
+ * Format a date object into a string range
+ * @param start - Start date object
+ * @param end - End date object (can be null for current positions)
+ * @returns Formatted date range string
+ */
+function formatDateRange(start: DateObject | null, end: DateObject | null): string | null {
+  if (!start) return null;
+
+  const startDate = `${start.year}-${String(start.month).padStart(2, '0')}-${String(start.day).padStart(2, '0')}`;
+  if (!end) return `${startDate} - Present`;
+
+  const endDate = `${end.year}-${String(end.month).padStart(2, '0')}-${String(end.day).padStart(2, '0')}`;
+  return `${startDate} - ${endDate}`;
 }
 
 /**
@@ -98,8 +128,53 @@ export async function getLinkedInProfile(linkedinUrl: string): Promise<Proxycurl
       throw new Error(`Failed to fetch LinkedIn profile: ${response.statusText}`);
     }
 
-    const data = await response.json();
-    return data as ProxycurlProfile;
+    const data = (await response.json()) as ProxycurlProfile;
+
+    // Log date ranges for debugging
+    if (data.experiences) {
+      console.log(
+        'Experience date ranges:',
+        data.experiences.map((exp) => ({
+          company: exp.company,
+          date_range: formatDateRange(exp.starts_at, exp.ends_at),
+          title: exp.title,
+        })),
+      );
+    }
+
+    if (data.education) {
+      console.log(
+        'Education date ranges:',
+        data.education.map((edu) => ({
+          school: edu.school,
+          date_range: formatDateRange(edu.starts_at, edu.ends_at),
+          degree: edu.degree_name,
+        })),
+      );
+    }
+
+    // Transform the data to include date_range for backward compatibility
+    if (data.experiences) {
+      data.experiences = data.experiences.map((exp) => {
+        const dateRange = formatDateRange(exp.starts_at, exp.ends_at);
+        return {
+          ...exp,
+          date_range: dateRange || null,
+        };
+      });
+    }
+
+    if (data.education) {
+      data.education = data.education.map((edu) => {
+        const dateRange = formatDateRange(edu.starts_at, edu.ends_at);
+        return {
+          ...edu,
+          date_range: dateRange || null,
+        };
+      });
+    }
+
+    return data;
   } catch (error) {
     // Only log fetch and parsing errors
     if (error instanceof Error && error.message !== 'Proxycurl API key not configured') {
@@ -112,16 +187,16 @@ export async function getLinkedInProfile(linkedinUrl: string): Promise<Proxycurl
 /**
  * Create a stable unique identifier for an experience
  * @param company - Company name
- * @param dateRange - Date range
+ * @param dateRange - Date range (optional)
  * @returns A stable unique identifier
  */
-function createExperienceId(company: string | null, dateRange: string | null): string {
+function createExperienceId(company: string | null, dateRange?: string | null): string {
   // Handle null company name
   const companyName = company || 'unknown-company';
   // Create a URL-friendly version of the company name
   const companySlug = companyName.toLowerCase().replace(/[^a-z0-9]+/g, '-');
   // Use date range if available, otherwise use a hash of the company name
-  const datePart = dateRange ? dateRange.replace(/[^a-z0-9]+/g, '-') : companySlug.slice(0, 8);
+  const datePart = dateRange ? dateRange.replace(/[^a-z0-9-]+/g, '') : companySlug.slice(0, 8);
   return `${companySlug}-${datePart}`;
 }
 
@@ -130,14 +205,14 @@ function createExperienceId(company: string | null, dateRange: string | null): s
  * @param school - School name
  * @param degree - Degree name
  * @param fieldOfStudy - Field of study
- * @param dateRange - Date range
+ * @param dateRange - Date range (optional)
  * @returns A stable unique identifier
  */
 function createEducationId(
   school: string | null,
   degree: string | null,
   fieldOfStudy: string | null,
-  dateRange: string | null,
+  dateRange?: string | null,
 ): string {
   // Handle null school name
   const schoolName = school || 'unknown-school';
@@ -145,7 +220,7 @@ function createEducationId(
   const schoolSlug = schoolName.toLowerCase().replace(/[^a-z0-9]+/g, '-');
   const degreeSlug = degree?.toLowerCase().replace(/[^a-z0-9]+/g, '-') || '';
   const fieldSlug = fieldOfStudy?.toLowerCase().replace(/[^a-z0-9]+/g, '-') || '';
-  const dateSlug = dateRange?.replace(/[^a-z0-9]+/g, '-') || '';
+  const dateSlug = dateRange?.replace(/[^a-z0-9-]+/g, '') || '';
 
   // Combine the parts, using the most specific identifier available
   const parts = [schoolSlug];
@@ -205,22 +280,23 @@ export async function createLinkedInDocuments(
 
     // Create experience documents
     for (const exp of profile.experiences) {
+      const dateRange = formatDateRange(exp.starts_at, exp.ends_at);
       const content = [
         exp.title ? `${exp.title} at ${exp.company}` : exp.company,
-        exp.date_range,
+        dateRange,
         exp.location,
         exp.description,
       ]
         .filter(Boolean)
         .join('\n');
 
-      const experienceId = createExperienceId(exp.company, exp.date_range);
+      const experienceId = createExperienceId(exp.company, dateRange);
       const docId = `officernd_member_${officerndMemberId}:experience_${experienceId}`;
       const docMetadata = {
         ...baseMetadata,
         title: exp.title || null,
         company: exp.company,
-        date_range: exp.date_range || null,
+        date_range: dateRange || null,
         location: exp.location || null,
       };
 
@@ -235,18 +311,19 @@ export async function createLinkedInDocuments(
 
     // Create education documents
     for (const edu of profile.education) {
-      const content = [edu.school, edu.degree_name, edu.field_of_study, edu.date_range, edu.description]
+      const dateRange = formatDateRange(edu.starts_at, edu.ends_at);
+      const content = [edu.school, edu.degree_name, edu.field_of_study, dateRange, edu.description]
         .filter(Boolean)
         .join('\n');
 
-      const educationId = createEducationId(edu.school, edu.degree_name, edu.field_of_study, edu.date_range);
+      const educationId = createEducationId(edu.school, edu.degree_name, edu.field_of_study, dateRange);
       const docId = `officernd_member_${officerndMemberId}:education_${educationId}`;
       const docMetadata = {
         ...baseMetadata,
         school: edu.school,
         degree_name: edu.degree_name || null,
         field_of_study: edu.field_of_study || null,
-        date_range: edu.date_range || null,
+        date_range: dateRange || null,
       };
 
       await insertOrUpdateDoc({

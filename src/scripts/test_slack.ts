@@ -8,20 +8,6 @@ interface SlackMessage {
   reactions?: Array<{ name: string; count: number }>;
 }
 
-interface FormattedMessage {
-  source_type: string;
-  source_unique_id: string;
-  content: string;
-  metadata: {
-    user: string;
-    channel: string;
-    thread_ts?: string;
-    reply_count?: number;
-    reactions?: Array<{ name: string; count: number }>;
-    permalink?: string;
-  };
-}
-
 async function testSlackSync(): Promise<void> {
   try {
     console.log('Testing Slack sync service...\n');

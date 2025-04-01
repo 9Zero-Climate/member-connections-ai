@@ -17,6 +17,7 @@ export interface Document {
 
 export interface SearchOptions {
   limit?: number;
+  excludeEmbeddingsFromResults?: boolean;
 }
 
 export interface TestClient {
@@ -187,13 +188,14 @@ async function findSimilar(embedding: number[], options: SearchOptions = {}): Pr
   try {
     const embeddingVector = formatForComparison(embedding);
     const limit = options.limit || 5;
+    const excludeEmbeddingsFromResults = options.excludeEmbeddingsFromResults;
 
     const result = await client.query(
       `SELECT
         source_type,
         source_unique_id,
         content,
-        embedding,
+        ${excludeEmbeddingsFromResults ? '' : 'embedding,'}
         metadata,
         created_at,
         updated_at,
@@ -207,7 +209,7 @@ async function findSimilar(embedding: number[], options: SearchOptions = {}): Pr
     // Convert stored vector format back to array for each result
     return result.rows.map((doc: Document) => ({
       ...doc,
-      embedding: parseStoredEmbedding(doc.embedding as string | null),
+      ...(excludeEmbeddingsFromResults ? {} : { embedding: parseStoredEmbedding(doc.embedding as string | null) }),
     }));
   } catch (error) {
     console.error('Error finding similar documents:', error);

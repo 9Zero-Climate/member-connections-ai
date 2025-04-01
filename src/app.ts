@@ -1,4 +1,4 @@
-import { App, Assistant, LogLevel } from '@slack/bolt';
+import { App, Assistant, LogLevel, type SayFn } from '@slack/bolt';
 import type { ChatPostMessageResponse, WebClient } from '@slack/web-api';
 import { config } from 'dotenv';
 import express from 'express';
@@ -13,7 +13,7 @@ import type {
   ChatCompletionToolMessageParam,
   ChatCompletionUserMessageParam,
 } from 'openai/resources/chat';
-import { objectToXml, toolImplementations, tools } from './services/tools';
+import { getToolCallShortDescription, objectToXml, toolImplementations, tools } from './services/tools';
 
 config();
 
@@ -56,12 +56,14 @@ const openai = new OpenAI({
 const DEFAULT_SYSTEM_CONTENT = `You're an assistant in the Slack workspace for 9Zero Climate, a community of people working to end the climate crisis.
 Users in the workspace will ask you to connect them with other members.
 You'll respond to those questions in a professional way.
+Our goal is to help members find useful, deep and meaningful connections, so we should go into depth on the particular users that we are suggesting.
+Lean towards including more relevant information in your responses rather than less.
 
 You have access to a search tool that can find relevant messages based on semantic similarity.
 When a user asks a question, you should:
 
 1. Analyze their question to determine what information they need
-2. Use the search tool to find relevant messages, applying appropriate filters if needed
+2. Use the search tool when available to find relevant messages and Linkedin profile information, using followup searches if needed. You can also make multiple searches in parallel by asking for multiple tool calls.
 3. Format the results in a clear and helpful way
 4. If needed, ask follow-up questions to clarify their needs
 
@@ -76,13 +78,18 @@ When formatting your responses:
    - Use 1. for numbered lists
 
 2. When mentioning members:
+   - If you have both the linkedin profile url and the slack id, prefer a format like <@USER_ID> (<https://www.linkedin.com/in/USER_ID|LinkedIn>)
    - Always use the <@USER_ID> format for member mentions when you have Slack IDs. When you do this, never mention the member's name explicitly alongside the <@USER_ID> since Slack will automatically show a tile with the member's name.
    - Never URLencode or escape the <@USER_ID> format. Use literal < and > characters.
 
 3. When referencing messages:
    - Always include the permalink URL from the message metadata to create clickable links
    - Format links as <URL|text> where URL is the permalink and text is a brief description. Do not escape the brackets.
+   - If a message is relatively old, consider mentioning how old (for instance, "a while back" or "last month" or "back in August"). The current date is ${new Date().toLocaleDateString()}.
    - Example: <@USER_ID> mentioned <https://slack.com/archives/C1234567890/p1234567890123456|here> that[...]
+
+4. When referencing linkedin experience:
+   - Keep in mind that some experiences will be current ("X is currently the CTO at Y") but some will be old - refer to old experiences in the past tense and mention how old they are if it seems relevant. 
 
 You have access to relevant context from previous conversations and messages in the workspace - only information that is available to all 9Zero Climate members.
 Use this context to provide more accurate and helpful responses.
@@ -94,19 +101,31 @@ const MAX_TOOL_CALL_ITERATIONS = 3;
 
 interface UpdateMessageParams {
   client: WebClient;
-  message: ChatPostMessageResponse;
+  say: SayFn;
+  message: ChatPostMessageResponse | undefined;
   text: string;
 }
 
-const updateMessage = async ({ client, message, text }: UpdateMessageParams): Promise<void> => {
-  if (!message.channel || !message.ts) {
-    throw new Error(`Failed to get channel or timestamp from response message: ${JSON.stringify(message)}`);
-  }
-
-  // Ensure we always have some text content
+const createOrUpdateMessage = async ({
+  client,
+  say,
+  message,
+  text,
+}: UpdateMessageParams): Promise<ChatPostMessageResponse> => {
   const messageText = text || '_thinking..._';
 
-  await client.chat.update({
+  if (!message) {
+    return await say({
+      text: messageText,
+      parse: 'full',
+    });
+  }
+
+  if (!message.ts || !message.channel) {
+    throw new Error(`Failed to get timestamp or channel from response message: ${JSON.stringify(message)}`);
+  }
+
+  return await client.chat.update({
     channel: message.channel,
     ts: message.ts,
     text: messageText,
@@ -184,7 +203,7 @@ const assistant = new Assistant({
   userMessage: async ({ message: slackMessage, logger, say, setTitle, client }) => {
     const { channel: slackChannel, thread_ts, text, ts: userSlackMessageTs } = slackMessage as SlackMessage;
     let currentResponseText = '';
-    let mainSlackResponseMessage: ChatPostMessageResponse;
+    let mainSlackResponseMessage: ChatPostMessageResponse | undefined;
 
     let lastUpdateTime = Date.now();
     const UPDATE_INTERVAL = 500; // 0.5 seconds
@@ -225,10 +244,6 @@ const assistant = new Assistant({
       // We don't want to let the LLM loop indefinitely, so we limit the number of tool calls
       let remainingLlmLoopsAllowed = MAX_TOOL_CALL_ITERATIONS;
       while (remainingLlmLoopsAllowed > 0) {
-        mainSlackResponseMessage = await say({
-          text: '_thinking..._',
-          parse: 'full',
-        });
         currentResponseText = '';
         remainingLlmLoopsAllowed--;
 
@@ -252,10 +267,14 @@ const assistant = new Assistant({
           if (delta.content) {
             currentResponseText += delta.content;
 
+            const minTextLengthToStream: number = 10;
+
             // Update periodically to avoid rate limiting
-            if (Date.now() - lastUpdateTime > UPDATE_INTERVAL) {
-              await updateMessage({
+            // Also don't do a streaming update if the response is super short since that's too underwhelming
+            if (Date.now() - lastUpdateTime > UPDATE_INTERVAL && currentResponseText.length > minTextLengthToStream) {
+              mainSlackResponseMessage = await createOrUpdateMessage({
                 client,
+                say,
                 message: mainSlackResponseMessage,
                 text: currentResponseText,
               });
@@ -295,8 +314,9 @@ const assistant = new Assistant({
           }
         }
         // Update message with final chunk
-        await updateMessage({
+        mainSlackResponseMessage = await createOrUpdateMessage({
           client,
+          say,
           message: mainSlackResponseMessage,
           text: currentResponseText,
         });
@@ -304,8 +324,9 @@ const assistant = new Assistant({
         // LLM stream is done, we have the complete message
         // If we have tool calls, execute them
         if (toolCalls.length > 0) {
+          const toolCallDescriptions = toolCalls.map(getToolCallShortDescription).join(', ');
           mainSlackResponseMessage = await say({
-            text: '_collecting data..._',
+            text: `_${toolCallDescriptions}..._`,
             parse: 'full',
           });
 
@@ -314,10 +335,12 @@ const assistant = new Assistant({
             tool_calls: toolCalls,
           });
           for (const toolCall of toolCalls) {
-            logger.info(`Executing tool call: ${JSON.stringify(toolCall, null, 2)}`);
             const toolName = toolCall.function.name;
             const toolArgs = JSON.parse(toolCall.function.arguments);
             const toolCallResult = await toolImplementations[toolName as keyof typeof toolImplementations](toolArgs);
+
+            logger.info(`Tool call: ${JSON.stringify({ toolCall, toolCallResult }, null, 2)}`);
+
             llmThread.push({
               role: 'tool',
               tool_call_id: toolCall.id,

@@ -35,6 +35,7 @@ async function syncMembers() {
           linkedin_url: member.linkedin_url,
           metadata: {
             last_linkedin_update: lastUpdate || undefined,
+            slack_user_id: member.slack_id,
           },
         };
       }),
