@@ -78,7 +78,7 @@ When formatting your responses:
    - Use 1. for numbered lists
 
 2. When mentioning members:
-   - If you have both the linkedin profile url and the slack id, prefer a format like <@USER_ID> (<https://www.linkedin.com/in/USER_ID|LinkedIn>)
+   - If you have both the linkedin profile url and the slack id, prefer a format that leads with the slack id like "<@USER_ID> (<https://www.linkedin.com/in/the_user|Linkedin>)"
    - Always use the <@USER_ID> format for member mentions when you have Slack IDs. When you do this, never mention the member's name explicitly alongside the <@USER_ID> since Slack will automatically show a tile with the member's name.
    - Never URLencode or escape the <@USER_ID> format. Use literal < and > characters.
 
