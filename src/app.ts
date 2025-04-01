@@ -193,7 +193,7 @@ const assistant = new Assistant({
   userMessage: async ({ message: slackMessage, logger, say, setTitle, client }) => {
     const { channel: slackChannel, thread_ts, text, ts: userSlackMessageTs } = slackMessage as SlackMessage;
     let currentResponseText = '';
-    let mainSlackResponseMessage: ChatPostMessageResponse | undefined;
+    let inProgressSlackResponseMessage: ChatPostMessageResponse | undefined;
 
     let lastUpdateTime = Date.now();
     const UPDATE_INTERVAL = 500; // 0.5 seconds
@@ -262,10 +262,10 @@ const assistant = new Assistant({
             // Update periodically to avoid rate limiting
             // Also don't do a streaming update if the response is super short since that's too underwhelming
             if (Date.now() - lastUpdateTime > UPDATE_INTERVAL && currentResponseText.length > minTextLengthToStream) {
-              mainSlackResponseMessage = await createOrUpdateMessage({
+              inProgressSlackResponseMessage = await createOrUpdateMessage({
                 client,
                 say,
-                message: mainSlackResponseMessage,
+                message: inProgressSlackResponseMessage,
                 text: currentResponseText,
               });
               lastUpdateTime = Date.now();
@@ -304,10 +304,10 @@ const assistant = new Assistant({
           }
         }
         // Update message with final chunk
-        mainSlackResponseMessage = await createOrUpdateMessage({
+        inProgressSlackResponseMessage = await createOrUpdateMessage({
           client,
           say,
-          message: mainSlackResponseMessage,
+          message: inProgressSlackResponseMessage,
           text: currentResponseText,
         });
 
@@ -315,10 +315,13 @@ const assistant = new Assistant({
         // If we have tool calls, execute them
         if (toolCalls.length > 0) {
           const toolCallDescriptions = toolCalls.map(getToolCallShortDescription).join(', ');
-          mainSlackResponseMessage = await say({
+
+          // This should be a standalone message, so create a fresh message and clear the inProgressSlackResponseMessage
+          await say({
             text: `_${toolCallDescriptions}..._`,
             parse: 'full',
           });
+          inProgressSlackResponseMessage = undefined;
 
           llmThread.push({
             role: 'assistant',
