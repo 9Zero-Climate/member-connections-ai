@@ -34,4 +34,5 @@ jobs:
           OFFICERND_CLIENT_SECRET: ${{ secrets.OFFICERND_CLIENT_SECRET }}
           OFFICERND_ORG_SLUG: ${{ secrets.OFFICERND_ORG_SLUG }}
           PROXYCURL_API_KEY: ${{ secrets.PROXYCURL_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: pnpm sync:members 
