@@ -28,6 +28,10 @@ jobs:
     env:
       NODE_ENV: test
       DB_URL: postgresql://test:test@localhost:5432/testdb
+      OFFICERND_CLIENT_ID: 'not_a_real_id'
+      OFFICERND_CLIENT_SECRET: 'not_a_real_secret'
+      OFFICERND_ORG_SLUG: 'not_a_real_slug'
+      PROXYCURL_API_KEY: 'not_a_real_key'
 
     steps:
       - uses: actions/checkout@v4
