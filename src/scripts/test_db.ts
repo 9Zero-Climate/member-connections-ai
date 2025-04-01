@@ -12,6 +12,7 @@ interface TestDoc {
     reply_count: number;
     reactions: Array<{ name: string; count: number }>;
     permalink: string;
+    slack_user_id?: string;
   };
 }
 
@@ -57,7 +58,16 @@ async function testDatabase(): Promise<void> {
     // Test similarity search
     console.log('\nTesting similarity search...');
     const similar = await findSimilar([0.1, 0.2, 0.3, 0.4, 0.5], { limit: 1 });
-    console.log('Similar documents:', similar);
+    console.log(
+      'Similar documents:',
+      similar.map((doc) => ({
+        ...doc,
+        metadata: {
+          ...doc.metadata,
+          slack_user_id: doc.metadata?.slack_user_id || null,
+        },
+      })),
+    );
 
     // Test delete
     console.log('\nTesting delete...');

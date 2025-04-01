@@ -199,17 +199,22 @@ async function findSimilar(embedding: number[], options: SearchOptions = {}): Pr
         metadata,
         created_at,
         updated_at,
+        slack_user_id,
         1 - (embedding <=> $1) as similarity
-      FROM rag_docs
+      FROM documents_with_slack_user_id
       ORDER BY embedding <=> $1
       LIMIT $2`,
       [embeddingVector, limit],
     );
 
     // Convert stored vector format back to array for each result
-    return result.rows.map((doc: Document) => ({
+    return result.rows.map((doc: Document & { slack_user_id: string | null }) => ({
       ...doc,
       ...(excludeEmbeddingsFromResults ? {} : { embedding: parseStoredEmbedding(doc.embedding as string | null) }),
+      metadata: {
+        ...doc.metadata,
+        slack_user_id: doc.slack_user_id,
+      },
     }));
   } catch (error) {
     console.error('Error finding similar documents:', error);
@@ -321,12 +326,18 @@ async function getLastLinkedInUpdates(officerndMemberIds: string[]): Promise<Map
 async function getLinkedInDocuments(linkedinUrl: string): Promise<Document[]> {
   try {
     const result = await client.query(
-      `SELECT * FROM rag_docs 
+      `SELECT * FROM documents_with_slack_user_id
        WHERE source_type LIKE 'linkedin_%' 
        AND metadata->>'linkedin_url' = $1`,
       [linkedinUrl],
     );
-    return result.rows;
+    return result.rows.map((row: Document & { slack_user_id: string | null }) => ({
+      ...row,
+      metadata: {
+        ...row.metadata,
+        slack_user_id: row.slack_user_id,
+      },
+    }));
   } catch (error) {
     console.error('Error fetching LinkedIn documents:', error);
     throw error;
@@ -341,12 +352,18 @@ async function getLinkedInDocuments(linkedinUrl: string): Promise<Document[]> {
 async function getLinkedInDocumentsByName(memberName: string): Promise<Document[]> {
   try {
     const result = await client.query(
-      `SELECT * FROM rag_docs 
+      `SELECT * FROM documents_with_slack_user_id
        WHERE source_type LIKE 'linkedin_%' 
        AND metadata->>'member_name' = $1`,
       [memberName],
     );
-    return result.rows;
+    return result.rows.map((row: Document & { slack_user_id: string | null }) => ({
+      ...row,
+      metadata: {
+        ...row.metadata,
+        slack_user_id: row.slack_user_id,
+      },
+    }));
   } catch (error) {
     console.error('Error fetching LinkedIn documents:', error);
     throw error;

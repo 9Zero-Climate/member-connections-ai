@@ -314,13 +314,19 @@ describe('database', () => {
           source_type: testDocs[0].source_type,
           source_unique_id: testDocs[0].source_unique_id,
           content: testDocs[0].content,
-          metadata: testDocs[0].metadata,
+          metadata: {
+            ...testDocs[0].metadata,
+            slack_user_id: null,
+          },
         });
         expect(result[1]).toMatchObject({
           source_type: testDocs[1].source_type,
           source_unique_id: testDocs[1].source_unique_id,
           content: testDocs[1].content,
-          metadata: testDocs[1].metadata,
+          metadata: {
+            ...testDocs[1].metadata,
+            slack_user_id: null,
+          },
         });
       } else {
         const mockDocs: TestDoc[] = [
@@ -354,7 +360,10 @@ describe('database', () => {
           },
         ];
         mockQuery.mockResolvedValueOnce({
-          rows: mockDocs,
+          rows: mockDocs.map((doc) => ({
+            ...doc,
+            slack_user_id: null,
+          })),
         });
 
         const result = await findSimilar(generateTestVector(), { limit: 2 });
@@ -367,13 +376,23 @@ describe('database', () => {
         metadata,
         created_at,
         updated_at,
+        slack_user_id,
         1 - (embedding <=> $1) as similarity
-      FROM rag_docs
+      FROM documents_with_slack_user_id
       ORDER BY embedding <=> $1
       LIMIT $2`,
           [`[${generateTestVector().join(',')}]`, 2],
         );
-        expect(result).toEqual(mockDocs);
+        expect(result).toEqual(
+          mockDocs.map((doc) => ({
+            ...doc,
+            slack_user_id: null,
+            metadata: {
+              ...doc.metadata,
+              slack_user_id: null,
+            },
+          })),
+        );
       }
     });
   });
