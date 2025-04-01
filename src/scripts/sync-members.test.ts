@@ -1,5 +1,5 @@
 import { config } from 'dotenv';
-import { bulkUpsertMembers } from '../services/database';
+import { bulkUpsertMembers, getLastLinkedInUpdates } from '../services/database';
 import { getAllMembers as getOfficeRnDMembers } from '../services/officernd';
 import { getLinkedInProfile, getMembersToUpdate } from '../services/proxycurl';
 import { syncMembers } from './sync-members';
@@ -64,7 +64,12 @@ describe('Member Sync Script', () => {
 
     (getOfficeRnDMembers as jest.Mock).mockResolvedValue(mockMembers);
     (bulkUpsertMembers as jest.Mock).mockResolvedValue(mockMembers);
-
+    (getLastLinkedInUpdates as jest.Mock).mockResolvedValue(
+      new Map([
+        ['1', 1717334400000],
+        ['2', 1717334400000],
+      ]),
+    );
     // Run sync
     await syncMembers();
 

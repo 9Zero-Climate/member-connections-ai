@@ -285,36 +285,30 @@ async function deleteLinkedInDocuments(officerndMemberId: string): Promise<void>
 }
 
 /**
- * Generate embeddings for a document's content
- * @param content - The text content to embed
- * @returns The embedding vector or null if embedding fails
+ * Get the last update times for multiple members' LinkedIn documents in a single query
+ * @param officerndMemberIds - Array of OfficeRnD member IDs
+ * @returns Map of member IDs to their last update timestamps in milliseconds
  */
-async function embedDocument(content: string): Promise<number[] | null> {
-  try {
-    const embeddings = await generateEmbeddings([content]);
-    return embeddings[0] || null;
-  } catch (error) {
-    console.error('Error generating embeddings:', error);
-    return null;
-  }
-}
+async function getLastLinkedInUpdates(officerndMemberIds: string[]): Promise<Map<string, number | null>> {
+  if (officerndMemberIds.length === 0) return new Map();
 
-/**
- * Get the last update time for a member's LinkedIn documents
- * @param officerndMemberId - The OfficeRnD member ID
- * @returns The last update timestamp in milliseconds, or null if no documents exist
- */
-async function getLastLinkedInUpdate(officerndMemberId: string): Promise<number | null> {
   try {
-    const result = await client.query(
-      `SELECT MAX(updated_at) as last_update
+    const result = (await client.query(
+      `SELECT 
+         SUBSTRING(source_unique_id FROM 'officernd_member_(.+):') as member_id,
+         MAX(updated_at) as last_update
        FROM rag_docs
-       WHERE source_unique_id LIKE $1`,
-      [`officernd_member_${officerndMemberId}:%`],
+       WHERE source_unique_id LIKE ANY($1)
+       GROUP BY member_id`,
+      [officerndMemberIds.map((id) => `officernd_member_${id}:%`)],
+    )) as { rows: { member_id: string; last_update: string | null }[] };
+
+    const updates = new Map<string, number | null>(
+      result.rows.map((row) => [row.member_id, row.last_update ? new Date(row.last_update).getTime() : null]),
     );
-    return result.rows[0]?.last_update ? new Date(result.rows[0].last_update).getTime() : null;
+    return updates;
   } catch (error) {
-    console.error('Error getting last LinkedIn update:', error);
+    console.error('Error getting last LinkedIn updates:', error);
     throw error;
   }
 }
@@ -325,7 +319,7 @@ export {
   deleteDoc,
   findSimilar,
   close,
-  getLastLinkedInUpdate,
+  getLastLinkedInUpdates,
   bulkUpsertMembers,
   deleteLinkedInDocuments,
   setTestClient,

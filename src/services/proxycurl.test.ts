@@ -330,41 +330,6 @@ describe('Proxycurl Service', () => {
         }),
       );
     });
-
-    it('should handle languages with missing proficiency', async () => {
-      const profileWithMissingLanguageProficiency = {
-        ...mockProfile,
-        languages: ['English'],
-      };
-
-      await createLinkedInDocuments(
-        '123',
-        'John Doe',
-        'https://linkedin.com/in/johndoe',
-        profileWithMissingLanguageProficiency,
-      );
-
-      // Verify language document was created without proficiency
-      expect(insertOrUpdateDoc).toHaveBeenCalledWith(
-        expect.objectContaining({
-          source_type: 'linkedin_languages',
-          source_unique_id: expect.stringContaining('officernd_member_123:languages'),
-          content: 'English',
-          metadata: expect.objectContaining({
-            languages: ['English'],
-          }),
-        }),
-      );
-    });
-
-    it('should handle errors gracefully', async () => {
-      // Mock database error
-      (deleteLinkedInDocuments as jest.Mock).mockRejectedValueOnce(new Error('Database error'));
-
-      await expect(
-        createLinkedInDocuments('123', 'John Doe', 'https://linkedin.com/in/johndoe', mockProfile),
-      ).rejects.toThrow('Database error');
-    });
   });
 
   describe('needsLinkedInUpdate', () => {

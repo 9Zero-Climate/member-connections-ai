@@ -1,5 +1,5 @@
 import { config } from 'dotenv';
-import { bulkUpsertMembers, close as closeDb, getLastLinkedInUpdate } from '../services/database';
+import { bulkUpsertMembers, close as closeDb, getLastLinkedInUpdates } from '../services/database';
 import { getAllMembers as getOfficeRnDMembers } from '../services/officernd';
 import { createLinkedInDocuments, getLinkedInProfile, getMembersToUpdate } from '../services/proxycurl';
 
@@ -25,21 +25,17 @@ async function syncMembers() {
     );
     console.log(`Found ${membersWithLinkedIn.length} members with LinkedIn profiles. Prioritizing updates...`);
 
-    // Get last update times for all members
-    const membersWithLastUpdate = await Promise.all(
-      membersWithLinkedIn.map(async (member) => {
-        const lastUpdate = await getLastLinkedInUpdate(member.officernd_id);
-        return {
-          id: member.officernd_id,
-          name: member.name,
-          linkedin_url: member.linkedin_url,
-          metadata: {
-            last_linkedin_update: lastUpdate || undefined,
-            slack_user_id: member.slack_id,
-          },
-        };
-      }),
-    );
+    // Get last update times for all members in a single query
+    const lastUpdates = await getLastLinkedInUpdates(membersWithLinkedIn.map((m) => m.officernd_id));
+    const membersWithLastUpdate = membersWithLinkedIn.map((member) => ({
+      id: member.officernd_id,
+      name: member.name,
+      linkedin_url: member.linkedin_url,
+      metadata: {
+        last_linkedin_update: lastUpdates.get(member.officernd_id) || undefined,
+        slack_user_id: member.slack_id,
+      },
+    }));
 
     // Get members that need updates, limited to 100 per run
     const membersToUpdate = getMembersToUpdate(membersWithLastUpdate);
