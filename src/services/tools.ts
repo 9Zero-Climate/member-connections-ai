@@ -1,5 +1,5 @@
 import { XMLBuilder } from 'fast-xml-parser';
-import { findSimilar } from './database';
+import { findSimilar, getLinkedInDocuments, getLinkedInDocumentsByName } from './database';
 import type { Document } from './database';
 import { generateEmbedding } from './embedding';
 
@@ -11,6 +11,15 @@ export interface SearchToolParams {
 export interface SearchToolResult {
   documents: Document[];
   query: string;
+}
+
+export interface LinkedInProfileToolParams {
+  memberName: string;
+}
+
+export interface LinkedInProfileToolResult {
+  documents: Document[];
+  memberName: string;
 }
 
 export interface ToolCall {
@@ -38,6 +47,18 @@ export async function searchDocuments(params: SearchToolParams): Promise<SearchT
   return {
     documents,
     query,
+  };
+}
+
+/**
+ * Fetch LinkedIn profile data for a given member name from the database
+ */
+export async function fetchLinkedInProfile(params: LinkedInProfileToolParams): Promise<LinkedInProfileToolResult> {
+  const { memberName } = params;
+  const documents = await getLinkedInDocumentsByName(memberName);
+  return {
+    documents,
+    memberName,
   };
 }
 
@@ -82,6 +103,23 @@ export const tools = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'fetchLinkedInProfile',
+      description: 'Fetch LinkedIn profile data for a given member name from the database.',
+      parameters: {
+        type: 'object',
+        properties: {
+          memberName: {
+            type: 'string',
+            description: "The member's name to fetch LinkedIn data for",
+          },
+        },
+        required: ['memberName'],
+      },
+    },
+  },
 ];
 
 export const getToolCallShortDescription = (toolCall: ToolCall) => {
@@ -95,11 +133,15 @@ export const getToolCallShortDescription = (toolCall: ToolCall) => {
   switch (toolName) {
     case 'searchDocuments':
       return `Semantic search for "${toolArgs.query}"`;
+    case 'fetchLinkedInProfile':
+      return `Fetch LinkedIn profile for ${toolArgs.memberName}`;
     default:
       throw new Error(`Unhandled tool call: ${toolName}`);
   }
 };
+
 // Map of tool names to their implementations
 export const toolImplementations = {
   searchDocuments,
+  fetchLinkedInProfile,
 };

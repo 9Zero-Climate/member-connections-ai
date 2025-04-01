@@ -313,6 +313,46 @@ async function getLastLinkedInUpdates(officerndMemberIds: string[]): Promise<Map
   }
 }
 
+/**
+ * Get all LinkedIn documents for a given LinkedIn URL
+ * @param linkedinUrl - The LinkedIn profile URL
+ * @returns Array of documents with their content and metadata
+ */
+async function getLinkedInDocuments(linkedinUrl: string): Promise<Document[]> {
+  try {
+    const result = await client.query(
+      `SELECT * FROM rag_docs 
+       WHERE source_type LIKE 'linkedin_%' 
+       AND metadata->>'linkedin_url' = $1`,
+      [linkedinUrl],
+    );
+    return result.rows;
+  } catch (error) {
+    console.error('Error fetching LinkedIn documents:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get all LinkedIn documents for a given member name
+ * @param memberName - The member's name
+ * @returns Array of documents with their content and metadata
+ */
+async function getLinkedInDocumentsByName(memberName: string): Promise<Document[]> {
+  try {
+    const result = await client.query(
+      `SELECT * FROM rag_docs 
+       WHERE source_type LIKE 'linkedin_%' 
+       AND metadata->>'member_name' = $1`,
+      [memberName],
+    );
+    return result.rows;
+  } catch (error) {
+    console.error('Error fetching LinkedIn documents:', error);
+    throw error;
+  }
+}
+
 export {
   insertOrUpdateDoc,
   getDocBySource,
@@ -323,4 +363,6 @@ export {
   bulkUpsertMembers,
   deleteLinkedInDocuments,
   setTestClient,
+  getLinkedInDocuments,
+  getLinkedInDocumentsByName,
 };

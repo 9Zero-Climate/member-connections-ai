@@ -12,7 +12,7 @@ interface DateObject {
   year: number;
 }
 
-interface ProxycurlProfile {
+export interface ProxycurlProfile {
   headline: string | null;
   summary: string | null;
   experiences: Array<{
