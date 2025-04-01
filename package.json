@@ -15,7 +15,7 @@
     "test:watch": "jest --watch",
     "test:db": "tsx src/scripts/test_db.ts",
     "test:slack": "tsx src/scripts/test_slack.ts",
-    "sync": "tsx src/cli.ts sync-channel",
+    "sync:slack": "tsx src/cli.ts sync-channel",
     "sync:members": "tsx src/scripts/sync-members.ts",
     "typecheck": "tsc --noEmit",
     "setup:db": "tsx src/scripts/setup_test_db.ts",

@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import { getDocBySource, insertDoc, updateDoc } from './services/database';
+import { getDocBySource, insertOrUpdateDoc } from './services/database';
 import slackSync from './services/slack_sync';
 import type { SlackMessage } from './services/slack_sync';
 
@@ -55,24 +55,20 @@ program
 
         // Store messages
         for (const msg of processedMessages) {
-          // Check if document already exists
+          // Check if document already exists and content/metadata has changed
           const existingDoc = await getDocBySource(msg.source_unique_id);
-          if (existingDoc) {
-            // Update if content or metadata has changed
-            if (
-              existingDoc.content !== msg.content ||
-              JSON.stringify(existingDoc.metadata) !== JSON.stringify(msg.metadata)
-            ) {
-              await updateDoc(msg.source_unique_id, msg);
-              console.log(`Updated document ${msg.source_unique_id}`);
-            } else {
-              console.log(`Skipping unchanged document ${msg.source_unique_id}`);
-            }
-          } else {
-            // Insert new document
-            await insertDoc(msg);
-            console.log(`Inserted new document ${msg.source_unique_id}`);
+          if (
+            existingDoc &&
+            existingDoc.content === msg.content &&
+            JSON.stringify(existingDoc.metadata) === JSON.stringify(msg.metadata)
+          ) {
+            console.log(`Skipping unchanged document ${msg.source_unique_id}`);
+            continue;
           }
+
+          // Insert or update document
+          await insertOrUpdateDoc(msg);
+          console.log(`${existingDoc ? 'Updated' : 'Inserted'} document ${msg.source_unique_id}`);
         }
 
         console.log(`Completed batch ${batchIndex + 1}`);

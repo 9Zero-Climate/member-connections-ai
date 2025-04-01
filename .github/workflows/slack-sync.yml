@@ -53,5 +53,5 @@ jobs:
         run: |
           echo "Running sync for all configured channels"
           # Add more channels as needed
-          pnpm sync introductions
-          pnpm sync general
+          pnpm sync:slack introductions
+          pnpm sync:slack general
