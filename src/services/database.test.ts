@@ -81,18 +81,29 @@ describe('database', () => {
         metadata: undefined,
       };
 
-      mockClient.query.mockResolvedValueOnce({ rows: [doc] });
-
-      const result = await insertOrUpdateDoc(doc);
-
-      expect(result).toEqual(doc);
-      expect(mockClient.query).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO rag_docs'), [
-        doc.source_type,
-        doc.source_unique_id,
-        doc.content,
-        null,
-        doc.metadata,
-      ]);
+      if (process.env.CI) {
+        const result = await insertOrUpdateDoc(doc);
+        expect(result).toMatchObject({
+          source_type: doc.source_type,
+          source_unique_id: doc.source_unique_id,
+          content: doc.content,
+          embedding: doc.embedding,
+          metadata: null, // PostgreSQL converts undefined to null
+        });
+        expect(result.created_at).toBeInstanceOf(Date);
+        expect(result.updated_at).toBeInstanceOf(Date);
+      } else {
+        mockClient.query.mockResolvedValueOnce({ rows: [doc] });
+        const result = await insertOrUpdateDoc(doc);
+        expect(result).toEqual(doc);
+        expect(mockClient.query).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO rag_docs'), [
+          doc.source_type,
+          doc.source_unique_id,
+          doc.content,
+          null,
+          doc.metadata,
+        ]);
+      }
     });
 
     it('should update an existing document', async () => {
@@ -104,18 +115,29 @@ describe('database', () => {
         metadata: undefined,
       };
 
-      mockClient.query.mockResolvedValueOnce({ rows: [updatedDoc] });
-
-      const result = await insertOrUpdateDoc(updatedDoc);
-
-      expect(result).toEqual(updatedDoc);
-      expect(mockClient.query).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO rag_docs'), [
-        updatedDoc.source_type,
-        updatedDoc.source_unique_id,
-        updatedDoc.content,
-        null,
-        updatedDoc.metadata,
-      ]);
+      if (process.env.CI) {
+        const result = await insertOrUpdateDoc(updatedDoc);
+        expect(result).toMatchObject({
+          source_type: updatedDoc.source_type,
+          source_unique_id: updatedDoc.source_unique_id,
+          content: updatedDoc.content,
+          embedding: updatedDoc.embedding,
+          metadata: null, // PostgreSQL converts undefined to null
+        });
+        expect(result.created_at).toBeInstanceOf(Date);
+        expect(result.updated_at).toBeInstanceOf(Date);
+      } else {
+        mockClient.query.mockResolvedValueOnce({ rows: [updatedDoc] });
+        const result = await insertOrUpdateDoc(updatedDoc);
+        expect(result).toEqual(updatedDoc);
+        expect(mockClient.query).toHaveBeenCalledWith(expect.stringContaining('INSERT INTO rag_docs'), [
+          updatedDoc.source_type,
+          updatedDoc.source_unique_id,
+          updatedDoc.content,
+          null,
+          updatedDoc.metadata,
+        ]);
+      }
     });
   });
 

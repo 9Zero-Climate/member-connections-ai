@@ -31,7 +31,7 @@ jobs:
       OFFICERND_CLIENT_ID: 'not_a_real_id'
       OFFICERND_CLIENT_SECRET: 'not_a_real_secret'
       OFFICERND_ORG_SLUG: 'not_a_real_slug'
-      PROXYCURL_API_KEY: 'not_a_real_key'
+      PROXYCURL_API_KEY: 'test-key'
 
     steps:
       - uses: actions/checkout@v4
