@@ -115,9 +115,11 @@ export async function getLinkedInProfile(linkedinUrl: string): Promise<Proxycurl
  * @param dateRange - Date range
  * @returns A stable unique identifier
  */
-function createExperienceId(company: string, dateRange: string | null): string {
+function createExperienceId(company: string | null, dateRange: string | null): string {
+  // Handle null company name
+  const companyName = company || 'unknown-company';
   // Create a URL-friendly version of the company name
-  const companySlug = company.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+  const companySlug = companyName.toLowerCase().replace(/[^a-z0-9]+/g, '-');
   // Use date range if available, otherwise use a hash of the company name
   const datePart = dateRange ? dateRange.replace(/[^a-z0-9]+/g, '-') : companySlug.slice(0, 8);
   return `${companySlug}-${datePart}`;
