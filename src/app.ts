@@ -6,14 +6,13 @@ import type { Express } from 'express';
 import { OpenAI } from 'openai';
 import type {
   ChatCompletionAssistantMessageParam,
-  ChatCompletionChunk,
-  ChatCompletionMessage,
+  ChatCompletionMessageToolCall,
   ChatCompletionSystemMessageParam,
   ChatCompletionTool,
   ChatCompletionToolMessageParam,
   ChatCompletionUserMessageParam,
 } from 'openai/resources/chat';
-import { getToolCallShortDescription, objectToXml, toolImplementations, tools } from './services/tools';
+import { type ToolCall, getToolCallShortDescription, objectToXml, toolImplementations, tools } from './services/tools';
 
 config();
 
@@ -149,15 +148,6 @@ interface SlackMessage {
   text: string;
   ts: string;
   bot_id?: string;
-}
-
-interface ToolCall {
-  id: string;
-  type: 'function';
-  function: {
-    name: string;
-    arguments: string;
-  };
 }
 
 const assistant = new Assistant({

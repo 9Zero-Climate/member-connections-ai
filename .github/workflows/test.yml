@@ -54,6 +54,9 @@ jobs:
       - name: Setup test database
         run: node src/scripts/setup_test_db.js
 
+      - name: Type check
+        run: pnpm typecheck
+
       - name: Run tests
         run: pnpm test
 

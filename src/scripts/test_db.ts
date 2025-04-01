@@ -1,4 +1,4 @@
-import { close, deleteDoc, findSimilar, getDocBySource, insertDoc, updateDoc } from '../services/database';
+import { close, deleteDoc, findSimilar, getDocBySource, insertOrUpdateDoc } from '../services/database';
 
 interface TestDoc {
   source_type: string;
@@ -37,7 +37,7 @@ async function testDatabase(): Promise<void> {
 
     // Test insert
     console.log('Testing insert...');
-    const inserted = await insertDoc(testDoc);
+    const inserted = await insertOrUpdateDoc(testDoc);
     console.log('Inserted document:', inserted);
 
     // Test get by source
@@ -47,7 +47,8 @@ async function testDatabase(): Promise<void> {
 
     // Test update
     console.log('\nTesting update...');
-    const updated = await updateDoc(testDoc.source_unique_id, {
+    const updated = await insertOrUpdateDoc({
+      ...testDoc,
       content: 'Updated test content',
       embedding: [0.6, 0.7, 0.8, 0.9, 1.0],
     });

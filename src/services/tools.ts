@@ -1,5 +1,4 @@
 import { XMLBuilder } from 'fast-xml-parser';
-import type { ToolCall } from 'openai/resources/beta/threads/runs/steps';
 import { findSimilar } from './database';
 import type { Document } from './database';
 import { generateEmbedding } from './embedding';
@@ -12,6 +11,15 @@ export interface SearchToolParams {
 export interface SearchToolResult {
   documents: Document[];
   query: string;
+}
+
+export interface ToolCall {
+  id: string;
+  type: 'function';
+  function: {
+    name: string;
+    arguments: string;
+  };
 }
 
 const DEFAULT_DOCUMENT_LIMIT = 20;
