@@ -6,7 +6,6 @@ import type { Express } from 'express';
 import { OpenAI } from 'openai';
 import type {
   ChatCompletionAssistantMessageParam,
-  ChatCompletionMessageToolCall,
   ChatCompletionSystemMessageParam,
   ChatCompletionTool,
   ChatCompletionToolMessageParam,
@@ -52,13 +51,13 @@ const openai = new OpenAI({
   },
 });
 
-const DEFAULT_SYSTEM_CONTENT = `You're an assistant in the Slack workspace for 9Zero Climate, a community of people working to end the climate crisis.
+const DEFAULT_SYSTEM_CONTENT = `You're an assistant in the Slack workspace for 9Zero Climate, a community of people working to end the climate crisis. You are known as Member Connections Bot or MCB.
 Users in the workspace will ask you to connect them with other members.
 You'll respond to those questions in a professional way.
 Our goal is to help members find useful, deep and meaningful connections, so we should go into depth on the particular users that we are suggesting.
 Lean towards including more relevant information in your responses rather than less.
 
-You have access to tools that can find relevant messages and Linkedin profile information.
+You have access to tools that can find relevant messages and Linkedin profile information, as well as context on the current user and the date and time.
 When a user asks a question, you should:
 
 1. Analyze their question to determine what information they need
@@ -72,9 +71,9 @@ When formatting your responses:
    - Use _text_ for italics
    - Use \`text\` for code blocks
    - Use \`\`\` for multi-line code blocks
-   - Use > for blockquotes
-   - Use • or - for bullet points, with a single space between the bullet and the text
-   - Use 1. for numbered lists
+   - Start lines with > for blockquotes
+   - Start lines with - for bullet points, with only a single space between the bullet and the text
+   - Start lines with 1. for numbered lists, with only a single space between the number and the text
 
 2. When mentioning members:
    - If you have both the linkedin profile url and the slack id, prefer a format that leads with the slack id like "<@USER_ID> (<https://www.linkedin.com/in/the_user|Linkedin>)"
@@ -84,7 +83,7 @@ When formatting your responses:
 3. When referencing messages:
    - Always include the permalink URL from the message metadata to create clickable links
    - Format links as <URL|text> where URL is the permalink and text is a brief description. Do not escape the brackets.
-   - If a message is relatively old, consider mentioning how old (for instance, "a while back" or "last month" or "back in August"). The current date is ${new Date().toLocaleDateString()}.
+   - If a message is relatively old, consider mentioning how old (for instance, "a while back" or "last month" or "back in August").
    - Example: <@USER_ID> mentioned <https://slack.com/archives/C1234567890/p1234567890123456|here> that[...]
 
 4. When referencing linkedin experience:
@@ -96,7 +95,7 @@ If the context doesn't contain relevant information, say so and provide general 
 
 // Slack has a limit of 4000 characters per message
 const MAX_MESSAGE_LENGTH = 3900;
-const MAX_TOOL_CALL_ITERATIONS = 3;
+const MAX_TOOL_CALL_ITERATIONS = 5;
 
 interface UpdateMessageParams {
   client: WebClient;
@@ -148,6 +147,8 @@ interface SlackMessage {
   text: string;
   ts: string;
   bot_id?: string;
+  user?: string;
+  subtype?: string;
 }
 
 const assistant = new Assistant({
@@ -223,12 +224,44 @@ const assistant = new Assistant({
         return { role, content: m.text } as ChatMessage;
       });
 
+      // Get user info if message is from a user
+      let userInfoForBot = {};
+      if (slackMessage.subtype === undefined && slackMessage.user) {
+        const user = (await client.users.info({ user: slackMessage.user })).user;
+        const userProfile = user?.profile;
+        console.log('user', user);
+        userInfoForBot = {
+          slack_ID: `<@${slackMessage.user}>`,
+          preferred_name: userProfile?.display_name,
+          real_name: userProfile?.real_name,
+          time_zone: user?.tz,
+          time_zone_offset: user?.tz_offset,
+        };
+      } else {
+        userInfoForBot = {
+          source: 'a system event',
+        };
+      }
+      console.log('userInfoForBot', userInfoForBot);
+
       const llmThread: ChatMessage[] = [
         { role: 'system', content: DEFAULT_SYSTEM_CONTENT },
+        {
+          role: 'system',
+          content: `The current date and time is ${new Date()}.`,
+        },
         { role: 'system', content: 'Here is the conversation history:' },
         ...threadHistory,
+        {
+          role: 'system',
+          content:
+            slackMessage.subtype === undefined && slackMessage.user
+              ? `The following message is from: ${JSON.stringify(userInfoForBot)}`
+              : 'The following message is from a system event.',
+        },
         userMessage,
       ];
+      console.log('llmThread[1]', llmThread[1]);
 
       // Tool calling loop
       // We don't want to let the LLM loop indefinitely, so we limit the number of tool calls

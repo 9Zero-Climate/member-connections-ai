@@ -1,7 +1,9 @@
 {
   "display_information": {
     "name": "Member Connections Bot",
-    "description": "An AI bot to assist in making member connections"
+    "description": "An AI bot to assist in making member connections",
+    "background_color": "#cc3e33",
+    "long_description": "Member Connections Bot is here to help you make connections with other 9Zero members.\r\n\r\nMCB has access to the history of select Slack channels (such as #introductions and #general), as well as public Linkedin profiles for members. Ask for an expert in any subject and the MCB can show you the way!"
   },
   "features": {
     "app_home": {
@@ -31,7 +33,9 @@
         "channels:read",
         "groups:read",
         "mpim:read",
-        "im:read"
+        "im:read",
+        "users.profile:read",
+        "users:read"
       ]
     }
   },
@@ -40,7 +44,7 @@
       "bot_events": ["assistant_thread_context_changed", "assistant_thread_started", "message.im"]
     },
     "interactivity": {
-      "is_enabled": false
+      "is_enabled": true
     },
     "org_deploy_enabled": false,
     "socket_mode_enabled": true,
