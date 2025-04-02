@@ -96,6 +96,7 @@ If the context doesn't contain relevant information, say so and provide general 
 // Slack has a limit of 4000 characters per message
 const MAX_MESSAGE_LENGTH = 3900;
 const MAX_TOOL_CALL_ITERATIONS = 5;
+const CHAT_EDIT_INTERVAL_MS = 1000;
 
 interface UpdateMessageParams {
   client: WebClient;
@@ -195,9 +196,7 @@ const assistant = new Assistant({
     const { channel: slackChannel, thread_ts, text, ts: userSlackMessageTs } = slackMessage as SlackMessage;
     let currentResponseText = '';
     let inProgressSlackResponseMessage: ChatPostMessageResponse | undefined;
-
-    let lastUpdateTime = Date.now();
-    const UPDATE_INTERVAL = 500; // 0.5 seconds
+    let lastUpdateTime = 0;
 
     await setTitle(text);
 
@@ -294,7 +293,10 @@ const assistant = new Assistant({
 
             // Update periodically to avoid rate limiting
             // Also don't do a streaming update if the response is super short since that's too underwhelming
-            if (Date.now() - lastUpdateTime > UPDATE_INTERVAL && currentResponseText.length > minTextLengthToStream) {
+            if (
+              Date.now() - lastUpdateTime > CHAT_EDIT_INTERVAL_MS &&
+              currentResponseText.length > minTextLengthToStream
+            ) {
               inProgressSlackResponseMessage = await createOrUpdateMessage({
                 client,
                 say,
