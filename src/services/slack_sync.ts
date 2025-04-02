@@ -28,6 +28,8 @@ interface FormattedMessage {
   content: string;
   metadata: {
     slack_user_id: string;
+    user_preferred_name?: string;
+    user_real_name?: string;
     channel: string;
     channel_name?: string;
     thread_ts?: string;
@@ -170,13 +172,17 @@ const slackSync = {
       }),
       this.getChannelName(channelId),
     ]);
-
+    const user = (await getClient().users.info({ user: message.user })).user;
+    const userDisplayName = user?.profile?.display_name;
+    const userRealName = user?.profile?.real_name;
     return {
       source_type: 'slack',
       source_unique_id: `${channelId}:${message.ts}`,
       content: message.text,
       metadata: {
         slack_user_id: message.user,
+        user_preferred_name: userDisplayName,
+        user_real_name: userRealName,
         channel: channelId,
         channel_name: channelName,
         thread_ts: message.thread_ts,
