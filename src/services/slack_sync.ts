@@ -163,7 +163,12 @@ const slackSync = {
    * @param {string} channelId - Channel ID
    * @returns {Object} Formatted message
    */
-  async formatMessage(message: SlackMessage, channelId: string): Promise<FormattedMessage> {
+  async formatMessage(message: SlackMessage, channelId: string): Promise<FormattedMessage | null> {
+    // Skip messages without text content
+    if (!message.text?.trim()) {
+      return null;
+    }
+
     // Get the permalink for the message
     const [permalinkResult, channelName] = await Promise.all([
       getClient().chat.getPermalink({
@@ -205,8 +210,9 @@ const slackSync = {
     channelId: string,
   ): Promise<(FormattedMessage & { embedding: number[] })[]> {
     const formattedMessages = await Promise.all(messages.map((msg) => this.formatMessage(msg, channelId)));
-    const embeddings = await generateEmbeddings(formattedMessages.map((msg) => msg.content));
-    return formattedMessages.map((msg, index) => ({
+    const validMessages = formattedMessages.filter((msg): msg is FormattedMessage => msg !== null);
+    const embeddings = await generateEmbeddings(validMessages.map((msg) => msg.content));
+    return validMessages.map((msg, index) => ({
       ...msg,
       embedding: embeddings[index],
     }));
