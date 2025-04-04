@@ -18,10 +18,10 @@ program
   .command('sync-channel')
   .description('Sync messages from a specific Slack channel')
   .argument('<channelName>', 'Name of the channel to sync')
-  .option('-l, --limit <number>', 'Maximum number of messages to sync', '100')
+  .option('-l, --limit <number>', 'Maximum number of messages to sync', '1000')
   .option('-o, --oldest <timestamp>', 'Start time in Unix timestamp')
   .option('-n, --newest <timestamp>', 'End time in Unix timestamp')
-  .option('-b, --batch-size <number>', 'Number of messages to process in each batch', '10')
+  .option('-b, --batch-size <number>', 'Number of messages to process in each batch', '50')
   .action(async (channelName: string, options: SyncOptions) => {
     try {
       console.log(`Syncing channel: ${channelName}`);
