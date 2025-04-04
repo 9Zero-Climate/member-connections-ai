@@ -1,4 +1,4 @@
-# Member Connections AI
+# Member Connections AI (Friendly name: "Fabric")
 
 [![Tests](https://github.com/9Zero-Climate/member-connections-ai/actions/workflows/test.yml/badge.svg)](https://github.com/9Zero-Climate/member-connections-ai/actions/workflows/test.yml)
 [![Slack Sync](https://github.com/9Zero-Climate/member-connections-ai/actions/workflows/slack-sync.yml/badge.svg)](https://github.com/9Zero-Climate/member-connections-ai/actions/workflows/slack-sync.yml)
