@@ -65,11 +65,6 @@ async function generateEmbeddings(texts: string[]): Promise<number[][]> {
   try {
     // Filter out invalid texts
     const validTexts = texts.filter((text) => text && typeof text === 'string');
-
-    if (validTexts.length === 0) {
-      throw new Error('No valid texts provided for embedding generation');
-    }
-
     console.log(`Generating embeddings for ${validTexts.length} texts`);
     console.log(`First text sample: ${validTexts[0].substring(0, 50)}...`);
 

@@ -210,7 +210,13 @@ const slackSync = {
     channelId: string,
   ): Promise<(FormattedMessage & { embedding: number[] })[]> {
     const formattedMessages = await Promise.all(messages.map((msg) => this.formatMessage(msg, channelId)));
-    const validMessages = formattedMessages.filter((msg): msg is FormattedMessage => msg !== null);
+
+    const canHandleMessage = (msg: FormattedMessage | null): msg is FormattedMessage => msg !== null;
+
+    const validMessages = formattedMessages.filter(canHandleMessage);
+    const unhandledMessages = formattedMessages.filter((msg) => !canHandleMessage(msg));
+    console.log(`Unhandled messages: ${JSON.stringify(unhandledMessages)}`);
+
     const embeddings = await generateEmbeddings(validMessages.map((msg) => msg.content));
     return validMessages.map((msg, index) => ({
       ...msg,
