@@ -1,9 +1,10 @@
+import { isDeepStrictEqual } from 'node:util';
 import { WebClient } from '@slack/web-api';
 import { config } from 'dotenv';
-import { getDocBySource } from './database';
+import type { Document } from './database';
 import { generateEmbeddings } from './embedding';
 
-// config();
+config();
 
 let client: WebClient | null = null;
 
@@ -224,6 +225,46 @@ const slackSync = {
     }));
   },
 };
+
+/**
+ * Compares two documents for semantic equality, ignoring:
+ * - Database-specific fields (created_at, updated_at)
+ * - Undefined/null metadata fields
+ * - Embedding data
+ *
+ * This is specifically designed for Slack message comparison where certain
+ * fields (like thread_ts, reply_count) may be undefined in new messages
+ * but null/missing in stored documents.
+ *
+ * @param msgDocInDb - Document from the database
+ * @param newDoc - Newly processed document straight from Slack
+ * @returns boolean indicating if the documents are semantically equal. If false, the DB should be updated with the newDoc.
+ */
+export function doesSlackMessageMatchDb(msgDocInDb: Document, newDoc: Document): boolean {
+  // First compare content directly
+  if (msgDocInDb.content !== newDoc.content) {
+    console.log('Content mismatch');
+    return false;
+  }
+
+  // Helper to clean metadata objects
+  const cleanMetadata = (metadata: Record<string, unknown> | undefined): Record<string, unknown> => {
+    if (!metadata) return {};
+    const entries = Object.entries(metadata).filter(([_, value]) => value !== undefined && value !== null);
+    return Object.fromEntries(entries);
+  };
+
+  // Compare cleaned metadata
+  const dbMeta = cleanMetadata(msgDocInDb.metadata);
+  const newMeta = cleanMetadata(newDoc.metadata);
+
+  if (!isDeepStrictEqual(dbMeta, newMeta)) {
+    console.log('Metadata mismatch');
+    return false;
+  }
+
+  return true;
+}
 
 export default { ...slackSync, setTestClient };
 export type { SlackMessage, FormattedMessage, FetchOptions };

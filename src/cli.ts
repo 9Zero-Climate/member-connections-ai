@@ -1,6 +1,6 @@
 import { Command } from 'commander';
 import { getDocBySource, insertOrUpdateDoc } from './services/database';
-import slackSync from './services/slack_sync';
+import slackSync, { doesSlackMessageMatchDb } from './services/slack_sync';
 import type { SlackMessage } from './services/slack_sync';
 
 interface SyncOptions {
@@ -57,13 +57,14 @@ program
         for (const msg of processedMessages) {
           // Check if document already exists and content/metadata has changed
           const existingDoc = await getDocBySource(msg.source_unique_id);
-          if (
-            existingDoc &&
-            existingDoc.content === msg.content &&
-            JSON.stringify(existingDoc.metadata) === JSON.stringify(msg.metadata)
-          ) {
+          if (existingDoc && doesSlackMessageMatchDb(existingDoc, msg)) {
             console.log(`Skipping unchanged document ${msg.source_unique_id}`);
             continue;
+          }
+
+          if (existingDoc) {
+            console.log('Documents considered different:');
+            console.log(JSON.stringify({ existingDoc, msg }, null, 2));
           }
 
           // Insert or update document
