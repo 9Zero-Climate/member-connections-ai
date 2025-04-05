@@ -45,7 +45,6 @@ jobs:
           pnpm sync:slack green-collectives-network
           pnpm sync:slack sea-job-seekers-support
           pnpm sync:slack sf-general
-          pnpm sync:slack sea-general
           pnpm sync:slack investing
           pnpm sync:slack sea-requests-for-support
           pnpm sync:slack sea-events
