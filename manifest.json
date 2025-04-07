@@ -1,6 +1,6 @@
 {
   "display_information": {
-    "name": "Fabric",
+    "name": "Fabric by 9Zero",
     "description": "An AI bot to assist in making member connections",
     "background_color": "#cc3e33",
     "long_description": "Fabric is here to help you make connections with other 9Zero members.\r\n\r\nMCB has access to the history of select Slack channels (such as #introductions and #general), as well as public Linkedin profiles for members. Ask for an expert in any subject and the MCB can show you the way!"
@@ -12,7 +12,7 @@
       "messages_tab_read_only_enabled": false
     },
     "bot_user": {
-      "display_name": "Fabric",
+      "display_name": "Fabric by 9Zero",
       "always_online": false
     },
     "assistant_view": {
