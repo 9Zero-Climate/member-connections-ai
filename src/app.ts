@@ -11,6 +11,7 @@ import type {
   ChatCompletionUserMessageParam,
 } from 'openai/resources/chat';
 import ResponseManager from './assistant/ResponseManager';
+import executeToolCalls from './assistant/executeToolCalls';
 import { config } from './config';
 import { boltLogger, logger } from './services/logger';
 import { type ToolCall, getToolCallShortDescription, objectToXml, toolImplementations, tools } from './services/tools';
@@ -20,7 +21,7 @@ interface AssistantPrompt {
   message: string;
 }
 
-type ChatMessage =
+export type ChatMessage =
   | ChatCompletionSystemMessageParam
   | ChatCompletionUserMessageParam
   | ChatCompletionAssistantMessageParam
@@ -246,14 +247,11 @@ const assistant = new Assistant({
         llmThread,
       });
 
-      // Tool calling loop
-      // We don't want to let the LLM loop indefinitely, so we limit the number of tool calls
       let remainingLlmLoopsAllowed = MAX_TOOL_CALL_ITERATIONS;
       while (remainingLlmLoopsAllowed > 0) {
         let currentResponseText = '';
         remainingLlmLoopsAllowed--;
 
-        // Get response from OpenRouter with tool calling enabled
         const streamFromLlm = await openai.chat.completions.create({
           model: 'google/gemini-2.0-flash-001',
           messages: llmThread,
@@ -263,7 +261,6 @@ const assistant = new Assistant({
           max_tokens: MAX_MESSAGE_LENGTH / 4,
         });
 
-        // Process the stream
         const toolCalls: ToolCall[] = [];
         for await (const chunk of streamFromLlm) {
           const delta = chunk.choices[0]?.delta;
@@ -303,55 +300,40 @@ const assistant = new Assistant({
           }
 
           if (chunk.choices[0]?.finish_reason === 'stop') {
+            // Break the loop if the LLM decides to stop
             remainingLlmLoopsAllowed = 0;
           }
         }
 
-        // Finalize the current message
         await responseManager.finalizeMessage();
+        if (currentResponseText) {
+          llmThread.push({
+            role: 'assistant',
+            content: currentResponseText,
+          });
+        }
 
-        // LLM stream is done, we have the complete message
-        // If we have tool calls, execute them
         if (toolCalls.length > 0) {
+          // Add assistant message indicating tool use to thread
+          llmThread.push({
+            role: 'assistant',
+            tool_calls: toolCalls,
+          });
+
           const toolCallDescriptions = toolCalls.map(getToolCallShortDescription).join(', ');
 
-          // This should be a standalone message
+          // we're intentionally not updating the response manager here because we want to show the tool call descriptions as a standalone message
           await say({
             text: `_${toolCallDescriptions}..._`,
             parse: 'full',
           });
 
-          llmThread.push({
-            role: 'assistant',
-            tool_calls: toolCalls,
-          });
-          for (const toolCall of toolCalls) {
-            const toolName = toolCall.function.name;
-            const toolArgs = JSON.parse(toolCall.function.arguments);
-            const toolCallResult = await toolImplementations[toolName as keyof typeof toolImplementations](toolArgs);
+          // Execute tools and get result messages
+          const toolResultMessages = await executeToolCalls(toolCalls);
 
-            logger.info(
-              {
-                toolCall: {
-                  name: toolName,
-                  args: toolArgs,
-                  result: toolCallResult,
-                },
-              },
-              'Tool call executed',
-            );
-
-            llmThread.push({
-              role: 'tool',
-              tool_call_id: toolCall.id,
-              content: objectToXml(toolCallResult),
-            });
-          }
+          // Add tool results to the thread
+          llmThread.push(...toolResultMessages);
         }
-        llmThread.push({
-          role: 'assistant',
-          content: currentResponseText,
-        });
       }
     } catch (e) {
       logger.error({ err: e }, 'Error in user message handler');
