@@ -10,7 +10,7 @@ import type {
   ChatCompletionToolMessageParam,
   ChatCompletionUserMessageParam,
 } from 'openai/resources/chat';
-import ResponseManager from './assistant/conversation/ResponseManager';
+import ResponseManager from './assistant/ResponseManager';
 import { config } from './config';
 import { boltLogger, logger } from './services/logger';
 import { type ToolCall, getToolCallShortDescription, objectToXml, toolImplementations, tools } from './services/tools';

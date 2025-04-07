@@ -1,6 +1,6 @@
 import type { SayFn } from '@slack/bolt';
 import type { ChatPostMessageResponse, WebClient } from '@slack/web-api';
-import { config } from '../../config';
+import { config } from '../config';
 
 // Define UpdateMessageParams here
 export interface UpdateMessageParams {
