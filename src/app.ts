@@ -364,7 +364,16 @@ const assistant = new Assistant({
           }
         }
 
-        // Update message with final chunk
+        const cooldownTimeRemaining = CHAT_EDIT_INTERVAL_MS - (Date.now() - lastUpdateTime);
+        if (cooldownTimeRemaining > 0) {
+          logger.debug({
+            msg: 'Waiting for cooldown before sending final complete message',
+            cooldownTimeRemaining,
+          });
+          await new Promise((resolve) => setTimeout(resolve, cooldownTimeRemaining));
+        }
+
+        // Update message with final chunk if necessary
         inProgressSlackResponseMessage = await createOrUpdateMessage({
           client,
           say,
