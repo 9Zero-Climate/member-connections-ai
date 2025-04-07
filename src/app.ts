@@ -11,6 +11,7 @@ import type {
   ChatCompletionToolMessageParam,
   ChatCompletionUserMessageParam,
 } from 'openai/resources/chat';
+import { ResponseManager } from './assistant/conversation/responses';
 import { boltLogger, logger } from './services/logger';
 import { type ToolCall, getToolCallShortDescription, objectToXml, toolImplementations, tools } from './services/tools';
 
@@ -100,39 +101,6 @@ const MAX_MESSAGE_LENGTH = 3900;
 const MAX_TOOL_CALL_ITERATIONS = 5;
 const CHAT_EDIT_INTERVAL_MS = 1000;
 
-interface UpdateMessageParams {
-  client: WebClient;
-  say: SayFn;
-  message: ChatPostMessageResponse | undefined;
-  text: string;
-}
-
-const createOrUpdateMessage = async ({
-  client,
-  say,
-  message,
-  text,
-}: UpdateMessageParams): Promise<ChatPostMessageResponse> => {
-  const messageText = text || '_thinking..._';
-
-  if (!message) {
-    return await say({
-      text: messageText,
-      parse: 'full',
-    });
-  }
-
-  if (!message.ts || !message.channel) {
-    throw new Error(`Failed to get timestamp or channel from response message: ${JSON.stringify(message)}`);
-  }
-
-  return await client.chat.update({
-    channel: message.channel,
-    ts: message.ts,
-    text: messageText,
-  });
-};
-
 interface AssistantPrompt {
   title: string;
   message: string;
@@ -208,9 +176,7 @@ const assistant = new Assistant({
 
   userMessage: async ({ message: slackMessage, say, setTitle, client }) => {
     const { channel: slackChannel, thread_ts, text, ts: userSlackMessageTs } = slackMessage as SlackMessage;
-    let currentResponseText = '';
-    let inProgressSlackResponseMessage: ChatPostMessageResponse | undefined;
-    let lastUpdateTime = 0;
+    const responseManager = new ResponseManager({ client, say });
 
     await setTitle(text);
 
@@ -288,7 +254,7 @@ const assistant = new Assistant({
       // We don't want to let the LLM loop indefinitely, so we limit the number of tool calls
       let remainingLlmLoopsAllowed = MAX_TOOL_CALL_ITERATIONS;
       while (remainingLlmLoopsAllowed > 0) {
-        currentResponseText = '';
+        let currentResponseText = '';
         remainingLlmLoopsAllowed--;
 
         // Get response from OpenRouter with tool calling enabled
@@ -310,26 +276,7 @@ const assistant = new Assistant({
           // Handle content streaming: immediately update the chat message, within limits
           if (delta.content) {
             currentResponseText += delta.content;
-
-            const minTextLengthToStream: number = 10;
-
-            // Update periodically to avoid rate limiting
-            // Also don't do a streaming update if the response is super short since that's too underwhelming
-            const now = Date.now();
-            if (now - lastUpdateTime > CHAT_EDIT_INTERVAL_MS && currentResponseText.length > minTextLengthToStream) {
-              inProgressSlackResponseMessage = await createOrUpdateMessage({
-                client,
-                say,
-                message: inProgressSlackResponseMessage,
-                text: currentResponseText,
-              });
-              logger.debug({
-                msg: 'Updated Slack response message',
-                responseText: currentResponseText,
-                triggeringMessageTs: userSlackMessageTs,
-              });
-              lastUpdateTime = now;
-            }
+            await responseManager.updateMessage(currentResponseText);
           }
 
           // Handle tool calls: buffer them until we have the complete set
@@ -364,39 +311,19 @@ const assistant = new Assistant({
           }
         }
 
-        const cooldownTimeRemaining = CHAT_EDIT_INTERVAL_MS - (Date.now() - lastUpdateTime);
-        if (cooldownTimeRemaining > 0) {
-          logger.debug({
-            msg: 'Waiting for cooldown before sending final complete message',
-            cooldownTimeRemaining,
-          });
-          await new Promise((resolve) => setTimeout(resolve, cooldownTimeRemaining));
-        }
-
-        // Update message with final chunk if necessary
-        inProgressSlackResponseMessage = await createOrUpdateMessage({
-          client,
-          say,
-          message: inProgressSlackResponseMessage,
-          text: currentResponseText,
-        });
-        logger.debug({
-          msg: 'Sent completed message',
-          responseText: currentResponseText,
-          triggeringMessageTs: userSlackMessageTs,
-        });
+        // Finalize the current message
+        await responseManager.finalizeMessage();
 
         // LLM stream is done, we have the complete message
         // If we have tool calls, execute them
         if (toolCalls.length > 0) {
           const toolCallDescriptions = toolCalls.map(getToolCallShortDescription).join(', ');
 
-          // This should be a standalone message, so create a fresh message and clear the inProgressSlackResponseMessage
+          // This should be a standalone message
           await say({
             text: `_${toolCallDescriptions}..._`,
             parse: 'full',
           });
-          inProgressSlackResponseMessage = undefined;
 
           llmThread.push({
             role: 'assistant',
