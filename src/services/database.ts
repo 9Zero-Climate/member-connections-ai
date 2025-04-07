@@ -1,10 +1,7 @@
-import { config } from 'dotenv';
 import { Client } from 'pg';
+import { config } from '../config'; // Import unified config
 import { generateEmbeddings } from './embedding';
 import { logger } from './logger';
-
-// Load environment variables
-config();
 
 export interface Document {
   source_type: string;
@@ -44,14 +41,16 @@ function getClient(): Client | TestClient {
   if (client) return client;
 
   if (process.env.NODE_ENV === 'test') {
+    // Use a mock client in test environment
     client = {
-      query: jest.fn().mockImplementation((query: string, params?: QueryParams) => Promise.resolve({ rows: [] })),
+      query: jest.fn().mockImplementation((_query: string, _params?: QueryParams) => Promise.resolve({ rows: [] })),
       connect: jest.fn().mockImplementation(() => Promise.resolve()),
       end: jest.fn().mockImplementation(() => Promise.resolve()),
     };
   } else {
+    // Use a real client in other environments
     client = new Client({
-      connectionString: process.env.DB_URL,
+      connectionString: config.dbUrl, // Use config here
     });
     // Connect to the database
     client.connect().catch((err) => {

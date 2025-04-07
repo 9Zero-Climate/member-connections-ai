@@ -1,13 +1,13 @@
-import { config } from 'dotenv';
 import qs from 'qs';
+import { config } from '../config'; // Import unified config
 import type { Member } from './database';
 import { logger } from './logger';
 
-// Load environment variables
-config();
+// Load environment variables - removed
+// config();
 
 const OFFICERND_API_URL = 'https://app.officernd.com/api/v1';
-const OFFICERND_ORG_SLUG = process.env.OFFICERND_ORG_SLUG;
+const OFFICERND_ORG_SLUG = config.officerndOrgSlug; // Use config
 
 interface OfficeRnDTokenResponse {
   access_token: string;
@@ -15,17 +15,15 @@ interface OfficeRnDTokenResponse {
   expires_in: number;
 }
 
+interface OfficeRnDMemberProperty {
+  key: string;
+  value: string;
+}
+
 interface OfficeRnDMember {
   _id: string;
   name: string;
-  linkedin?: string;
-  customFields?: Record<string, string>;
-  properties?: {
-    slack_id?: string;
-    LinkedInViaAdmin?: string;
-    [key: string]: string | boolean | undefined;
-  };
-  // Note: slackId is not available in the API response
+  properties: OfficeRnDMemberProperty[];
 }
 
 let accessToken: string | null = null;
@@ -39,8 +37,8 @@ async function getAccessToken(): Promise<string> {
     return accessToken;
   }
 
-  const clientId = process.env.OFFICERND_CLIENT_ID;
-  const clientSecret = process.env.OFFICERND_CLIENT_SECRET;
+  const clientId = config.officerndClientId; // Use config
+  const clientSecret = config.officerndClientSecret; // Use config
 
   if (!clientId || !clientSecret) {
     throw new Error('OfficeRnD credentials not configured');
@@ -102,8 +100,8 @@ export async function getAllMembers(): Promise<Member[]> {
     const mappedMember = {
       officernd_id: member._id,
       name: member.name,
-      slack_id: member.properties?.slack_id || null,
-      linkedin_url: member.properties?.LinkedInViaAdmin || member.linkedin || null,
+      slack_id: member.properties?.find((p) => p.key === 'slack_id')?.value || null,
+      linkedin_url: member.properties?.find((p) => p.key === 'LinkedInViaAdmin')?.value || null,
     };
     return mappedMember;
   });

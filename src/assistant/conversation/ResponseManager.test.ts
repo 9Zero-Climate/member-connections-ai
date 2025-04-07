@@ -1,7 +1,7 @@
-import type { ChatPostMessageResponse, WebClient } from '@slack/web-api';
 import type { SayFn } from '@slack/bolt';
-import { ResponseManager } from './responses';
+import type { ChatPostMessageResponse, WebClient } from '@slack/web-api';
 import { config } from '../../config';
+import ResponseManager from './ResponseManager';
 
 describe('ResponseManager', () => {
   let mockClient: { chat: { update: jest.Mock } };

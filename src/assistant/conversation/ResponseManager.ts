@@ -1,6 +1,14 @@
-import type { ChatPostMessageResponse } from '@slack/web-api';
+import type { SayFn } from '@slack/bolt';
+import type { ChatPostMessageResponse, WebClient } from '@slack/web-api';
 import { config } from '../../config';
-import type { UpdateMessageParams } from '../types';
+
+// Define UpdateMessageParams here
+export interface UpdateMessageParams {
+  client: WebClient;
+  say: SayFn;
+  message: ChatPostMessageResponse | undefined;
+  text: string;
+}
 
 /**
  * Manages streaming an LLM response to a Slack message.
@@ -9,11 +17,12 @@ import type { UpdateMessageParams } from '../types';
  * It also handles the cooldown period between updates to avoid rate limiting.
  *
  */
-export class ResponseManager {
+export default class ResponseManager {
   private lastUpdateTime = 0;
   private currentResponseText = '';
   private inProgressMessage: ChatPostMessageResponse | undefined;
 
+  // Use the locally defined UpdateMessageParams (omitting parts)
   constructor(private readonly params: Omit<UpdateMessageParams, 'text' | 'message'>) {}
 
   async updateMessage(text: string): Promise<void> {

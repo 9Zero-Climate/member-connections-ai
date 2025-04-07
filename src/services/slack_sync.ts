@@ -1,11 +1,9 @@
 import { isDeepStrictEqual } from 'node:util';
 import { WebClient } from '@slack/web-api';
-import { config } from 'dotenv';
+import { config } from '../config';
 import type { Document } from './database';
 import { generateEmbeddings } from './embedding';
 import { logger } from './logger';
-
-config();
 
 let client: WebClient | null = null;
 
@@ -15,30 +13,31 @@ interface FetchOptions {
   latest?: string;
 }
 
+interface SlackSyncOptions extends FetchOptions {}
+
 interface SlackMessage {
   ts: string;
-  text: string;
-  user: string;
+  text?: string;
+  user?: string;
   thread_ts?: string;
   reply_count?: number;
   reactions?: Array<{ name: string; count: number }>;
+  type?: string;
+  subtype?: string;
+  channel?: string;
+  team?: string;
 }
 
 interface FormattedMessage {
-  source_type: string;
-  source_unique_id: string;
+  source: string;
   content: string;
   metadata: {
-    slack_user_id: string;
-    user_preferred_name?: string;
-    user_real_name?: string;
-    channel: string;
-    channel_name?: string;
+    ts: string;
     thread_ts?: string;
-    reply_count?: number;
-    reactions?: Array<{ name: string; count: number }>;
-    permalink?: string;
-    datetime?: string;
+    channel: string;
+    user?: string;
+    permalink: string;
+    channelName: string;
   };
 }
 
@@ -54,7 +53,7 @@ interface SlackError extends Error {
  */
 function getClient(): WebClient {
   if (!client) {
-    client = new WebClient(process.env.SLACK_BOT_TOKEN);
+    client = new WebClient(config.slackBotToken);
   }
   return client;
 }
@@ -80,7 +79,6 @@ const slackSync = {
     try {
       await getClient().conversations.join({ channel: channelId });
     } catch (error) {
-      // Ignore "already_in_channel" errors
       if ((error as SlackError).data?.error !== 'already_in_channel') {
         throw error;
       }
@@ -101,7 +99,6 @@ const slackSync = {
     const messages: SlackMessage[] = [];
     let cursor: string | undefined;
 
-    // Join the channel first
     await this.joinChannel(channelId);
 
     do {
@@ -154,7 +151,6 @@ const slackSync = {
    * @returns {string} ISO string
    */
   tsToISOString(ts: string): string {
-    // Convert microseconds to milliseconds
     const milliseconds = Number.parseFloat(ts) * 1000;
     return new Date(milliseconds).toISOString();
   },
@@ -166,12 +162,10 @@ const slackSync = {
    * @returns {Object} Formatted message
    */
   async formatMessage(message: SlackMessage, channelId: string): Promise<FormattedMessage | null> {
-    // Skip messages without text content
     if (!message.text?.trim()) {
       return null;
     }
 
-    // Get the permalink for the message
     const [permalinkResult, channelName] = await Promise.all([
       getClient().chat.getPermalink({
         channel: channelId,
@@ -179,24 +173,31 @@ const slackSync = {
       }),
       this.getChannelName(channelId),
     ]);
-    const user = (await getClient().users.info({ user: message.user })).user;
-    const userDisplayName = user?.profile?.display_name;
-    const userRealName = user?.profile?.real_name;
+
+    let userProfile: { display_name?: string; real_name?: string } | undefined;
+    if (message.user) {
+      try {
+        const userInfo = await getClient().users.info({ user: message.user });
+        if (userInfo.ok && userInfo.user) {
+          userProfile = userInfo.user.profile;
+        }
+      } catch (err) {
+        logger.warn(`Failed to get user info for ${message.user}:`, err);
+      }
+    }
+    const userDisplayName = userProfile?.display_name;
+    const userRealName = userProfile?.real_name;
+
     return {
-      source_type: 'slack',
-      source_unique_id: `${channelId}:${message.ts}`,
+      source: 'slack',
       content: message.text,
       metadata: {
-        slack_user_id: message.user,
-        user_preferred_name: userDisplayName,
-        user_real_name: userRealName,
-        channel: channelId,
-        channel_name: channelName,
+        ts: this.tsToISOString(message.ts),
         thread_ts: message.thread_ts,
-        reply_count: message.reply_count,
-        reactions: message.reactions,
-        permalink: permalinkResult.permalink,
-        datetime: this.tsToISOString(message.ts),
+        channel: channelId,
+        user: message.user,
+        permalink: permalinkResult.permalink ?? '',
+        channelName: channelName,
       },
     };
   },
@@ -242,20 +243,17 @@ const slackSync = {
  * @returns boolean indicating if the documents are semantically equal. If false, the DB should be updated with the newDoc.
  */
 export function doesSlackMessageMatchDb(msgDocInDb: Document, newDoc: Document): boolean {
-  // First compare content directly
   if (msgDocInDb.content !== newDoc.content) {
     console.log('Content mismatch');
     return false;
   }
 
-  // Helper to clean metadata objects
   const cleanMetadata = (metadata: Record<string, unknown> | undefined): Record<string, unknown> => {
     if (!metadata) return {};
     const entries = Object.entries(metadata).filter(([_, value]) => value !== undefined && value !== null);
     return Object.fromEntries(entries);
   };
 
-  // Compare cleaned metadata
   const dbMeta = cleanMetadata(msgDocInDb.metadata);
   const newMeta = cleanMetadata(newDoc.metadata);
 

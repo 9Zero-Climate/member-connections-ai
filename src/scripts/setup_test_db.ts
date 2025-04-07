@@ -1,45 +1,45 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { config } from 'dotenv';
 import { Client } from 'pg';
-
-// Load environment variables
-config();
+import { config } from '../config'; // Import unified config
+import { logger } from '../services/logger';
 
 async function setupTestDb(): Promise<void> {
   const client = new Client({
-    connectionString: process.env.DB_URL,
+    connectionString: config.dbUrl, // Use config
   });
 
   try {
     await client.connect();
-    console.log('Connected to test database');
+    logger.info('Connected to database for test setup.');
 
-    // Create the pgvector extension
+    // Drop existing table if it exists
+    logger.info('Dropping existing documents table (if any)...');
+    await client.query('DROP TABLE IF EXISTS documents;');
+
+    // Create the documents table with vector extension
+    logger.info('Creating documents table with vector extension...');
     await client.query('CREATE EXTENSION IF NOT EXISTS vector;');
-    console.log('pgvector extension created successfully');
+    await client.query(`
+      CREATE TABLE documents (
+        id SERIAL PRIMARY KEY,
+        source TEXT NOT NULL,
+        content TEXT NOT NULL,
+        embedding VECTOR(1536),
+        metadata JSONB,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW(),
+        last_update TIMESTAMPTZ
+      );
+    `);
 
-    // Get all migration files
-    const migrationsDir = path.join(__dirname, '..', 'migrations');
-    const migrationFiles = fs
-      .readdirSync(migrationsDir)
-      .filter((file) => file.endsWith('.sql'))
-      .sort(); // Ensure migrations run in order
-
-    // Run each migration
-    for (const file of migrationFiles) {
-      console.log(`Running migration: ${file}`);
-      const migration = fs.readFileSync(path.join(migrationsDir, file), 'utf8');
-      await client.query(migration);
-    }
-
-    console.log('All migrations completed successfully');
-  } catch (error) {
-    console.error('Error setting up test database:', error);
-    process.exit(1);
+    logger.info('Test database setup completed successfully.');
+  } catch (err) {
+    logger.error('Test database setup failed:', err);
   } finally {
     await client.end();
+    logger.info('Database connection closed.');
   }
 }
 
-setupTestDb();
+void setupTestDb();

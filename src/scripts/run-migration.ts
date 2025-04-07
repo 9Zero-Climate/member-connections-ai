@@ -1,39 +1,36 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { config } from 'dotenv';
 import { Client } from 'pg';
+import { config } from '../config'; // Import unified config
+import { logger } from '../services/logger';
 
-// Load environment variables
-config();
-
-async function runMigration() {
+async function runMigration(): Promise<void> {
   const client = new Client({
-    connectionString: process.env.DB_URL,
+    connectionString: config.dbUrl, // Use config
   });
 
   try {
-    console.log('Connecting to database...');
     await client.connect();
-    console.log('Connected successfully');
+    logger.info('Connected to database for migration.');
 
-    // Read and execute the migration file
-    const migrationPath = path.join(__dirname, '../migrations/20240331_create_members_table.sql');
-    const migrationSql = fs.readFileSync(migrationPath, 'utf8');
+    // Example Migration: Add a new column to the documents table
+    // Replace this with your actual migration logic
+    const migrationQuery = `
+      ALTER TABLE documents
+      ADD COLUMN IF NOT EXISTS example_column VARCHAR(255);
+    `;
 
-    console.log('Running migration...');
-    await client.query(migrationSql);
-    console.log('Migration completed successfully');
-  } catch (error) {
-    console.error('Error running migration:', error);
-    process.exit(1);
+    logger.info('Running migration...');
+    await client.query(migrationQuery);
+    logger.info('Migration completed successfully.');
+  } catch (err) {
+    logger.error('Migration failed:', err);
   } finally {
     await client.end();
+    logger.info('Database connection closed.');
   }
 }
 
-// Run migration if this file is executed directly
-if (require.main === module) {
-  runMigration();
-}
+void runMigration();
 
 export { runMigration };

@@ -1,5 +1,5 @@
 import { Command } from 'commander';
-import { getDocBySource, insertOrUpdateDoc } from './services/database';
+import { type Document, getDocBySource, insertOrUpdateDoc } from './services/database';
 import slackSync, { doesSlackMessageMatchDb } from './services/slack_sync';
 import type { SlackMessage } from './services/slack_sync';
 
@@ -55,21 +55,33 @@ program
 
         // Store messages
         for (const msg of processedMessages) {
+          // Construct the source_unique_id (assuming it's channelId:ts)
+          const sourceUniqueId = `${channelId}:${msg.metadata.ts}`;
+          // Construct the document to upsert, matching the Document type
+          const docToUpsert: Document = {
+            source_type: 'slack', // Assuming slack source type
+            source_unique_id: sourceUniqueId,
+            content: msg.content,
+            embedding: msg.embedding,
+            metadata: msg.metadata,
+          };
+
           // Check if document already exists and content/metadata has changed
-          const existingDoc = await getDocBySource(msg.source_unique_id);
-          if (existingDoc && doesSlackMessageMatchDb(existingDoc, msg)) {
-            console.log(`Skipping unchanged document ${msg.source_unique_id}`);
+          const existingDoc = await getDocBySource(sourceUniqueId);
+          // Pass the properly formatted docToUpsert to the comparison function
+          if (existingDoc && doesSlackMessageMatchDb(existingDoc, docToUpsert)) {
+            console.log(`Skipping unchanged document ${sourceUniqueId}`);
             continue;
           }
 
           if (existingDoc) {
             console.log('Documents considered different:');
-            console.log(JSON.stringify({ existingDoc, msg }, null, 2));
+            console.log(JSON.stringify({ existingDoc, newDoc: docToUpsert }, null, 2));
           }
 
-          // Insert or update document
-          await insertOrUpdateDoc(msg);
-          console.log(`${existingDoc ? 'Updated' : 'Inserted'} document ${msg.source_unique_id}`);
+          // Insert or update document using the correctly formatted object
+          await insertOrUpdateDoc(docToUpsert);
+          console.log(`${existingDoc ? 'Updated' : 'Inserted'} document ${sourceUniqueId}`);
         }
 
         console.log(`Completed batch ${batchIndex + 1}`);

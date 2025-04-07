@@ -1,6 +1,5 @@
 import { App, Assistant, LogLevel, type SayFn } from '@slack/bolt';
 import type { ChatPostMessageResponse, WebClient } from '@slack/web-api';
-import { config } from 'dotenv';
 import express from 'express';
 import type { Express } from 'express';
 import { OpenAI } from 'openai';
@@ -11,16 +10,36 @@ import type {
   ChatCompletionToolMessageParam,
   ChatCompletionUserMessageParam,
 } from 'openai/resources/chat';
-import { ResponseManager } from './assistant/conversation/responses';
+import ResponseManager from './assistant/conversation/ResponseManager';
+import { config } from './config';
 import { boltLogger, logger } from './services/logger';
 import { type ToolCall, getToolCallShortDescription, objectToXml, toolImplementations, tools } from './services/tools';
 
-config();
+interface AssistantPrompt {
+  title: string;
+  message: string;
+}
+
+type ChatMessage =
+  | ChatCompletionSystemMessageParam
+  | ChatCompletionUserMessageParam
+  | ChatCompletionAssistantMessageParam
+  | ChatCompletionToolMessageParam;
+
+interface SlackMessage {
+  channel: string;
+  thread_ts?: string;
+  text: string;
+  ts: string;
+  bot_id?: string;
+  user?: string;
+  subtype?: string;
+}
 
 // Setup Slack Bolt App
 const app = new App({
-  token: process.env.SLACK_BOT_TOKEN,
-  appToken: process.env.SLACK_APP_TOKEN,
+  token: config.slackBotToken,
+  appToken: config.slackAppToken,
   socketMode: true,
   logger: boltLogger,
 });
@@ -38,17 +57,16 @@ expressApp.get('/', (_req, res) => {
 });
 
 // Start the Express server
-const PORT = process.env.PORT || 8080;
-expressApp.listen(PORT, () => {
-  logger.info({ msg: 'Health check server started', port: PORT });
+expressApp.listen(config.port, () => {
+  logger.info({ msg: 'Health check server started', port: config.port });
 });
 
 /** OpenRouter Setup */
 const openai = new OpenAI({
-  apiKey: process.env.OPENROUTER_API_KEY,
+  apiKey: config.openRouterApiKey,
   baseURL: 'https://openrouter.ai/api/v1',
   defaultHeaders: {
-    'HTTP-Referer': process.env.APP_URL || 'https://github.com/9Zero-Climate/member-connections-ai',
+    'HTTP-Referer': config.appUrl,
     'X-Title': 'Member Connections AI',
   },
 });
@@ -97,30 +115,8 @@ Use this context to provide more accurate and helpful responses.
 If the context doesn't contain relevant information, say so and provide general guidance.`;
 
 // Slack has a limit of 4000 characters per message
-const MAX_MESSAGE_LENGTH = 3900;
-const MAX_TOOL_CALL_ITERATIONS = 5;
-const CHAT_EDIT_INTERVAL_MS = 1000;
-
-interface AssistantPrompt {
-  title: string;
-  message: string;
-}
-
-type ChatMessage =
-  | ChatCompletionSystemMessageParam
-  | ChatCompletionUserMessageParam
-  | ChatCompletionAssistantMessageParam
-  | ChatCompletionToolMessageParam;
-
-interface SlackMessage {
-  channel: string;
-  thread_ts?: string;
-  text: string;
-  ts: string;
-  bot_id?: string;
-  user?: string;
-  subtype?: string;
-}
+const MAX_MESSAGE_LENGTH = config.maxMessageLength;
+const MAX_TOOL_CALL_ITERATIONS = config.maxToolCallIterations;
 
 const assistant = new Assistant({
   threadStarted: async ({ event, say, setSuggestedPrompts, saveThreadContext }) => {

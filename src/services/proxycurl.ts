@@ -1,11 +1,8 @@
-import { config } from 'dotenv';
+import { config } from '../config';
 import { deleteLinkedInDocuments, insertOrUpdateDoc } from './database';
 import { logger } from './logger';
 
-// Load environment variables
-config();
-
-const PROXYCURL_API_URL = 'https://nubela.co/proxycurl/api/v2';
+const PROXYCURL_API_URL = 'https://nubela.co/proxycurl/api/v2/linkedin';
 
 interface DateObject {
   day: number;
@@ -71,42 +68,48 @@ function formatDateRange(start: DateObject | null, end: DateObject | null): stri
 }
 
 /**
- * Get LinkedIn profile data from Proxycurl
- * @param linkedinUrl - LinkedIn profile URL
- * @returns LinkedIn profile data
+ * Fetches a LinkedIn profile using the Proxycurl API.
+ * @param linkedinUrl - The URL of the LinkedIn profile.
+ * @returns The parsed LinkedIn profile data, or null if not found or error occurs.
  */
 export async function getLinkedInProfile(linkedinUrl: string): Promise<ProxycurlProfile | null> {
-  // Check API key before making any requests
-  const apiKey = process.env.PROXYCURL_API_KEY;
-  if (!apiKey || apiKey === 'undefined') {
+  const apiKey = config.proxycurlApiKey;
+
+  if (!apiKey) {
     logger.error('Error: Proxycurl API key not configured');
     throw new Error('Proxycurl API key not configured');
   }
 
+  const headers = {
+    Authorization: `Bearer ${apiKey}`,
+  };
+
   try {
-    const response = await fetch(`${PROXYCURL_API_URL}/linkedin?url=${encodeURIComponent(linkedinUrl)}`, {
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        Accept: 'application/json',
-      },
+    const response = await fetch(`${PROXYCURL_API_URL}?url=${encodeURIComponent(linkedinUrl)}`, {
+      headers,
     });
 
+    if (response.status === 404) {
+      logger.warn('LinkedIn profile not found:', { linkedinUrl });
+      return null;
+    }
+
     if (!response.ok) {
-      if (response.status === 404) {
-        return null;
-      }
-      throw new Error(`Failed to fetch LinkedIn profile: ${response.statusText}`);
+      const errorText = await response.text();
+      logger.error('Proxycurl API error:', {
+        status: response.status,
+        statusText: response.statusText,
+        body: errorText,
+        linkedinUrl,
+      });
+      // Consider specific error handling based on status codes if needed
+      throw new Error(`Proxycurl API error: ${response.statusText}`);
     }
 
-    const data = (await response.json()) as ProxycurlProfile;
-
-    return data;
+    return (await response.json()) as ProxycurlProfile;
   } catch (error) {
-    // Only log fetch and parsing errors
-    if (error instanceof Error && error.message !== 'Proxycurl API key not configured') {
-      logger.error('Error fetching LinkedIn profile:', error);
-    }
-    throw error;
+    logger.error('Error fetching LinkedIn profile:', { error, linkedinUrl });
+    throw error; // Re-throw after logging
   }
 }
 

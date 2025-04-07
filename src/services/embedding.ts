@@ -1,8 +1,6 @@
-import { config } from 'dotenv';
 import { OpenAI } from 'openai';
+import { config } from '../config';
 import { logger } from './logger';
-
-config();
 
 interface OpenAIError extends Error {
   status?: number;
@@ -13,31 +11,23 @@ interface OpenAIError extends Error {
   };
 }
 
-// Internal OpenAI client instance - use a no-op client in test env
-const client =
-  process.env.NODE_ENV === 'test'
-    ? {
-        embeddings: {
-          create: async () => ({
-            data: [{ embedding: new Array(1536).fill(0) }] as const,
-          }),
-        },
-      }
-    : new OpenAI({
-        apiKey: process.env.OPENAI_API_KEY,
-      });
+// Configure client for direct OpenAI access
+// Note: We cannot use OpenRouter here because it does not support embedding generation (2025-04-07)
+const client = new OpenAI({
+  apiKey: config.openaiApiKey, // Use dedicated OpenAI key
+  // baseURL is not set, defaults to OpenAI
+});
 
 /**
- * Generate embeddings for a text using OpenAI's API
- * @param text - The text to generate embeddings for
- * @returns The embedding vector
+ * Generate embedding for a single text
+ * @param text - The text to generate embedding for
+ * @returns Embedding vector
  */
 async function generateEmbedding(text: string): Promise<number[]> {
   try {
     if (!text || typeof text !== 'string') {
-      throw new Error('Invalid text input for embedding generation');
+      throw new Error('Invalid input text');
     }
-
     logger.debug(`Generating embedding for text: ${text.substring(0, 50)}...`);
     const response = await client.embeddings.create({
       model: 'text-embedding-3-small',
@@ -46,8 +36,8 @@ async function generateEmbedding(text: string): Promise<number[]> {
 
     return response.data[0].embedding;
   } catch (error) {
-    logger.error({
-      message: `Error generating embedding: ${error instanceof Error ? error.message : 'Unknown error'}`,
+    logger.error('Error generating embedding:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
       status: (error as OpenAIError).status,
       type: (error as OpenAIError).type,
       code: (error as OpenAIError).code,
@@ -64,17 +54,13 @@ async function generateEmbedding(text: string): Promise<number[]> {
  */
 async function generateEmbeddings(texts: string[]): Promise<number[][]> {
   try {
-    // Filter out invalid texts
     const validTexts = texts.filter((text) => text && typeof text === 'string');
-
     if (validTexts.length === 0) {
       return [];
     }
-
     logger.debug(`Generating embeddings for ${validTexts.length} texts`);
     logger.debug(`First text sample: ${validTexts[0].substring(0, 50)}...`);
 
-    // Process texts in smaller batches to avoid rate limits
     const BATCH_SIZE = 10;
     const batches = [];
     for (let i = 0; i < validTexts.length; i += BATCH_SIZE) {
@@ -84,15 +70,12 @@ async function generateEmbeddings(texts: string[]): Promise<number[][]> {
     const allEmbeddings = [];
     for (const batch of batches) {
       if (batch.length === 0) continue;
-
       const response = await client.embeddings.create({
-        model: 'text-embedding-3-small',
+        model: 'text-embedding-3-small', // No prefix needed for direct OpenAI
         input: batch,
       });
-
       allEmbeddings.push(...response.data.map((item) => item.embedding));
     }
-
     return allEmbeddings;
   } catch (error) {
     logger.error('Error generating embeddings:', {
