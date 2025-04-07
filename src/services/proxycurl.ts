@@ -75,7 +75,7 @@ function formatDateRange(start: DateObject | null, end: DateObject | null): stri
 export async function getLinkedInProfile(linkedinUrl: string): Promise<ProxycurlProfile | null> {
   const apiKey = config.proxycurlApiKey;
 
-  if (!apiKey) {
+  if (apiKey === null || apiKey === undefined) {
     logger.error('Error: Proxycurl API key not configured');
     throw new Error('Proxycurl API key not configured');
   }
