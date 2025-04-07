@@ -1,5 +1,6 @@
 import { config } from 'dotenv';
 import { OpenAI } from 'openai';
+import { logger } from './logger';
 
 config();
 
@@ -37,7 +38,7 @@ async function generateEmbedding(text: string): Promise<number[]> {
       throw new Error('Invalid text input for embedding generation');
     }
 
-    console.log(`Generating embedding for text: ${text.substring(0, 50)}...`);
+    logger.debug(`Generating embedding for text: ${text.substring(0, 50)}...`);
     const response = await client.embeddings.create({
       model: 'text-embedding-3-small',
       input: text,
@@ -45,8 +46,8 @@ async function generateEmbedding(text: string): Promise<number[]> {
 
     return response.data[0].embedding;
   } catch (error) {
-    console.error('Error generating embedding:', {
-      message: error instanceof Error ? error.message : 'Unknown error',
+    logger.error({
+      message: `Error generating embedding: ${error instanceof Error ? error.message : 'Unknown error'}`,
       status: (error as OpenAIError).status,
       type: (error as OpenAIError).type,
       code: (error as OpenAIError).code,
@@ -70,8 +71,8 @@ async function generateEmbeddings(texts: string[]): Promise<number[][]> {
       return [];
     }
 
-    console.log(`Generating embeddings for ${validTexts.length} texts`);
-    console.log(`First text sample: ${validTexts[0].substring(0, 50)}...`);
+    logger.debug(`Generating embeddings for ${validTexts.length} texts`);
+    logger.debug(`First text sample: ${validTexts[0].substring(0, 50)}...`);
 
     // Process texts in smaller batches to avoid rate limits
     const BATCH_SIZE = 10;
@@ -94,7 +95,7 @@ async function generateEmbeddings(texts: string[]): Promise<number[][]> {
 
     return allEmbeddings;
   } catch (error) {
-    console.error('Error generating embeddings:', {
+    logger.error('Error generating embeddings:', {
       message: error instanceof Error ? error.message : 'Unknown error',
       status: (error as OpenAIError).status,
       type: (error as OpenAIError).type,

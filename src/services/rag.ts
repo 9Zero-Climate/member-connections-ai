@@ -1,5 +1,6 @@
 import { findSimilar } from './database';
 import { generateEmbedding } from './embedding';
+import { logger } from './logger';
 
 interface RagOptions {
   limit?: number;
@@ -27,7 +28,7 @@ async function retrieveRelevantDocs(query: string, options: RagOptions = {}): Pr
 
     return similarDocs;
   } catch (error) {
-    console.error('Error in RAG retrieval:', error);
+    logger.error('Error in RAG retrieval:', error);
     throw error;
   }
 }

@@ -3,6 +3,7 @@ import { WebClient } from '@slack/web-api';
 import { config } from 'dotenv';
 import type { Document } from './database';
 import { generateEmbeddings } from './embedding';
+import { logger } from './logger';
 
 config();
 
@@ -216,7 +217,7 @@ const slackSync = {
 
     const validMessages = formattedMessages.filter(canHandleMessage);
     const unhandledMessages = formattedMessages.filter((msg) => !canHandleMessage(msg));
-    console.log(`Unhandled messages: ${JSON.stringify(unhandledMessages)}`);
+    logger.warn(`Unhandled messages: ${JSON.stringify(unhandledMessages)}`);
 
     const embeddings = await generateEmbeddings(validMessages.map((msg) => msg.content));
     return validMessages.map((msg, index) => ({
@@ -259,7 +260,7 @@ export function doesSlackMessageMatchDb(msgDocInDb: Document, newDoc: Document):
   const newMeta = cleanMetadata(newDoc.metadata);
 
   if (!isDeepStrictEqual(dbMeta, newMeta)) {
-    console.log('Metadata mismatch');
+    logger.debug('Metadata mismatch');
     return false;
   }
 

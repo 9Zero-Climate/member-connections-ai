@@ -1,6 +1,7 @@
 import { config } from 'dotenv';
 import { Client } from 'pg';
 import { generateEmbeddings } from './embedding';
+import { logger } from './logger';
 
 // Load environment variables
 config();
@@ -54,8 +55,8 @@ function getClient(): Client | TestClient {
     });
     // Connect to the database
     client.connect().catch((err) => {
-      console.error('Failed to connect to database:', err);
-      process.exit(1);
+      logger.error('Failed to connect to database:', err);
+      throw err;
     });
   }
   return client;
@@ -138,7 +139,7 @@ async function insertOrUpdateDoc(doc: Document): Promise<Document> {
     );
     return result.rows[0];
   } catch (error) {
-    console.error('Error inserting/updating document:', error);
+    logger.error('Error inserting/updating document:', error);
     throw error;
   }
 }
@@ -158,7 +159,7 @@ async function getDocBySource(sourceUniqueId: string): Promise<Document | null> 
     doc.embedding = parseStoredEmbedding(doc.embedding as string | null);
     return doc;
   } catch (error) {
-    console.error('Error getting document:', error);
+    logger.error('Error getting document:', error);
     throw error;
   }
 }
@@ -173,7 +174,7 @@ async function deleteDoc(sourceUniqueId: string): Promise<boolean> {
     const result = await client.query('DELETE FROM rag_docs WHERE source_unique_id = $1 RETURNING *', [sourceUniqueId]);
     return result.rows.length > 0;
   } catch (error) {
-    console.error('Error deleting document:', error);
+    logger.error('Error deleting document:', error);
     throw error;
   }
 }
@@ -217,7 +218,7 @@ async function findSimilar(embedding: number[], options: SearchOptions = {}): Pr
       },
     }));
   } catch (error) {
-    console.error('Error finding similar documents:', error);
+    logger.error('Error finding similar documents:', error);
     throw error;
   }
 }
@@ -229,7 +230,7 @@ async function close(): Promise<void> {
   try {
     await client.end();
   } catch (error) {
-    console.error('Error closing database connection:', error);
+    logger.error('Error closing database connection:', error);
     throw error;
   }
 }
@@ -267,7 +268,7 @@ async function bulkUpsertMembers(members: Member[]): Promise<Member[]> {
     );
     return result.rows;
   } catch (error) {
-    console.error('Error bulk upserting members:', error);
+    logger.error('Error bulk upserting members:', error);
     throw error;
   }
 }
@@ -284,7 +285,7 @@ async function deleteLinkedInDocuments(officerndMemberId: string): Promise<void>
        AND source_unique_id LIKE 'officernd_member_${officerndMemberId}:%'`,
     );
   } catch (error) {
-    console.error('Error deleting LinkedIn documents:', error);
+    logger.error('Error deleting LinkedIn documents:', error);
     throw error;
   }
 }
@@ -313,7 +314,7 @@ async function getLastLinkedInUpdates(officerndMemberIds: string[]): Promise<Map
     );
     return updates;
   } catch (error) {
-    console.error('Error getting last LinkedIn updates:', error);
+    logger.error('Error getting last LinkedIn updates:', error);
     throw error;
   }
 }
@@ -339,7 +340,7 @@ async function getLinkedInDocuments(linkedinUrl: string): Promise<Document[]> {
       },
     }));
   } catch (error) {
-    console.error('Error fetching LinkedIn documents:', error);
+    logger.error('Error fetching LinkedIn documents:', error);
     throw error;
   }
 }
@@ -365,7 +366,7 @@ async function getLinkedInDocumentsByName(memberName: string): Promise<Document[
       },
     }));
   } catch (error) {
-    console.error('Error fetching LinkedIn documents:', error);
+    logger.error('Error fetching LinkedIn documents:', error);
     throw error;
   }
 }

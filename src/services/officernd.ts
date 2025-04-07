@@ -1,6 +1,7 @@
 import { config } from 'dotenv';
 import qs from 'qs';
 import type { Member } from './database';
+import { logger } from './logger';
 
 // Load environment variables
 config();
@@ -62,7 +63,7 @@ async function getAccessToken(): Promise<string> {
 
   if (!response.ok) {
     const errorText = await response.text();
-    console.error('Token request failed:', {
+    logger.error('Token request failed:', {
       status: response.status,
       statusText: response.statusText,
       body: errorText,

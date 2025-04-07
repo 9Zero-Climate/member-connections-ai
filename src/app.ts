@@ -11,6 +11,7 @@ import type {
   ChatCompletionToolMessageParam,
   ChatCompletionUserMessageParam,
 } from 'openai/resources/chat';
+import { boltLogger, logger } from './services/logger';
 import { type ToolCall, getToolCallShortDescription, objectToXml, toolImplementations, tools } from './services/tools';
 
 config();
@@ -20,7 +21,7 @@ const app = new App({
   token: process.env.SLACK_BOT_TOKEN,
   appToken: process.env.SLACK_APP_TOKEN,
   socketMode: true,
-  logLevel: LogLevel.DEBUG,
+  logger: boltLogger,
 });
 
 // Create an Express app for health checks
@@ -38,7 +39,7 @@ expressApp.get('/', (_req, res) => {
 // Start the Express server
 const PORT = process.env.PORT || 8080;
 expressApp.listen(PORT, () => {
-  app.logger.info(`Health check server listening on port ${PORT}`);
+  logger.info({ msg: 'Health check server started', port: PORT });
 });
 
 /** OpenRouter Setup */
@@ -154,7 +155,7 @@ interface SlackMessage {
 }
 
 const assistant = new Assistant({
-  threadStarted: async ({ event, logger, say, setSuggestedPrompts, saveThreadContext }) => {
+  threadStarted: async ({ event, say, setSuggestedPrompts, saveThreadContext }) => {
     const { context } = event.assistant_thread;
 
     try {
@@ -181,7 +182,19 @@ const assistant = new Assistant({
 
       await setSuggestedPrompts({ prompts });
     } catch (e) {
-      logger.error(e);
+      logger.error(
+        {
+          error: e,
+          event: 'thread_started',
+          context: event.assistant_thread.context,
+        },
+        'Error in thread started handler',
+      );
+
+      await say({
+        text: `Sorry, something went wrong.\n You may want to forward this error message to an admin:
+              \`\`\`\n${JSON.stringify(e, null, 2)}\n\`\`\``,
+      });
     }
   },
 
@@ -189,17 +202,24 @@ const assistant = new Assistant({
     try {
       await saveThreadContext();
     } catch (e) {
-      logger.error(e);
+      logger.error({ err: e }, 'Error in thread context changed handler');
     }
   },
 
-  userMessage: async ({ message: slackMessage, logger, say, setTitle, client }) => {
+  userMessage: async ({ message: slackMessage, say, setTitle, client }) => {
     const { channel: slackChannel, thread_ts, text, ts: userSlackMessageTs } = slackMessage as SlackMessage;
     let currentResponseText = '';
     let inProgressSlackResponseMessage: ChatPostMessageResponse | undefined;
     let lastUpdateTime = 0;
 
     await setTitle(text);
+
+    logger.info({
+      msg: 'Handling message from user',
+      messageText: text,
+      fullSlackMessage: slackMessage,
+      triggeringMessageTs: userSlackMessageTs,
+    });
 
     // Add thinking reaction to the original message
     await client.reactions.add({
@@ -229,7 +249,6 @@ const assistant = new Assistant({
       if (slackMessage.subtype === undefined && slackMessage.user) {
         const user = (await client.users.info({ user: slackMessage.user })).user;
         const userProfile = user?.profile;
-        console.log('user', user);
         userInfoForBot = {
           slack_ID: `<@${slackMessage.user}>`,
           preferred_name: userProfile?.display_name,
@@ -242,7 +261,6 @@ const assistant = new Assistant({
           source: 'a system event',
         };
       }
-      console.log('userInfoForBot', userInfoForBot);
 
       const llmThread: ChatMessage[] = [
         { role: 'system', content: DEFAULT_SYSTEM_CONTENT },
@@ -251,7 +269,7 @@ const assistant = new Assistant({
           content: `The current date and time is ${new Date()}.`,
         },
         { role: 'system', content: 'Here is the conversation history:' },
-        ...threadHistory,
+        ...threadHistory.slice(0, -1), // Remove the last message from the thread history- the user message is below:
         {
           role: 'system',
           content:
@@ -261,7 +279,10 @@ const assistant = new Assistant({
         },
         userMessage,
       ];
-      console.log('llmThread[1]', llmThread[1]);
+      logger.debug({
+        msg: 'LLM thread prepared',
+        llmThread,
+      });
 
       // Tool calling loop
       // We don't want to let the LLM loop indefinitely, so we limit the number of tool calls
@@ -286,7 +307,7 @@ const assistant = new Assistant({
           const delta = chunk.choices[0]?.delta;
           if (!delta) continue;
 
-          // Handle content streaming: immediately update the chat message
+          // Handle content streaming: immediately update the chat message, within limits
           if (delta.content) {
             currentResponseText += delta.content;
 
@@ -294,17 +315,20 @@ const assistant = new Assistant({
 
             // Update periodically to avoid rate limiting
             // Also don't do a streaming update if the response is super short since that's too underwhelming
-            if (
-              Date.now() - lastUpdateTime > CHAT_EDIT_INTERVAL_MS &&
-              currentResponseText.length > minTextLengthToStream
-            ) {
+            const now = Date.now();
+            if (now - lastUpdateTime > CHAT_EDIT_INTERVAL_MS && currentResponseText.length > minTextLengthToStream) {
               inProgressSlackResponseMessage = await createOrUpdateMessage({
                 client,
                 say,
                 message: inProgressSlackResponseMessage,
                 text: currentResponseText,
               });
-              lastUpdateTime = Date.now();
+              logger.debug({
+                msg: 'Updated Slack response message',
+                responseText: currentResponseText,
+                triggeringMessageTs: userSlackMessageTs,
+              });
+              lastUpdateTime = now;
             }
           }
 
@@ -339,12 +363,18 @@ const assistant = new Assistant({
             remainingLlmLoopsAllowed = 0;
           }
         }
+
         // Update message with final chunk
         inProgressSlackResponseMessage = await createOrUpdateMessage({
           client,
           say,
           message: inProgressSlackResponseMessage,
           text: currentResponseText,
+        });
+        logger.debug({
+          msg: 'Sent completed message',
+          responseText: currentResponseText,
+          triggeringMessageTs: userSlackMessageTs,
         });
 
         // LLM stream is done, we have the complete message
@@ -368,7 +398,16 @@ const assistant = new Assistant({
             const toolArgs = JSON.parse(toolCall.function.arguments);
             const toolCallResult = await toolImplementations[toolName as keyof typeof toolImplementations](toolArgs);
 
-            logger.info(`Tool call: ${JSON.stringify({ toolCall, toolCallResult }, null, 2)}`);
+            logger.info(
+              {
+                toolCall: {
+                  name: toolName,
+                  args: toolArgs,
+                  result: toolCallResult,
+                },
+              },
+              'Tool call executed',
+            );
 
             llmThread.push({
               role: 'tool',
@@ -383,7 +422,7 @@ const assistant = new Assistant({
         });
       }
     } catch (e) {
-      logger.error(e);
+      logger.error({ err: e }, 'Error in user message handler');
 
       await say({
         text: `Sorry, something went wrong.\n You may want to forward this error message to an admin:
@@ -405,5 +444,9 @@ app.assistant(assistant);
 // Start the Slack app
 (async () => {
   await app.start();
-  app.logger.info('⚡️ Bolt app is running!');
+  logger.info({
+    msg: '⚡️ Bolt app started',
+    env: process.env.NODE_ENV,
+    socketMode: true,
+  });
 })();

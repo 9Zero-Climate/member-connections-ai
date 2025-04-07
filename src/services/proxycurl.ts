@@ -1,5 +1,6 @@
 import { config } from 'dotenv';
 import { deleteLinkedInDocuments, insertOrUpdateDoc } from './database';
+import { logger } from './logger';
 
 // Load environment variables
 config();
@@ -78,7 +79,7 @@ export async function getLinkedInProfile(linkedinUrl: string): Promise<Proxycurl
   // Check API key before making any requests
   const apiKey = process.env.PROXYCURL_API_KEY;
   if (!apiKey || apiKey === 'undefined') {
-    console.error('Error: Proxycurl API key not configured');
+    logger.error('Error: Proxycurl API key not configured');
     throw new Error('Proxycurl API key not configured');
   }
 
@@ -103,7 +104,7 @@ export async function getLinkedInProfile(linkedinUrl: string): Promise<Proxycurl
   } catch (error) {
     // Only log fetch and parsing errors
     if (error instanceof Error && error.message !== 'Proxycurl API key not configured') {
-      console.error('Error fetching LinkedIn profile:', error);
+      logger.error('Error fetching LinkedIn profile:', error);
     }
     throw error;
   }
@@ -292,7 +293,7 @@ export async function createLinkedInDocuments(
       });
     }
   } catch (error) {
-    console.error('Error creating LinkedIn documents:', error);
+    logger.error('Error creating LinkedIn documents:', error);
     throw error;
   }
 }
