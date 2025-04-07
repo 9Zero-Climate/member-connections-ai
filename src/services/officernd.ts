@@ -23,7 +23,11 @@ interface OfficeRnDMemberProperty {
 interface OfficeRnDMember {
   _id: string;
   name: string;
-  properties: OfficeRnDMemberProperty[];
+  properties: {
+    slack_id?: string;
+    LinkedInViaAdmin?: string;
+    [key: string]: string | undefined; // Allow other string properties
+  };
 }
 
 let accessToken: string | null = null;
@@ -100,8 +104,8 @@ export async function getAllMembers(): Promise<Member[]> {
     const mappedMember = {
       officernd_id: member._id,
       name: member.name,
-      slack_id: member.properties?.find((p) => p.key === 'slack_id')?.value || null,
-      linkedin_url: member.properties?.find((p) => p.key === 'LinkedInViaAdmin')?.value || null,
+      slack_id: member.properties?.slack_id || null,
+      linkedin_url: member.properties?.LinkedInViaAdmin || null,
     };
     return mappedMember;
   });

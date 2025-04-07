@@ -32,7 +32,7 @@ describe('OfficeRnD Service', () => {
       ),
     );
 
-    // Mock members response
+    // Mock members response with properties as an object
     mockFetch.mockResolvedValueOnce(
       new Response(
         JSON.stringify([
@@ -42,6 +42,15 @@ describe('OfficeRnD Service', () => {
             properties: {
               slack_id: 'U123',
               LinkedInViaAdmin: 'https://linkedin.com/in/johndoe',
+              other_prop: 'other_value',
+            },
+          },
+          {
+            _id: '2',
+            name: 'Jane Smith',
+            properties: {
+              slack_id: 'U456',
+              // Missing LinkedInViaAdmin for this member
             },
           },
         ]),
@@ -55,13 +64,24 @@ describe('OfficeRnD Service', () => {
     );
 
     const members = await getAllMembers();
+    expect(mockFetch).toHaveBeenCalledTimes(2); // Token + Members
     expect(Array.isArray(members)).toBe(true);
-    if (members.length > 0) {
-      const member = members[0];
-      expect(member).toHaveProperty('officernd_id');
-      expect(member).toHaveProperty('name');
-      expect(member).toHaveProperty('slack_id');
-      expect(member).toHaveProperty('linkedin_url');
-    }
+    expect(members).toHaveLength(2);
+
+    // Check first member
+    expect(members[0]).toEqual({
+      officernd_id: '1',
+      name: 'John Doe',
+      slack_id: 'U123',
+      linkedin_url: 'https://linkedin.com/in/johndoe',
+    });
+
+    // Check second member (missing linkedin)
+    expect(members[1]).toEqual({
+      officernd_id: '2',
+      name: 'Jane Smith',
+      slack_id: 'U456',
+      linkedin_url: null,
+    });
   });
 });
