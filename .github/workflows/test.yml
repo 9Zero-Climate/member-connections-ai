@@ -2,9 +2,9 @@ name: Tests
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, staging ]
   pull_request:
-    branches: [ main ]
+    branches: [ main, staging ]
 
 jobs:
   test:
@@ -32,6 +32,8 @@ jobs:
       OFFICERND_CLIENT_SECRET: 'not_a_real_secret'
       OFFICERND_ORG_SLUG: 'not_a_real_slug'
       PROXYCURL_API_KEY: 'test-key'
+      SLACK_BOT_TOKEN: 'not_a_real_bot_token'
+      SLACK_APP_TOKEN: 'not_a_real_app_token'
 
     steps:
       - uses: actions/checkout@v4
