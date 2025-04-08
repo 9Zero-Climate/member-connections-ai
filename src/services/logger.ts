@@ -69,18 +69,20 @@ const logUncaughtExceptions = (logger: Logger) => {
 // for Bolt and for the rest of the app
 const pinoLoggerForBolt = pinoLogger.child({ module: 'bolt' });
 
+type pinoLoggingArgs = Parameters<Logger['debug']>;
+
 const boltLogger: BoltLogger = {
-  debug(...msg: unknown[]): void {
-    pinoLoggerForBolt.debug(msg);
+  debug(...msg: pinoLoggingArgs): void {
+    pinoLoggerForBolt.debug(...msg);
   },
-  info(...msg: unknown[]): void {
-    pinoLoggerForBolt.info(msg);
+  info(...msg: pinoLoggingArgs): void {
+    pinoLoggerForBolt.info(...msg);
   },
-  warn(...msg: unknown[]): void {
-    pinoLoggerForBolt.warn(msg);
+  warn(...msg: pinoLoggingArgs): void {
+    pinoLoggerForBolt.warn(...msg);
   },
-  error(...msg: unknown[]): void {
-    pinoLoggerForBolt.error(msg);
+  error(...msg: pinoLoggingArgs): void {
+    pinoLoggerForBolt.error(...msg);
   },
   setLevel(level: string): void {
     pinoLoggerForBolt.level = level;
