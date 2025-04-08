@@ -1,4 +1,8 @@
 import { config as loadEnv } from 'dotenv';
+import { logUncaughtExceptions, logger } from './services/logger';
+
+// This needs to happen before anything that might throw an uncaught exception.
+logUncaughtExceptions(logger);
 
 // Only load .env file if not in test environment
 if (process.env.NODE_ENV !== 'test') {

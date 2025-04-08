@@ -1,9 +1,11 @@
+import { boltLogger, logger, logUncaughtExceptions } from './services/logger';
 import { App } from '@slack/bolt';
 import express from 'express';
 import type { Express } from 'express';
 import { getAssistant } from './assistant';
 import { config } from './config';
-import { boltLogger, logger } from './services/logger';
+
+logUncaughtExceptions(logger);
 
 // Setup Slack Bolt App
 const app = new App({
