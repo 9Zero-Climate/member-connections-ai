@@ -4,6 +4,13 @@ import pino, { type Logger } from 'pino';
 // Base Pino logger configuration
 const pinoLogger = pino({
   level: 'debug',
+  // By default, Pino logs the level as a number. That's nice for ordering, but
+  // annoying for human consumption. Use labels instead.
+  formatters: {
+    level: (label) => {
+      return { level: label };
+    },
+  },
   base: {
     app: 'member-connections-ai',
     env: process.env.NODE_ENV || 'production',
