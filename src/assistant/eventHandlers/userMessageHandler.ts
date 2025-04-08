@@ -53,16 +53,18 @@ export function getUserMessageHandler(llmClient: OpenAI, client: WebClient): Ass
     const responseManager = new ResponseManager({ client, say });
 
     if (!text) {
-      logger.warn({ msg: 'Received message without text', slackMessage });
+      logger.warn({ slackMessage }, 'Received message without text');
       return;
     }
 
-    logger.info({
-      msg: 'Handling message from user',
-      messageText: text,
-      fullSlackMessage: slackMessage,
-      triggeringMessageTs: userSlackMessageTs,
-    });
+    logger.info(
+      {
+        messageText: text,
+        fullSlackMessage: slackMessage,
+        triggeringMessageTs: userSlackMessageTs,
+      },
+      'Handling message from user',
+    );
 
     await client.reactions.add({
       name: 'thinking_face',
@@ -130,11 +132,11 @@ export function getUserMessageHandler(llmClient: OpenAI, client: WebClient): Ass
               time_zone_offset: user.tz_offset,
             };
           } else {
-            logger.warn({ msg: 'Could not fetch user info', userId: slackMessage.user, error: userRes.error });
+            logger.warn({ userId: slackMessage.user, error: userRes.error }, 'Could not fetch user info');
             userInfoForBot = { slack_ID: `<@${slackMessage.user}>`, error: 'Could not fetch user info' };
           }
         } catch (e) {
-          logger.error({ msg: 'Error fetching user info', userId: slackMessage.user, error: e });
+          logger.error({ userId: slackMessage.user, error: e }, 'Error fetching user info');
           userInfoForBot = { slack_ID: `<@${slackMessage.user}>`, error: 'Exception fetching user info' };
         }
       } else {
@@ -161,10 +163,7 @@ export function getUserMessageHandler(llmClient: OpenAI, client: WebClient): Ass
         },
         userMessage,
       ];
-      logger.debug({
-        msg: 'LLM thread prepared',
-        threadLength: llmThread.length,
-      });
+      logger.debug({ threadLength: llmThread.length }, 'LLM thread prepared');
 
       let remainingLlmLoopsAllowed = config.maxToolCallIterations;
 
@@ -222,7 +221,7 @@ export function getUserMessageHandler(llmClient: OpenAI, client: WebClient): Ass
         }
 
         const responseText = await responseManager.finalizeMessage();
-        logger.debug({ msg: 'Finalized response text', responseText, triggeringMessageTs: userSlackMessageTs });
+        logger.debug({ responseText, triggeringMessageTs: userSlackMessageTs }, 'Finalized response text');
         if (responseText) {
           llmThread.push({
             role: 'assistant',
@@ -232,7 +231,7 @@ export function getUserMessageHandler(llmClient: OpenAI, client: WebClient): Ass
 
         const validToolCalls = toolCalls.filter((tc) => tc?.id && tc?.function?.name);
         if (validToolCalls.length === 0) {
-          logger.info({ msg: 'LLM finished without tool calls in this loop.' });
+          logger.info({ triggeringMessageTs: userSlackMessageTs }, 'LLM finished without tool calls in this loop.');
           break;
         }
 
@@ -250,14 +249,16 @@ export function getUserMessageHandler(llmClient: OpenAI, client: WebClient): Ass
       }
 
       if (remainingLlmLoopsAllowed <= 0) {
-        logger.warn({ msg: 'Reached max tool call iterations.', triggeringMessageTs: userSlackMessageTs });
+        logger.warn({ triggeringMessageTs: userSlackMessageTs }, 'Reached max tool call iterations.');
       }
     } catch (e) {
-      logger.error({
-        msg: 'Error in user message handler',
-        triggeringMessageTs: userSlackMessageTs,
-        err: e instanceof Error ? { message: e.message, stack: e.stack } : e,
-      });
+      logger.error(
+        {
+          triggeringMessageTs: userSlackMessageTs,
+          err: e instanceof Error ? { message: e.message, stack: e.stack } : e,
+        },
+        'Error in user message handler',
+      );
       await say({
         text: `Sorry, something went wrong.\n You may want to forward this error message to an admin:
           \`\`\`\n${JSON.stringify(e, null, 2)}\n\`\`\``,

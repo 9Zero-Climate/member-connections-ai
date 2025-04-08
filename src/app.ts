@@ -27,7 +27,7 @@ expressApp.get('/', (_req, res) => {
 
 // Start the Express server
 expressApp.listen(config.port, () => {
-  logger.info({ msg: 'Health check server started', port: config.port });
+  logger.info({ port: config.port }, '🩺 Health check server started');
 });
 
 // This is the main assistant that will be used to handle messages
@@ -36,9 +36,11 @@ app.assistant(getAssistant(config, app.client));
 // Start the Slack app
 (async () => {
   await app.start();
-  logger.info({
-    msg: '⚡️ Bolt app started',
-    env: process.env.NODE_ENV,
-    socketMode: true,
-  });
+  logger.info(
+    {
+      env: process.env.NODE_ENV,
+      socketMode: true,
+    },
+    '⚡️ Bolt app started',
+  );
 })();
