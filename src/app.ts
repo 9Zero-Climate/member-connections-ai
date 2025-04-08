@@ -2,7 +2,7 @@ import { boltLogger, logger, logUncaughtExceptions } from './services/logger';
 import { App } from '@slack/bolt';
 import express from 'express';
 import type { Express } from 'express';
-import { getAssistant } from './assistant';
+import { registerAssistantAndHandlers } from './assistant';
 import { config } from './config';
 
 logUncaughtExceptions(logger);
@@ -32,8 +32,8 @@ expressApp.listen(config.port, () => {
   logger.info({ port: config.port }, '🩺 Health check server started');
 });
 
-// This is the main assistant that will be used to handle messages
-app.assistant(getAssistant(config, app.client));
+// Hook the chatbot into the Slack Bolt app
+registerAssistantAndHandlers(app, config, app.client);
 
 // Start the Slack app
 (async () => {

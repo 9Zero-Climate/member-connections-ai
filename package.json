@@ -18,8 +18,7 @@
     "sync:slack": "tsx src/cli.ts sync-channel",
     "sync:members": "tsx src/scripts/sync-members.ts",
     "typecheck": "tsc --noEmit",
-    "setup:db": "tsx src/scripts/setup_test_db.ts",
-    "migrate": "tsx src/scripts/run-migration.ts"
+    "setup:db": "tsx src/scripts/setup_test_db.ts"
   },
   "author": "9Zero Climate",
   "license": "MIT",

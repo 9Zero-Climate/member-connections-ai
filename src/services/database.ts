@@ -33,6 +33,17 @@ export interface Member {
   updated_at?: Date;
 }
 
+// Define the structure for the feedback data
+export interface FeedbackVote {
+  message_channel_id: string;
+  message_ts: string;
+  submitted_by_user_id: string;
+  reaction: string;
+  reasoning: string;
+  // Optional: original_message_user_id?: string;
+  created_at?: Date;
+}
+
 export type QueryParams = (string | number | Record<string, unknown> | null)[];
 
 let client: Client | TestClient;
@@ -370,6 +381,33 @@ async function getLinkedInDocumentsByName(memberName: string): Promise<Document[
   }
 }
 
+/**
+ * Save feedback vote to the database
+ * @param feedback - The feedback data to save
+ * @returns The saved feedback record
+ */
+async function saveFeedback(feedback: FeedbackVote): Promise<FeedbackVote> {
+  try {
+    const result = await client.query(
+      `INSERT INTO feedback (message_channel_id, message_ts, submitted_by_user_id, reaction, reasoning)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING *`,
+      [
+        feedback.message_channel_id,
+        feedback.message_ts,
+        feedback.submitted_by_user_id,
+        feedback.reaction,
+        feedback.reasoning,
+      ],
+    );
+    // We assert the type here because RETURNING * should give us back the full row including DB-generated columns
+    return result.rows[0] as FeedbackVote;
+  } catch (error) {
+    logger.error('Error saving feedback vote:', error);
+    throw error; // Re-throw the error to be handled by the caller
+  }
+}
+
 export {
   insertOrUpdateDoc,
   getDocBySource,
@@ -382,4 +420,5 @@ export {
   setTestClient,
   getLinkedInDocuments,
   getLinkedInDocumentsByName,
+  saveFeedback,
 };

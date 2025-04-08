@@ -2,6 +2,11 @@ import { Command } from 'commander';
 import { type Document, getDocBySource, insertOrUpdateDoc } from './services/database';
 import slackSync, { doesSlackMessageMatchDb } from './services/slack_sync';
 import type { SlackMessage } from './services/slack_sync';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import { Client } from 'pg';
+import { config } from './config'; // Import unified config
+import { logger } from './services/logger';
 
 interface SyncOptions {
   limit: string;
@@ -92,6 +97,47 @@ program
     } catch (error) {
       console.error('Error syncing channel:', error);
       process.exit(1);
+    }
+  });
+
+program
+  .command('run-migration')
+  .description('Run a single SQL migration file')
+  .argument('<filePath>', 'Path to the SQL migration file')
+  .action(async (filePath: string) => {
+    const absoluteMigrationPath = path.resolve(filePath);
+    logger.info(`Attempting to run migration: ${absoluteMigrationPath}`);
+
+    if (!fs.existsSync(absoluteMigrationPath)) {
+      logger.error(`Error: Migration file not found at ${absoluteMigrationPath}`);
+      process.exit(1);
+    }
+
+    const client = new Client({
+      connectionString: config.dbUrl,
+    });
+
+    try {
+      await client.connect();
+      logger.info('Connected to database for migration.');
+
+      const migrationQuery = fs.readFileSync(absoluteMigrationPath, 'utf8');
+      logger.info(`Read migration file: ${path.basename(absoluteMigrationPath)}`);
+
+      logger.info(`Running migration from ${path.basename(absoluteMigrationPath)}...`);
+      await client.query(migrationQuery);
+      logger.info(`Migration from ${path.basename(absoluteMigrationPath)} completed successfully.`);
+      process.exit(0);
+    } catch (err) {
+      const errorMessage =
+        typeof err === 'object' && err !== null && 'message' in err ? (err as Error).message : String(err);
+      logger.error(`Migration failed: ${errorMessage}`, err);
+      process.exit(1);
+    } finally {
+      if (client) {
+        await client.end();
+        logger.info('Database connection closed.');
+      }
     }
   });
 
