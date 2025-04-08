@@ -1,18 +1,32 @@
-import type { ChatCompletionToolMessageParam } from 'openai/resources/chat';
+import type { ChatCompletionAssistantMessageParam, ChatCompletionToolMessageParam } from 'openai/resources/chat';
 import { logger } from '../services/logger';
-import { type ToolCall, objectToXml, toolImplementations } from '../services/tools';
+import { type ToolCall, objectToXml } from '../services/tools';
+
+// Define the expected type for the injected implementations map
+// biome-ignore lint/suspicious/noExplicitAny: Tool functions can have varied args/return types
+type ToolImplementationsMap = Record<string, (args: any) => Promise<any>>;
 
 /**
- * Executes a list of tool calls and returns the results as tool messages.
+ * Executes a list of tool calls using provided implementations and returns the results.
  *
  * @param toolCalls - The list of tool calls requested by the LLM.
- * @returns An array of ChatCompletionToolMessageParam containing the results or errors.
+ * @param toolImplementations - A map of tool names to their implementation functions.
+ * @returns An array of ChatCompletion*MessageParam containing the results. This should be appended to the LLM thread.
  */
-export default async function executeToolCalls(toolCalls: ToolCall[]): Promise<ChatCompletionToolMessageParam[]> {
-  const toolResultMessages: ChatCompletionToolMessageParam[] = [];
+export default async function executeToolCalls(
+  toolCalls: ToolCall[],
+  toolImplementations: ToolImplementationsMap,
+): Promise<(ChatCompletionToolMessageParam | ChatCompletionAssistantMessageParam)[]> {
+  const toolCallAndResultMessages: (ChatCompletionToolMessageParam | ChatCompletionAssistantMessageParam)[] = [
+    {
+      role: 'assistant',
+      tool_calls: toolCalls,
+    },
+  ];
 
   for (const toolCall of toolCalls) {
     const toolName = toolCall.function.name;
+
     // biome-ignore lint/suspicious/noExplicitAny: Tool arguments can be any valid JSON structure
     let toolArgs: any;
     let toolResultContent: string;
@@ -22,7 +36,7 @@ export default async function executeToolCalls(toolCalls: ToolCall[]): Promise<C
     } catch (error) {
       logger.error({ err: error, toolCall }, 'Failed to parse tool arguments');
       toolResultContent = objectToXml({ error: 'Failed to parse arguments JSON', args: toolCall.function.arguments });
-      toolResultMessages.push({
+      toolCallAndResultMessages.push({
         role: 'tool',
         tool_call_id: toolCall.id,
         content: toolResultContent,
@@ -30,7 +44,7 @@ export default async function executeToolCalls(toolCalls: ToolCall[]): Promise<C
       continue;
     }
 
-    const toolImplementation = toolImplementations[toolName as keyof typeof toolImplementations];
+    const toolImplementation = toolImplementations[toolName];
 
     if (!toolImplementation) {
       logger.error({ toolCall }, 'Unknown tool called');
@@ -58,12 +72,12 @@ export default async function executeToolCalls(toolCalls: ToolCall[]): Promise<C
     }
 
     // Add the successful result or error result to the list
-    toolResultMessages.push({
+    toolCallAndResultMessages.push({
       role: 'tool',
       tool_call_id: toolCall.id,
       content: toolResultContent,
     });
   }
 
-  return toolResultMessages;
+  return toolCallAndResultMessages;
 }

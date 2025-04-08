@@ -30,8 +30,8 @@ expressApp.listen(config.port, () => {
   logger.info({ msg: 'Health check server started', port: config.port });
 });
 
-// Register the assistant with the Slack app
-app.assistant(getAssistant(config));
+// This is the main assistant that will be used to handle messages
+app.assistant(getAssistant(config, app.client));
 
 // Start the Slack app
 (async () => {

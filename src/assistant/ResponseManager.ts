@@ -1,13 +1,11 @@
 import type { SayFn } from '@slack/bolt';
 import type { ChatPostMessageResponse, WebClient } from '@slack/web-api';
 import { config } from '../config';
+import { logger } from '../services/logger';
 
-// Define UpdateMessageParams here
 export interface UpdateMessageParams {
   client: WebClient;
   say: SayFn;
-  message: ChatPostMessageResponse | undefined;
-  text: string;
 }
 
 /**
@@ -22,11 +20,39 @@ export default class ResponseManager {
   private currentResponseText = '';
   private inProgressMessage: ChatPostMessageResponse | undefined;
 
-  // Use the locally defined UpdateMessageParams (omitting parts)
-  constructor(private readonly params: Omit<UpdateMessageParams, 'text' | 'message'>) {}
+  private resetMessageState(): void {
+    this.currentResponseText = '';
+    this.inProgressMessage = undefined;
+  }
 
-  async updateMessage(text: string): Promise<void> {
-    this.currentResponseText = text || '_thinking..._';
+  constructor(private readonly params: UpdateMessageParams) {
+    this.resetMessageState();
+  }
+
+  async startNewMessageWithPlaceholder(placeholder: string): Promise<void> {
+    if (this.inProgressMessage || this.currentResponseText) {
+      const msg = 'Cannot start a new message while there is an in-progress message.';
+      logger.error({
+        msg,
+        inProgressMessage: this.inProgressMessage,
+        currentResponseText: this.currentResponseText,
+        requestedPlaceholder: placeholder,
+      });
+      throw new Error(msg);
+    }
+
+    this.inProgressMessage = await this.params.say({
+      text: placeholder,
+      // parse: 'full',
+    });
+    // Don't set the placeholder as the current response text, because it will be replaced with the actual response
+    this.currentResponseText = '';
+    // Initialize lastUpdateTime when message starts
+    this.lastUpdateTime = Date.now();
+  }
+
+  async appendToMessage(text: string): Promise<void> {
+    this.currentResponseText += text;
 
     const now = Date.now();
     const minTextLengthToStream = 10;
@@ -36,32 +62,36 @@ export default class ResponseManager {
       now - this.lastUpdateTime > config.chatEditIntervalMs &&
       this.currentResponseText.length > minTextLengthToStream
     ) {
-      this.inProgressMessage = await this.createOrUpdateMessage();
+      await this.updateMessage();
       this.lastUpdateTime = now;
     }
   }
 
-  async finalizeMessage(): Promise<void> {
+  async finalizeMessage(): Promise<string> {
+    const finalMessageText = this.currentResponseText;
     const cooldownTimeRemaining = config.chatEditIntervalMs - (Date.now() - this.lastUpdateTime);
     if (cooldownTimeRemaining > 0) {
       await new Promise((resolve) => setTimeout(resolve, cooldownTimeRemaining));
     }
 
-    this.inProgressMessage = await this.createOrUpdateMessage();
-    // Reset for next use
-    this.currentResponseText = '';
-    this.inProgressMessage = undefined;
+    await this.updateMessage();
+    this.resetMessageState();
+    return finalMessageText;
   }
 
-  private async createOrUpdateMessage(): Promise<ChatPostMessageResponse> {
-    const { client, say } = this.params;
-    const messageText = this.currentResponseText || '_thinking..._';
-
+  /**
+   * Updates the in-progress message with the current response text.
+   *
+   * @throws {Error} If no in-progress message is found.
+   */
+  private async updateMessage(): Promise<void> {
     if (!this.inProgressMessage) {
-      return await say({
-        text: messageText,
-        parse: 'full',
-      });
+      throw new Error(
+        'No in progress message found. ResponseManager.startNewMessage() must be called before updateMessage().',
+      );
+    }
+    if (!this.currentResponseText) {
+      throw new Error('No response text to update message with.');
     }
 
     if (!this.inProgressMessage.ts || !this.inProgressMessage.channel) {
@@ -70,10 +100,10 @@ export default class ResponseManager {
       );
     }
 
-    return await client.chat.update({
+    this.inProgressMessage = await this.params.client.chat.update({
       channel: this.inProgressMessage.channel,
       ts: this.inProgressMessage.ts,
-      text: messageText,
+      text: this.currentResponseText,
     });
   }
 }
