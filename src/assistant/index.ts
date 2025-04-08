@@ -10,7 +10,7 @@ import type {
 import type { Config } from '../config';
 import threadStartedHandler from './eventHandlers/threadStartedHandler';
 import { getUserMessageHandler } from './eventHandlers/userMessageHandler';
-import { handleReactionAdded } from './eventHandlers/reactionAddedHandler';
+import initiateFeedbackFlowFromReactionEvent from './eventHandlers/initiateFeedbackFlowFromReactionEvent';
 import {
   handleFeedbackAddReasonAction,
   handleFeedbackViewSubmission,
@@ -42,7 +42,7 @@ export const registerAssistantAndHandlers = (app: App, config: Config, client: W
 
   app.assistant(assistant);
 
-  app.event('reaction_added', handleReactionAdded);
+  app.event('reaction_added', initiateFeedbackFlowFromReactionEvent);
   app.action(ADD_REASON_BUTTON_ACTION_ID, handleFeedbackAddReasonAction);
   app.view(FEEDBACK_MODAL_ID, handleFeedbackViewSubmission);
 

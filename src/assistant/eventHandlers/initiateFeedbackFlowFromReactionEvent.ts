@@ -3,7 +3,7 @@ import type { ReactionAddedEvent, WebClient } from '@slack/web-api';
 import { logger } from '../../services/logger';
 import { ADD_REASON_BUTTON_ACTION_ID, type FeedbackContext } from './feedbackHandler';
 
-// Store bot user ID - fetched once or retrieved from config
+// Store bot user ID - will be fetched once
 let botUserId: string | undefined;
 
 async function getBotUserId(client: WebClient): Promise<string> {
@@ -20,11 +20,17 @@ async function getBotUserId(client: WebClient): Promise<string> {
   return botUserId;
 }
 
-// Handler for the 'reaction_added' event
-export const handleReactionAdded = async ({
+/**
+ * Called when a reaction is added to a message.
+ * If the reaction is on a message posted by the bot, this initiates a feedback prompt.
+ *
+ * @param event - The reaction added event
+ * @param client - The Slack client
+ */
+export default async function initiateFeedbackFlowFromReactionEvent({
   event,
   client,
-}: AllMiddlewareArgs & { event: ReactionAddedEvent }): Promise<void> => {
+}: AllMiddlewareArgs & { event: ReactionAddedEvent }): Promise<void> {
   logger.debug({ event }, 'Reaction added event received');
 
   const reactionName = event.reaction;
@@ -102,4 +108,4 @@ export const handleReactionAdded = async ({
     { user: event.user, channel: event.item.channel, ts: event.item.ts },
     'Posted ephemeral prompt for feedback reason',
   );
-};
+}
