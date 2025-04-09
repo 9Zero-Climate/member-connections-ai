@@ -5,14 +5,6 @@
 
 AI-powered member connections for Slack, helping community members find and connect with each other.
 
-## Features
-
-- Slack message syncing and storage
-- AI-powered member connections
-- Automated daily syncs
-- Manual sync capabilities
-- Interactive Slack bot for member connections
-
 ## Development
 
 ### Prerequisites
@@ -63,31 +55,17 @@ The bot server provides:
 To manually sync messages from a Slack channel:
 
 ```bash
-# Sync last 100 messages from a channel
+# Sync recent messages from a channel
 pnpm sync introductions
-
-# Sync with custom limit
-pnpm sync introductions --limit 50
-
-# Sync messages from a specific time range
-pnpm sync introductions --oldest 1704067200 --newest 1704153600
-
-# Process messages in smaller batches
-pnpm sync introductions --batch-size 5
 ```
 
-### Development Scripts
+## Logging
 
-- `pnpm start`: Run the Slack bot server
-- `pnpm dev`: Run the bot server with hot reloading
-- `pnpm cli`: Run the CLI tool
-- `pnpm cli:dev`: Run the CLI tool with hot reloading
-- `pnpm test`: Run all tests
-- `pnpm lint`: Run ESLint
-- `pnpm lint:fix`: Fix ESLint issues
-- `pnpm build`: Build the TypeScript project
-- `pnpm typecheck`: Run TypeScript type checking
-- `pnpm setup:db`: Set up the test database
+Logs from this project are handled by pino and sent to BetterStack Telemetry (fka Logtail).
+See em at https://telemetry.betterstack.com/team/315967/
+
+Whenever possible, when using the logger, log the relevant user slack ID as "user" in the log object. This facilitates filtering logs in BetterStack.
+
 
 ## GitHub Actions
 

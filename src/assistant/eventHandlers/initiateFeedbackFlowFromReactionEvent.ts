@@ -31,7 +31,7 @@ export default async function initiateFeedbackFlowFromReactionEvent({
   event,
   client,
 }: AllMiddlewareArgs & { event: ReactionAddedEvent }): Promise<void> {
-  logger.debug({ event }, 'Reaction added event received');
+  logger.debug({ event, user: event.user }, 'Reaction added event received');
 
   const reactionName = event.reaction;
   if (event.item.type !== 'message') {

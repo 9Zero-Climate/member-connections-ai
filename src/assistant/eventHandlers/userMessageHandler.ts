@@ -62,6 +62,7 @@ export function getUserMessageHandler(llmClient: OpenAI, client: WebClient): Ass
         messageText: text,
         fullSlackMessage: slackMessage,
         triggeringMessageTs: userSlackMessageTs,
+        user: (slackMessage as SlackMessage).user,
       },
       'Handling message from user',
     );

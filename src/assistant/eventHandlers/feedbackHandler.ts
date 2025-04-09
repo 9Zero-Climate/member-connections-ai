@@ -163,7 +163,7 @@ export const handleFeedbackAddReasonAction = async ({
   logger: actionLogger,
 }: SlackActionMiddlewareArgs<BlockAction<ButtonAction>> & AllMiddlewareArgs): Promise<void> => {
   await ack();
-  actionLogger.info({ action: body.actions[0] }, '"Add Reason" button clicked');
+  actionLogger.info({ action: body.actions[0] }, '"Send Feedback" button clicked');
 
   const triggerId = body.trigger_id;
   // Extract context stored in the button's value field
@@ -231,7 +231,7 @@ export const handleFeedbackViewSubmission = async ({
 
     // Save to database
     await saveFeedback(feedbackData);
-    viewLogger.info({ savedFeedbackData: feedbackData }, 'Feedback reason saved successfully');
+    viewLogger.info({ savedFeedbackData: feedbackData, user: body.user.id }, 'Feedback reason saved successfully');
 
     await client.chat.postEphemeral({
       channel: channelId,
