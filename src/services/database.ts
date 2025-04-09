@@ -1,8 +1,8 @@
+import { getPackedSettings } from 'node:http2';
 import { Client } from 'pg';
 import { config } from '../config'; // Import unified config
 import { generateEmbeddings } from './embedding';
 import { logger } from './logger';
-import { getPackedSettings } from 'node:http2';
 
 export interface Document {
   source_type: string;
