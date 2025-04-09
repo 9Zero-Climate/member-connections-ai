@@ -363,7 +363,15 @@ async function getLinkedInDocuments(linkedinUrl: string): Promise<Document[]> {
 async function getLinkedInDocumentsByName(memberName: string): Promise<Document[]> {
   try {
     const result = await client.query(
-      `SELECT * FROM documents_with_slack_user_id
+      `SELECT
+        created_at,
+        source_type,
+        source_unique_id,
+        content,
+        updated_at,
+        metadata,
+        slack_user_id
+       FROM documents_with_slack_user_id
        WHERE source_type LIKE 'linkedin_%' 
        AND metadata->>'member_name' = $1`,
       [memberName],
