@@ -65,7 +65,7 @@ export function createConfig(env: NodeJS.ProcessEnv = process.env): Config {
     openaiApiKey: env.OPENAI_API_KEY as string,
     openRouterApiKey: env.OPENROUTER_API_KEY as string,
     proxycurlApiKey: env.PROXYCURL_API_KEY,
-    modelName: env.OPENROUTER_MODEL_NAME || 'anthropic/claude-3-haiku',
+    modelName: env.OPENROUTER_MODEL_NAME || 'google/gemini-2.0-flash-001',
     openRouterBaseUrl: env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1',
     appName: env.APP_NAME || 'Member Connections AI',
     appUrl: env.APP_URL || 'https://github.com/9Zero-Climate/member-connections-ai',
