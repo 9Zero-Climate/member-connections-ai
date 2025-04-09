@@ -1,3 +1,4 @@
+import { getPackedSettings } from 'node:http2';
 import { Client } from 'pg';
 import { config } from '../config'; // Import unified config
 import { generateEmbeddings } from './embedding';
@@ -397,8 +398,8 @@ async function getLinkedInDocumentsByName(memberName: string): Promise<Document[
 async function saveFeedback(feedback: FeedbackVote): Promise<FeedbackVote> {
   try {
     const result = await client.query(
-      `INSERT INTO feedback (message_channel_id, message_ts, submitted_by_user_id, reaction, reasoning)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO feedback (message_channel_id, message_ts, submitted_by_user_id, reaction, reasoning, environment)
+       VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING *`,
       [
         feedback.message_channel_id,
@@ -406,6 +407,7 @@ async function saveFeedback(feedback: FeedbackVote): Promise<FeedbackVote> {
         feedback.submitted_by_user_id,
         feedback.reaction,
         feedback.reasoning,
+        config.environment,
       ],
     );
     // We assert the type here because RETURNING * should give us back the full row including DB-generated columns
