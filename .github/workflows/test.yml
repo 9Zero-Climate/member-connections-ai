@@ -35,7 +35,6 @@ jobs:
       SLACK_BOT_TOKEN: 'not_a_real_bot_token'
       SLACK_APP_TOKEN: 'not_a_real_app_token'
       OPENAI_API_KEY: 'not_a_real_openai_api_key'
-      
 
     steps:
       - uses: actions/checkout@v4
