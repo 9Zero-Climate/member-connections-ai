@@ -30,7 +30,7 @@ export interface Config {
   // Server configuration
   port: number;
   dbUrl: string;
-  environment: string;
+  environment?: string;
   // OfficeRnD configuration
   officerndOrgSlug: string;
   officerndClientId: string;
