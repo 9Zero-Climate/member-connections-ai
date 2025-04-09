@@ -73,8 +73,9 @@ export default class ResponseManager {
     if (cooldownTimeRemaining > 0) {
       await new Promise((resolve) => setTimeout(resolve, cooldownTimeRemaining));
     }
-
-    await this.updateMessage();
+    if (this.currentResponseText) {
+      await this.updateMessage();
+    }
     this.resetMessageState();
     return finalMessageText;
   }
