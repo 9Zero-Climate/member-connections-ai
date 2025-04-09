@@ -1,16 +1,16 @@
 import type {
   AllMiddlewareArgs,
+  BlockAction,
+  ButtonAction,
+  MessageShortcut,
+  SlackActionMiddlewareArgs,
   SlackShortcutMiddlewareArgs,
   SlackViewMiddlewareArgs,
   ViewSubmitAction,
-  MessageShortcut,
-  SlackActionMiddlewareArgs,
-  BlockAction,
-  ButtonAction,
 } from '@slack/bolt';
+import type { Block, KnownBlock, View } from '@slack/web-api';
+import { type FeedbackVote, saveFeedback } from '../../services/database';
 import { logger } from '../../services/logger';
-import { saveFeedback, type FeedbackVote } from '../../services/database';
-import type { View, KnownBlock, Block } from '@slack/web-api';
 
 // Unique identifiers for the shortcut and the modal view
 export const FEEDBACK_SHORTCUT_ID = 'give_feedback_shortcut';

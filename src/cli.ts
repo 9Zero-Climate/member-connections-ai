@@ -1,12 +1,12 @@
-import { Command } from 'commander';
-import { type Document, getDocBySource, insertOrUpdateDoc } from './services/database';
-import slackSync, { doesSlackMessageMatchDb } from './services/slack_sync';
-import type { SlackMessage } from './services/slack_sync';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { Command } from 'commander';
 import { Client } from 'pg';
 import { config } from './config'; // Import unified config
+import { type Document, getDocBySource, insertOrUpdateDoc } from './services/database';
 import { logger } from './services/logger';
+import slackSync, { doesSlackMessageMatchDb } from './services/slack_sync';
+import type { SlackMessage } from './services/slack_sync';
 
 interface SyncOptions {
   limit: string;

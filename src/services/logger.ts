@@ -54,11 +54,11 @@ const pinoLogger = pino({
   },
 });
 
-let loggingUncaughtExceptions = false;
+let loggingUncaughtErrors = false;
 
-const logUncaughtExceptions = (logger: Logger) => {
-  if (loggingUncaughtExceptions) return;
-  loggingUncaughtExceptions = true;
+const logUncaughtErrors = (logger: Logger) => {
+  if (loggingUncaughtErrors) return;
+  loggingUncaughtErrors = true;
   process.on('uncaughtException', (err) => {
     logger.fatal(err, 'uncaught exception detected');
   });
@@ -95,4 +95,4 @@ const boltLogger: BoltLogger = {
   },
 };
 
-export { boltLogger, pinoLogger as logger, logUncaughtExceptions };
+export { boltLogger, pinoLogger as logger, logUncaughtErrors };

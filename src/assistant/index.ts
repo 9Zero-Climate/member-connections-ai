@@ -8,16 +8,16 @@ import type {
   ChatCompletionUserMessageParam,
 } from 'openai/resources/chat';
 import type { Config } from '../config';
-import threadStartedHandler from './eventHandlers/threadStartedHandler';
-import { getUserMessageHandler } from './eventHandlers/userMessageHandler';
-import initiateFeedbackFlowFromReactionEvent from './eventHandlers/initiateFeedbackFlowFromReactionEvent';
+import { logger } from '../services/logger';
 import {
-  handleFeedbackAddReasonAction,
-  handleFeedbackViewSubmission,
   ADD_REASON_BUTTON_ACTION_ID,
   FEEDBACK_MODAL_ID,
+  handleFeedbackAddReasonAction,
+  handleFeedbackViewSubmission,
 } from './eventHandlers/feedbackHandler';
-import { logger } from '../services/logger';
+import initiateFeedbackFlowFromReactionEvent from './eventHandlers/initiateFeedbackFlowFromReactionEvent';
+import threadStartedHandler from './eventHandlers/threadStartedHandler';
+import { getUserMessageHandler } from './eventHandlers/userMessageHandler';
 
 export type ChatMessage =
   | ChatCompletionSystemMessageParam

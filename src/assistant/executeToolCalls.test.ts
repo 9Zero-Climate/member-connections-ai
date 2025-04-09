@@ -1,4 +1,3 @@
-import type { ChatCompletionAssistantMessageParam, ChatCompletionToolMessageParam } from 'openai/resources'; // Try this import path
 import type { ToolCall } from '../services/tools';
 import { objectToXml } from '../services/tools';
 import executeToolCalls from './executeToolCalls';
@@ -11,6 +10,7 @@ jest.mock('../services/logger', () => ({
     error: jest.fn(),
     debug: jest.fn(),
   },
+  logUncaughtErrors: jest.fn(),
 }));
 
 // Mock objectToXml for predictable output verification
