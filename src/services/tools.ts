@@ -85,13 +85,14 @@ export const tools = [
     function: {
       name: 'searchDocuments',
       description:
-        'Search for relevant messages in the Slack workspace and LinkeddIn profile content for members using semantic similarity.',
+        'Search for relevant messages in the Slack workspace and LinkeddIn profile content for members using semantic similarity. Tips: If looking for multiple topics (investors and solar), you may want to make multiple searches (one for investors, one for solar, and maybe also one for "investors in solar").',
       parameters: {
         type: 'object',
         properties: {
           query: {
             type: 'string',
-            description: 'The search query to find relevant messages',
+            description:
+              'The search query to find relevant messages. The content of Slack messages and Linkedin content will be ranked by embedding similarity with this search query, so use terms similar to what you would like to find.',
           },
           limit: {
             type: 'number',
@@ -113,7 +114,7 @@ export const tools = [
         properties: {
           memberName: {
             type: 'string',
-            description: "The member's name to fetch LinkedIn data for",
+            description: "The member's full name to fetch LinkedIn data for e.g. 'Jason Curtis'",
           },
         },
         required: ['memberName'],
