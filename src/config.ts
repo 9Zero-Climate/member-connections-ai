@@ -30,7 +30,7 @@ export interface Config {
   // Server configuration
   port: number;
   dbUrl: string;
-
+  environment: string;
   // OfficeRnD configuration
   officerndOrgSlug: string;
   officerndClientId: string;
@@ -60,6 +60,7 @@ export function createConfig(env: NodeJS.ProcessEnv = process.env): Config {
   }
 
   return {
+    environment: env.NODE_ENV,
     slackBotToken: env.SLACK_BOT_TOKEN as string,
     slackAppToken: env.SLACK_APP_TOKEN as string,
     openaiApiKey: env.OPENAI_API_KEY as string,
