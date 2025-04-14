@@ -136,11 +136,11 @@ async function insertOrUpdateDoc(doc: Document): Promise<Document> {
     const embeddingVector = formatForStorage(embedding);
 
     const result = await client.query(
-      `INSERT INTO rag_docs (source_type, source_unique_id, content, embedding, metadata)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO rag_docs (updated_at, source_type, source_unique_id, content, embedding, metadata)
+       VALUES (CURRENT_TIMESTAMP, $1, $2, $3, $4, $5)
        ON CONFLICT (source_unique_id) 
        DO UPDATE SET 
-          updated_at = CURRENT_TIMESTAMP,
+          updated_at = EXCLUDED.updated_at,
           source_type = EXCLUDED.source_type,
           content = EXCLUDED.content,
           embedding = EXCLUDED.embedding,
