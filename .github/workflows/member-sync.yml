@@ -10,6 +10,10 @@ on:
         description: 'Maximum number of LinkedIn profiles to update'
         required: false
         default: '100'
+      allowed-age-days:
+        description: 'Grace period in days before considering a LinkedIn profile out of date'
+        required: false
+        default: '7'
 
 jobs:
   sync:
@@ -44,4 +48,4 @@ jobs:
           SLACK_APP_TOKEN: unneeded
           OPENROUTER_API_KEY: unneeded
           
-        run: pnpm sync:members --max-updates=${{ github.event.inputs.max-updates || '100' }} 
+        run: pnpm sync:members --max-updates=${{ github.event.inputs.max-updates || '100' }} --allowed-age-days=${{ github.event.inputs.allowed-age-days || '7' }} 

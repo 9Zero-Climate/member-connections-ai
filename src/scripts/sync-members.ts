@@ -14,10 +14,12 @@ program
   .name('sync-members')
   .description('Sync OfficeRnD members and update LinkedIn profiles')
   .option('--max-updates <number>', 'Maximum number of LinkedIn profiles to update', '100')
+  .option('--allowed-age-days <number>', 'Maximum age in days before update is needed', '7')
   .parse(process.argv);
 
 const options = program.opts();
 const maxUpdates = Number.parseInt(options.maxUpdates, 10);
+const allowedAgeDays = Number.parseInt(options.allowedAgeDays, 10);
 
 async function syncMembers() {
   try {
@@ -53,7 +55,7 @@ async function syncMembers() {
 
     console.log(`${membersFormattedForUpdateCheck.length} ORND members with LinkedIn URLs`);
 
-    const membersToUpdate = getMembersToUpdate(membersFormattedForUpdateCheck, maxUpdates);
+    const membersToUpdate = getMembersToUpdate(membersFormattedForUpdateCheck, maxUpdates, allowedAgeDays);
 
     console.log(
       `Prioritzed top ${membersToUpdate.length} ORND members needing LinkedIn updates based on criteria (max allowed: ${maxUpdates}).`,
