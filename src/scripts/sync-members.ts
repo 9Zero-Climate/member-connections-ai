@@ -33,11 +33,9 @@ async function syncMembers() {
 
     console.log('Starting LinkedIn profile sync...');
 
-    // Get IDs of members with LinkedIn URLs
-    const memberIdsWithLinkedIn = members.filter((m) => m.linkedin_url).map((m) => m.officernd_id);
-
-    // Get last update timestamps for these members
-    const lastUpdatesMap = await getLastLinkedInUpdates(memberIdsWithLinkedIn);
+    // Get last update timestamps for all members
+    const lastUpdatesMap = await getLastLinkedInUpdates();
+    console.log(`${lastUpdatesMap.size} last update timestamps found`);
 
     // Prepare members array for getMembersToUpdate function
     const membersFormattedForUpdateCheck = members
@@ -53,10 +51,12 @@ async function syncMembers() {
         };
       });
 
+    console.log(`${membersFormattedForUpdateCheck.length} ORND members with LinkedIn URLs`);
+
     const membersToUpdate = getMembersToUpdate(membersFormattedForUpdateCheck, maxUpdates);
 
     console.log(
-      `Found ${membersToUpdate.length} members needing LinkedIn updates based on criteria (max: ${maxUpdates}).`,
+      `Prioritzed top ${membersToUpdate.length} ORND members needing LinkedIn updates based on criteria (max allowed: ${maxUpdates}).`,
     );
 
     for (const member of membersToUpdate) {

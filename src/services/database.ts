@@ -302,22 +302,18 @@ async function deleteLinkedInDocuments(officerndMemberId: string): Promise<void>
 }
 
 /**
- * Get the last update times for multiple members' LinkedIn documents in a single query
- * @param officerndMemberIds - Array of OfficeRnD member IDs
+ * Get the last update times for multiple members LinkedIn documents in a single query
  * @returns Map of member IDs to their last update timestamps in milliseconds
  */
-async function getLastLinkedInUpdates(officerndMemberIds: string[]): Promise<Map<string, number | null>> {
-  if (officerndMemberIds.length === 0) return new Map();
-
+async function getLastLinkedInUpdates(): Promise<Map<string, number | null>> {
   try {
     const result = (await client.query(
       `SELECT 
          SUBSTRING(source_unique_id FROM 'officernd_member_(.+):') as member_id,
-         MAX(updated_at) as last_update
+         MAX(created_at, updated_at) as last_update
        FROM rag_docs
-       WHERE source_unique_id LIKE ANY($1)
+       WHERE source_type LIKE 'linkedin_%'
        GROUP BY member_id`,
-      [officerndMemberIds.map((id) => `officernd_member_${id}:%`)],
     )) as { rows: { member_id: string; last_update: string | null }[] };
 
     const updates = new Map<string, number | null>(
