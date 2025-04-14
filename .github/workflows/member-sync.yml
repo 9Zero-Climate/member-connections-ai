@@ -5,6 +5,11 @@ on:
     # Run at midnight Pacific time (UTC-7/8)
     - cron: '0 7 * * *'
   workflow_dispatch:
+    inputs:
+      max-updates:
+        description: 'Maximum number of LinkedIn profiles to update'
+        required: false
+        default: '100'
 
 jobs:
   sync:
@@ -39,4 +44,4 @@ jobs:
           SLACK_APP_TOKEN: unneeded
           OPENROUTER_API_KEY: unneeded
           
-        run: pnpm sync:members 
+        run: pnpm sync:members --max-updates=${{ github.event.inputs.max-updates || '100' }} 

@@ -6,6 +6,18 @@ import {
   getLinkedInProfile,
   getMembersToUpdate,
 } from '../services/proxycurl';
+import { Command } from 'commander';
+
+const program = new Command();
+
+program
+  .name('sync-members')
+  .description('Sync OfficeRnD members and update LinkedIn profiles')
+  .option('--max-updates <number>', 'Maximum number of LinkedIn profiles to update', '100')
+  .parse(process.argv);
+
+const options = program.opts();
+const maxUpdates = Number.parseInt(options.maxUpdates, 10);
 
 async function syncMembers() {
   try {
@@ -41,9 +53,11 @@ async function syncMembers() {
         };
       });
 
-    const membersToUpdate = getMembersToUpdate(membersFormattedForUpdateCheck);
+    const membersToUpdate = getMembersToUpdate(membersFormattedForUpdateCheck, maxUpdates);
 
-    console.log(`Found ${membersToUpdate.length} members needing LinkedIn updates based on criteria.`);
+    console.log(
+      `Found ${membersToUpdate.length} members needing LinkedIn updates based on criteria (max: ${maxUpdates}).`,
+    );
 
     for (const member of membersToUpdate) {
       console.log(`Fetching LinkedIn profile for ${member.name}...`);
