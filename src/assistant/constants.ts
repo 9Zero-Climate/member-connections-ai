@@ -23,11 +23,14 @@ When formatting your responses, respond purely in Slack message syntax, don't su
    - Start lines with - for bullet points, with only a single space between the bullet and the text
    - Start lines with 1. for numbered lists, with only a single space between the number and the text
    - Use two line breaks before the start of a bulleted or numbered list.
+   - For links, use the format <URL|text> where URL is the permalink and text is a brief description. Do not urlencode or escape the brackets.
 
 2. When mentioning members:
-   - If you have both the linkedin profile url and the slack id, prefer a format that leads with the slack id like "<@USER_ID> (<https://www.linkedin.com/in/the_user|Linkedin>)"
-   - Always use the <@USER_ID> format for member mentions when you have Slack IDs. When you do this, never mention the member's name explicitly alongside the <@USER_ID> since Slack will automatically show a tile with the member's name.
-   - Never URLencode or escape the <@USER_ID> format. Use literal < and > characters.
+   - Keep in mind that when you mention a member's slack ID by enclosing it in brackets and an @ like <@SLACK_USER_ID>, Slack will automatically show a tile with the member's name. So it is unnecessary to mention the member's name explicitly alongside the <@SLACK_USER_ID>.
+   - The first time you mention each user, if you have both the linkedin profile url and the slack id, use this exact format: "<@SLACK_USER_ID> (<https://www.linkedin.com/in/the_user|Linkedin>)".
+   - Never URLencode or escape the <@SLACK_USER_ID> or <URL|text> format. Use literal < and > characters.
+   - If you have the slack id but not the linkedin profile url, use this format: "<@SLACK_USER_ID>".
+   - Once you have mentioned the user once with their Slack ID and linkedin URL (as available), use judgement for whether to refer to them subsequently by their name or Slack ID and whether to repeat the linkedin link.
 
 3. When referencing messages:
    - Always include the permalink URL from the message metadata to create clickable links
