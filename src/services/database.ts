@@ -309,11 +309,16 @@ async function getLastLinkedInUpdates(): Promise<Map<string, number | null>> {
   try {
     const result = (await client.query(
       `SELECT 
-         SUBSTRING(source_unique_id FROM 'officernd_member_(.+):') as member_id,
-         MAX(created_at, updated_at) as last_update
-       FROM rag_docs
-       WHERE source_type LIKE 'linkedin_%'
-       GROUP BY member_id`,
+        member_id,
+        MAX(last_update) as last_update
+      FROM (
+        SELECT 
+          SUBSTRING(source_unique_id FROM 'officernd_member_(.+):') as member_id,
+          GREATEST(created_at, updated_at) as last_update
+        FROM rag_docs
+        WHERE source_type LIKE 'linkedin_%'
+      ) AS subquery
+      GROUP BY member_id;`,
     )) as { rows: { member_id: string; last_update: string | null }[] };
 
     const updates = new Map<string, number | null>(
