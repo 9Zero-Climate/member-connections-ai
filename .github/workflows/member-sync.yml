@@ -35,4 +35,8 @@ jobs:
           OFFICERND_ORG_SLUG: ${{ secrets.OFFICERND_ORG_SLUG }}
           PROXYCURL_API_KEY: ${{ secrets.PROXYCURL_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          SLACK_BOT_TOKEN: unneeded
+          SLACK_APP_TOKEN: unneeded
+          OPENROUTER_API_KEY: unneeded
+          
         run: pnpm sync:members 
