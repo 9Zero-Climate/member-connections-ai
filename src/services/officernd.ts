@@ -89,14 +89,17 @@ export async function getAllMembers(): Promise<Member[]> {
   }
 
   const token = await getAccessToken();
-  const response = await fetch(`${OFFICERND_API_URL}/organizations/${OFFICERND_ORG_SLUG}/members`, {
-    headers: {
-      Authorization: `Bearer ${token}`,
+  const response = await fetch(
+    `${OFFICERND_API_URL}/organizations/${OFFICERND_ORG_SLUG}/members?calculatedStatus=active&$limit=10000`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
     },
-  });
+  );
 
   if (!response.ok) {
-    throw new Error(`Failed to get OfficeRnD members: ${response.statusText}`);
+    throw new Error(`Failed to get OfficeRnD members: ${response.statusText}, response: ${JSON.stringify(response)}`);
   }
 
   const members = (await response.json()) as OfficeRnDMember[];
