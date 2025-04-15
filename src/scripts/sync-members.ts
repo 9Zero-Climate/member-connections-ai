@@ -1,3 +1,4 @@
+import { Command } from 'commander';
 import { type Member, bulkUpsertMembers, close as closeDb, getLastLinkedInUpdates } from '../services/database';
 import { getAllMembers as getOfficeRnDMembers } from '../services/officernd';
 import {
@@ -6,7 +7,6 @@ import {
   getLinkedInProfile,
   getMembersToUpdate,
 } from '../services/proxycurl';
-import { Command } from 'commander';
 
 const program = new Command();
 
