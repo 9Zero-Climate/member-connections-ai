@@ -3,6 +3,7 @@ import { Client } from 'pg';
 import { config } from '../config'; // Import unified config
 import { generateEmbeddings } from './embedding';
 import { logger } from './logger';
+import type { NotionMemberData } from './notion'; // Import Notion data type
 
 export interface Document {
   source_type: string;
@@ -12,6 +13,14 @@ export interface Document {
   metadata?: Record<string, unknown>;
   created_at?: Date;
   updated_at?: Date;
+}
+
+export interface DocumentWithMemberContext extends Document {
+  member_name: string | null;
+  member_slack_id: string | null;
+  member_location_tags: string[] | null;
+  member_linkedin_url: string | null;
+  member_notion_page_url: string | null;
 }
 
 export interface SearchOptions {
@@ -30,6 +39,9 @@ export interface Member {
   name: string;
   slack_id: string | null;
   linkedin_url: string | null;
+  notion_page_id: string | null;
+  notion_page_url: string | null;
+  location_tags: string[] | null;
   created_at?: Date;
   updated_at?: Date;
 }
@@ -45,7 +57,7 @@ export interface FeedbackVote {
   created_at?: Date;
 }
 
-export type QueryParams = (string | number | Record<string, unknown> | null)[];
+export type QueryParams = (string | number | boolean | string[] | Record<string, unknown> | null)[];
 
 let client: Client | TestClient;
 
@@ -136,11 +148,11 @@ async function insertOrUpdateDoc(doc: Document): Promise<Document> {
     const embeddingVector = formatForStorage(embedding);
 
     const result = await client.query(
-      `INSERT INTO rag_docs (source_type, source_unique_id, content, embedding, metadata)
-       VALUES ($1, $2, $3, $4, $5)
-       ON CONFLICT (source_unique_id) 
-       DO UPDATE SET 
-          updated_at = CURRENT_TIMESTAMP,
+      `INSERT INTO rag_docs (updated_at, source_type, source_unique_id, content, embedding, metadata)
+       VALUES (CURRENT_TIMESTAMP, $1, $2, $3, $4, $5)
+       ON CONFLICT (source_unique_id)
+       DO UPDATE SET
+          updated_at = EXCLUDED.updated_at,
           source_type = EXCLUDED.source_type,
           content = EXCLUDED.content,
           embedding = EXCLUDED.embedding,
@@ -148,7 +160,10 @@ async function insertOrUpdateDoc(doc: Document): Promise<Document> {
        RETURNING *`,
       [doc.source_type, doc.source_unique_id, doc.content, embeddingVector, doc.metadata],
     );
-    return result.rows[0];
+    // Parse embedding before returning
+    const returnedDoc = result.rows[0];
+    returnedDoc.embedding = parseStoredEmbedding(returnedDoc.embedding as string | null);
+    return returnedDoc;
   } catch (error) {
     logger.error('Error inserting/updating document:', error);
     throw error;
@@ -194,14 +209,16 @@ async function deleteDoc(sourceUniqueId: string): Promise<boolean> {
  * Find similar documents using vector similarity
  * @param embedding - The embedding vector to compare against
  * @param options - Search options
- * @returns Similar documents with similarity scores
+ * @returns Similar documents with similarity scores and member context
  */
 async function findSimilar(embedding: number[], options: SearchOptions = {}): Promise<Document[]> {
   try {
     const embeddingVector = formatForComparison(embedding);
     const limit = options.limit || 5;
-    const excludeEmbeddingsFromResults = options.excludeEmbeddingsFromResults;
+    const excludeEmbeddingsFromResults = options.excludeEmbeddingsFromResults ?? true; // Default to excluding embeddings
 
+    // Note we're not just direct querying the `rag_docs` table,
+    // we're querying the view that includes member context
     const result = await client.query(
       `SELECT
         source_type,
@@ -211,23 +228,69 @@ async function findSimilar(embedding: number[], options: SearchOptions = {}): Pr
         metadata,
         created_at,
         updated_at,
-        slack_user_id,
+        member_name,
+        member_slack_id,
+        member_location_tags,
+        member_linkedin_url,
+        member_notion_page_url,
         1 - (embedding <=> $1) as similarity
-      FROM documents_with_slack_user_id
+      FROM documents_with_member_context
       ORDER BY embedding <=> $1
       LIMIT $2`,
       [embeddingVector, limit],
     );
 
-    // Convert stored vector format back to array for each result
-    return result.rows.map((doc: Document & { slack_user_id: string | null }) => ({
-      ...doc,
-      ...(excludeEmbeddingsFromResults ? {} : { embedding: parseStoredEmbedding(doc.embedding as string | null) }),
-      metadata: {
-        ...doc.metadata,
-        slack_user_id: doc.slack_user_id,
+    // Enhance metadata with member context from the view
+    return result.rows.map(
+      (
+        row: Document & {
+          member_name: string | null;
+          member_slack_id: string | null;
+          member_location_tags: string[] | null;
+          member_linkedin_url: string | null;
+          member_notion_page_url: string | null;
+        },
+      ) => {
+        // Extract the fields we want to keep
+        const {
+          source_type,
+          source_unique_id,
+          content,
+          metadata,
+          created_at,
+          updated_at,
+          member_name,
+          member_slack_id,
+          member_location_tags,
+          member_linkedin_url,
+          member_notion_page_url,
+          embedding: rawEmbedding,
+        } = row;
+
+        return {
+          source_type,
+          source_unique_id,
+          content,
+          created_at,
+          updated_at,
+          // Only include embedding if requested
+          ...(excludeEmbeddingsFromResults
+            ? {}
+            : {
+                embedding: parseStoredEmbedding(rawEmbedding as string | null),
+              }),
+          // Merge member context into metadata
+          metadata: {
+            ...metadata,
+            member_name,
+            member_slack_id,
+            member_location_tags,
+            member_linkedin_url,
+            member_notion_page_url,
+          },
+        };
       },
-    }));
+    );
   } catch (error) {
     logger.error('Error finding similar documents:', error);
     throw error;
@@ -256,15 +319,15 @@ function setTestClient(testClient: TestClient): void {
  * @param members - Array of members to insert/update
  * @returns The inserted/updated members
  */
-async function bulkUpsertMembers(members: Member[]): Promise<Member[]> {
+async function bulkUpsertMembers(members: Partial<Member>[]): Promise<Member[]> {
   if (members.length === 0) return [];
 
   try {
     const result = await client.query(
       `INSERT INTO members (officernd_id, name, slack_id, linkedin_url)
        SELECT unnest($1::text[]), unnest($2::text[]), unnest($3::text[]), unnest($4::text[])
-       ON CONFLICT (officernd_id) 
-       DO UPDATE SET 
+       ON CONFLICT (officernd_id)
+       DO UPDATE SET
          name = EXCLUDED.name,
          slack_id = EXCLUDED.slack_id,
          linkedin_url = EXCLUDED.linkedin_url,
@@ -285,39 +348,64 @@ async function bulkUpsertMembers(members: Member[]): Promise<Member[]> {
 }
 
 /**
- * Delete all LinkedIn documents for a member
+ * Delete all RAG documents of a specific type prefix for a member
  * @param officerndMemberId - OfficeRnD member ID
+ * @param typePrefix - e.g., 'linkedin_' or 'notion_'
  */
-async function deleteLinkedInDocuments(officerndMemberId: string): Promise<void> {
+async function deleteTypedDocumentsForMember(officerndMemberId: string, typePrefix: string): Promise<void> {
   try {
+    const pattern = `${typePrefix}%`; // e.g., notion_%
+    // Attempt to extract member ID from metadata first, then fallback to source_unique_id parsing
+    // This requires consistent metadata structure.
     await client.query(
-      `DELETE FROM rag_docs 
-       WHERE source_type LIKE 'linkedin_%' 
-       AND source_unique_id LIKE 'officernd_member_${officerndMemberId}:%'`,
+      `DELETE FROM rag_docs
+       WHERE source_type LIKE $1
+       AND (
+         metadata->>'officernd_member_id' = $2
+         OR (
+           metadata->>'officernd_member_id' IS NULL
+           AND source_unique_id LIKE 'officernd_member_${officerndMemberId}:%'
+          )
+       )`,
+      [pattern, officerndMemberId],
     );
+    logger.debug(`Deleted ${typePrefix} documents for member ${officerndMemberId}`);
   } catch (error) {
-    logger.error('Error deleting LinkedIn documents:', error);
+    logger.error(`Error deleting ${typePrefix} documents for member ${officerndMemberId}:`, error);
     throw error;
   }
 }
 
+// Specific deletion functions for clarity
+async function deleteLinkedInDocuments(officerndMemberId: string): Promise<void> {
+  return deleteTypedDocumentsForMember(officerndMemberId, 'linkedin_');
+}
+
+async function deleteNotionDocuments(officerndMemberId: string): Promise<void> {
+  return deleteTypedDocumentsForMember(officerndMemberId, 'notion_');
+}
+
 /**
- * Get the last update times for multiple members' LinkedIn documents in a single query
- * @param officerndMemberIds - Array of OfficeRnD member IDs
+ * Get the last update times for multiple members LinkedIn documents in a single query
  * @returns Map of member IDs to their last update timestamps in milliseconds
  */
-async function getLastLinkedInUpdates(officerndMemberIds: string[]): Promise<Map<string, number | null>> {
-  if (officerndMemberIds.length === 0) return new Map();
-
+async function getLastLinkedInUpdates(): Promise<Map<string, number | null>> {
   try {
+    // This query needs updating if member ID is consistently in metadata
     const result = (await client.query(
-      `SELECT 
-         SUBSTRING(source_unique_id FROM 'officernd_member_(.+):') as member_id,
-         MAX(updated_at) as last_update
-       FROM rag_docs
-       WHERE source_unique_id LIKE ANY($1)
-       GROUP BY member_id`,
-      [officerndMemberIds.map((id) => `officernd_member_${id}:%`)],
+      `SELECT
+        member_id,
+        MAX(last_update) as last_update
+      FROM (
+        SELECT
+          -- Prioritize metadata, then parse source_unique_id
+          COALESCE(metadata->>'officernd_member_id', SUBSTRING(source_unique_id FROM 'officernd_member_(.+):.*')) as member_id,
+          GREATEST(created_at, updated_at) as last_update
+        FROM rag_docs
+        WHERE source_type LIKE 'linkedin_%'
+      ) AS subquery
+      WHERE member_id IS NOT NULL -- Ensure we have a member ID
+      GROUP BY member_id;`,
     )) as { rows: { member_id: string; last_update: string | null }[] };
 
     const updates = new Map<string, number | null>(
@@ -337,21 +425,26 @@ async function getLastLinkedInUpdates(officerndMemberIds: string[]): Promise<Map
  */
 async function getLinkedInDocuments(linkedinUrl: string): Promise<Document[]> {
   try {
+    // Query the view to get enriched metadata
     const result = await client.query(
-      `SELECT * FROM documents_with_slack_user_id
-       WHERE source_type LIKE 'linkedin_%' 
-       AND metadata->>'linkedin_url' = $1`,
+      `SELECT *
+       FROM documents_with_member_context -- Use the enriched view
+       WHERE source_type LIKE 'linkedin_%'
+       AND member_linkedin_url = $1`,
       [linkedinUrl],
     );
-    return result.rows.map((row: Document & { slack_user_id: string | null }) => ({
+    // Map results, ensuring metadata includes view fields (already done by findSimilar's logic)
+    return result.rows.map((row: DocumentWithMemberContext) => ({
       ...row,
       metadata: {
         ...row.metadata,
-        slack_user_id: row.slack_user_id,
+        member_name: row.member_name,
+        member_slack_id: row.member_slack_id,
+        member_location_tags: row.member_location_tags,
       },
     }));
   } catch (error) {
-    logger.error('Error fetching LinkedIn documents:', error);
+    logger.error('Error fetching LinkedIn documents by URL:', error);
     throw error;
   }
 }
@@ -361,31 +454,40 @@ async function getLinkedInDocuments(linkedinUrl: string): Promise<Document[]> {
  * @param memberName - The member's name
  * @returns Array of documents with their content and metadata
  */
-async function getLinkedInDocumentsByName(memberName: string): Promise<Document[]> {
+async function getLinkedInDocumentsByName(memberName: string): Promise<DocumentWithMemberContext[]> {
   try {
     const result = await client.query(
-      `SELECT
+      `SELECT 
         created_at,
         source_type,
         source_unique_id,
         content,
         updated_at,
         metadata,
-        slack_user_id
-       FROM documents_with_slack_user_id
-       WHERE source_type LIKE 'linkedin_%' 
+        member_name,
+        member_location_tags,
+        member_notion_page_url,
+        member_officernd_id,
+        member_slack_id
+       FROM documents_with_member_context -- Use the enriched view
+       WHERE source_type LIKE 'linkedin_%'
        AND metadata->>'member_name' = $1`,
       [memberName],
     );
-    return result.rows.map((row: Document & { slack_user_id: string | null }) => ({
+    // Map results, ensuring metadata includes view fields
+    return result.rows.map((row: DocumentWithMemberContext) => ({
       ...row,
       metadata: {
         ...row.metadata,
-        slack_user_id: row.slack_user_id,
+        member_name: row.member_name, // Already present via metadata key, but good to be explicit
+        member_slack_id: row.member_slack_id,
+        member_location_tags: row.member_location_tags,
+        member_notion_page_url: row.member_notion_page_url,
+        member_linkedin_url: row.member_linkedin_url,
       },
     }));
   } catch (error) {
-    logger.error('Error fetching LinkedIn documents:', error);
+    logger.error('Error fetching LinkedIn documents by Name:', error);
     throw error;
   }
 }
@@ -418,6 +520,139 @@ async function saveFeedback(feedback: FeedbackVote): Promise<FeedbackVote> {
   }
 }
 
+/**
+ * Upserts Notion data for a specific member.
+ * Updates members table and manages RAG documents.
+ * @param officerndMemberId - The OfficeRnD ID of the member.
+ * @param notionData - Parsed data from Notion.
+ */
+async function upsertNotionDataForMember(officerndMemberId: string, notionData: NotionMemberData): Promise<void> {
+  // 1. Update members table
+  await client.query(
+    `UPDATE members
+       SET notion_page_id = $1, location_tags = $2, notion_page_url = $3, updated_at = CURRENT_TIMESTAMP
+       WHERE officernd_id = $4`,
+    [
+      notionData.notionPageId,
+      notionData.locationTags.length > 0 ? notionData.locationTags : null,
+      notionData.notionPageUrl,
+      officerndMemberId,
+    ],
+  );
+
+  // 2. Delete old Notion RAG documents for this member
+  await deleteNotionDocuments(officerndMemberId);
+
+  // 3. Create new RAG documents (granular approach)
+  const baseMetadata = {
+    officernd_member_id: officerndMemberId,
+    notion_page_id: notionData.notionPageId,
+    notion_page_url: notionData.notionPageUrl,
+    member_name: notionData.name,
+  };
+
+  // Create expertise document
+  if (notionData.expertiseTags.length > 0) {
+    const expertiseId = `officernd_member_${officerndMemberId}:notion_expertise`;
+    const content = `Expertise and interests: ${notionData.expertiseTags.join(', ')}`;
+    await insertOrUpdateDoc({
+      source_type: 'notion_expertise',
+      source_unique_id: expertiseId,
+      content,
+      metadata: { ...baseMetadata, tags: notionData.expertiseTags },
+      embedding: null, // Let insertOrUpdateDoc handle embedding generation
+    });
+  }
+
+  // Create status document (combining hiring/looking)
+  let statusContent = 'Status not specified.';
+  if (notionData.hiring && notionData.lookingForWork) {
+    statusContent = 'Currently hiring and open to work.';
+  } else if (notionData.hiring) {
+    statusContent = 'Currently hiring.';
+  } else if (notionData.lookingForWork) {
+    statusContent = 'Currently open to work.';
+  }
+
+  if (notionData.hiring || notionData.lookingForWork) {
+    const statusId = `officernd_member_${officerndMemberId}:notion_status`;
+    await insertOrUpdateDoc({
+      source_type: 'notion_status',
+      source_unique_id: statusId,
+      content: statusContent,
+      metadata: { ...baseMetadata, hiring: notionData.hiring, looking_for_work: notionData.lookingForWork },
+      embedding: null,
+    });
+  }
+
+  logger.debug(`Upserted Notion data for member ${officerndMemberId}`);
+}
+
+/**
+ * Fetches all members from the DB and Notion, matches them, and updates the DB.
+ * @param notionMembers - Array of member data fetched from Notion.
+ */
+async function updateMembersFromNotion(notionMembers: NotionMemberData[]): Promise<void> {
+  // Fetch existing members from DB for matching
+  const dbResult = await client.query('SELECT officernd_id, name, notion_page_id FROM members');
+  const dbMembers = dbResult.rows as Pick<Member, 'officernd_id' | 'name' | 'notion_page_id'>[];
+
+  // Create lookup maps for efficient matching
+  const nameToIdMap = new Map<string, string>();
+  const notionPageIdToIdMap = new Map<string, string>();
+  for (const m of dbMembers) {
+    if (m.name) nameToIdMap.set(m.name.toLowerCase(), m.officernd_id);
+    if (m.notion_page_id) notionPageIdToIdMap.set(m.notion_page_id, m.officernd_id);
+  }
+
+  const startTime = Date.now();
+  const totalCount = notionMembers.length;
+  let matchedCount = 0;
+  let unmatchedCount = 0;
+
+  // Iterate through Notion members and attempt to match/update
+  for (const notionMember of notionMembers) {
+    const processedCount = matchedCount + unmatchedCount;
+    const remainingCount = totalCount - processedCount;
+    const elapsedTimeSeconds = (Date.now() - startTime) / 1000;
+    const processedPerSecond = processedCount / elapsedTimeSeconds;
+    const remainingTimeSeconds = remainingCount / processedPerSecond;
+    logger.debug(
+      {
+        processed: processedCount,
+        total: totalCount,
+        elapsedTimeSeconds,
+        remainingCount,
+        remainingTime: remainingTimeSeconds,
+        notionMember,
+      },
+      'Notion sync progress',
+    );
+    let officerndId: string | undefined = undefined;
+
+    // Match first by notion_page_id
+    if (notionMember.notionPageId) {
+      officerndId = notionPageIdToIdMap.get(notionMember.notionPageId);
+    }
+
+    // If not found by Notion ID, try matching by Name (case-insensitive)
+    if (!officerndId && notionMember.name) {
+      officerndId = nameToIdMap.get(notionMember.name.toLowerCase());
+    }
+
+    if (officerndId) {
+      // Found a match, upsert the data
+      await upsertNotionDataForMember(officerndId, notionMember);
+      matchedCount++;
+    } else {
+      // No match found
+      logger.warn(`Could not match Notion member: ${notionMember.name} (ID: ${notionMember.notionPageId})`);
+      unmatchedCount++;
+    }
+  }
+  logger.info(`Notion sync completed. Matched: ${matchedCount}, Unmatched: ${unmatchedCount}`);
+}
+
 export {
   insertOrUpdateDoc,
   getDocBySource,
@@ -427,8 +662,11 @@ export {
   getLastLinkedInUpdates,
   bulkUpsertMembers,
   deleteLinkedInDocuments,
+  deleteNotionDocuments,
   setTestClient,
   getLinkedInDocuments,
   getLinkedInDocumentsByName,
   saveFeedback,
+  upsertNotionDataForMember,
+  updateMembersFromNotion,
 };

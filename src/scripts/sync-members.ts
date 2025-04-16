@@ -1,5 +1,19 @@
-import { type Member, bulkUpsertMembers, close as closeDb, getLastLinkedInUpdates } from '../services/database';
-import { getAllMembers as getOfficeRnDMembers } from '../services/officernd';
+import { Command } from 'commander';
+/**
+ * Script to synchronize member data from OfficeRnD,
+ * update/fetch LinkedIn profiles via Proxycurl,
+ * and store structured data & embeddings in PostgreSQL.
+ */
+import { createConfig } from '../config';
+import {
+  bulkUpsertMembers,
+  close as closeDb,
+  getLastLinkedInUpdates,
+  updateMembersFromNotion,
+} from '../services/database';
+import { logger } from '../services/logger';
+import { fetchNotionMembers } from '../services/notion';
+import { getAllMembers } from '../services/officernd';
 import {
   type ProxycurlProfile,
   createLinkedInDocuments,
@@ -7,61 +21,76 @@ import {
   getMembersToUpdate,
 } from '../services/proxycurl';
 
-async function syncMembers() {
+interface MemberWithMeta {
+  id: string;
+  name: string;
+  linkedin_url: string | null;
+  metadata?: {
+    last_linkedin_update?: number;
+  };
+}
+
+async function syncMembers(maxUpdates: number, allowedAgeDays: number): Promise<void> {
+  logger.info('Checking config...');
+  createConfig(process.env, 'member-sync');
+  logger.info('Starting member synchronization...');
+
   try {
-    console.log('Starting member sync...');
+    // 1. Fetch all active members from OfficeRnD
+    logger.info('Fetching members from OfficeRnD...');
+    const officeRndMembers = await getAllMembers();
+    logger.info(`Fetched ${officeRndMembers.length} active members from OfficeRnD.`);
 
-    // Get all members from OfficeRnD
-    const members: Member[] = await getOfficeRnDMembers();
-    console.log(`Found ${members.length} members in OfficeRnD`);
+    // 2. Upsert basic member info into our database
+    logger.info('Upserting basic member info into database...');
+    const dbMembers = await bulkUpsertMembers(officeRndMembers);
+    logger.info(`Upserted ${dbMembers.length} members into the database.`);
 
-    // Store/update members in our database
-    await bulkUpsertMembers(members);
-    console.log('Member sync completed successfully - synced', members.length, 'members');
+    // 3. Fetch Notion member data
+    logger.info('Fetching members from Notion...');
+    const notionMembers = await fetchNotionMembers();
+    logger.info(`Fetched ${notionMembers.length} members from Notion.`);
 
-    console.log('Starting LinkedIn profile sync...');
+    // 4. Update database with Notion data (location tags, notion ID, RAG docs)
+    logger.info('Updating members in database with Notion data...');
+    await updateMembersFromNotion(notionMembers);
+    logger.info('Finished updating database with Notion data.');
 
-    // Get IDs of members with LinkedIn URLs
-    const memberIdsWithLinkedIn = members.filter((m) => m.linkedin_url).map((m) => m.officernd_id);
+    logger.info('Starting LinkedIn profile synchronization...');
 
-    // Get last update timestamps for these members
-    const lastUpdatesMap = await getLastLinkedInUpdates(memberIdsWithLinkedIn);
+    // 5. Get last update times for LinkedIn docs
+    logger.info('Fetching last LinkedIn update timestamps...');
+    const lastUpdates = await getLastLinkedInUpdates();
+    logger.info(`Found ${lastUpdates.size} members with existing LinkedIn documents.`);
 
-    // Prepare members array for getMembersToUpdate function
-    const membersFormattedForUpdateCheck = members
-      .filter((m) => m.linkedin_url) // Only consider members with LinkedIn
-      .map((member) => ({
-        id: member.officernd_id, // Use officernd_id as id
-        name: member.name,
-        linkedin_url: member.linkedin_url as string, // Assert non-null based on filter
-        metadata: {
-          // Convert null from DB to undefined for the getMembersToUpdate function
-          last_linkedin_update: lastUpdatesMap.get(member.officernd_id) ?? undefined,
-        },
-      }));
+    // 6. Prepare list of members with metadata for update check
+    const membersWithMeta: MemberWithMeta[] = dbMembers.map((m) => ({
+      id: m.officernd_id,
+      name: m.name,
+      linkedin_url: m.linkedin_url,
+      metadata: {
+        last_linkedin_update: lastUpdates.get(m.officernd_id) || undefined,
+      },
+    }));
 
-    const membersToUpdate = getMembersToUpdate(membersFormattedForUpdateCheck);
+    // 7. Filter members needing Linkedin profile updates
+    const membersWithLinkedInUrl = membersWithMeta.filter(
+      (m): m is MemberWithMeta & { linkedin_url: string } => m.linkedin_url !== null,
+    );
+    const membersToUpdate = getMembersToUpdate(membersWithLinkedInUrl, maxUpdates, allowedAgeDays);
+    logger.info(
+      `Identified ${membersToUpdate.length} members needing LinkedIn updates (max: ${maxUpdates}, age: ${allowedAgeDays} days).`,
+    );
 
-    console.log(`Found ${membersToUpdate.length} members needing LinkedIn updates based on criteria.`);
-
-    // Limit updates per run to avoid hitting API limits
-    const MAX_LINKEDIN_UPDATES = 10;
-    const chosenMembers = membersToUpdate.slice(0, MAX_LINKEDIN_UPDATES);
-
-    if (chosenMembers.length > 0) {
-      console.log(`Chose ${chosenMembers.length} members to update via Proxycurl`);
-
-      for (const member of chosenMembers) {
-        // member here has shape { id, name, linkedin_url }
-        console.log(`Fetching LinkedIn profile for ${member.name}...`);
-        const profileData: ProxycurlProfile | null = await getLinkedInProfile(member.linkedin_url);
-        if (profileData) {
-          // Pass officernd_id (which is member.id here), name, url, and profile
-          await createLinkedInDocuments(member.id, member.name, member.linkedin_url, profileData);
-          console.log(`Created/Updated LinkedIn documents for ${member.name}`);
-        } else {
-          console.log(`Could not fetch LinkedIn profile for ${member.name} from ${member.linkedin_url}`);
-        }
+    // 8. Process updates
+    for (const member of membersToUpdate) {
+      console.log(`Fetching LinkedIn profile for ${member.name}...`);
+      const profileData: ProxycurlProfile | null = await getLinkedInProfile(member.linkedin_url);
+      if (profileData) {
+        await createLinkedInDocuments(member.id, member.name, member.linkedin_url, profileData);
+        console.log(`Created/Updated LinkedIn documents for ${member.name}`);
+      } else {
+        console.log(`Could not fetch LinkedIn profile for ${member.name} from ${member.linkedin_url}`);
       }
     }
 
@@ -72,12 +101,28 @@ async function syncMembers() {
   }
 }
 
-// Run sync if this file is executed directly
-if (require.main === module) {
-  syncMembers().catch((error) => {
-    console.error('Sync failed:', error);
-    process.exit(1);
+// Command-line interface setup
+const program = new Command();
+program
+  .name('sync-members')
+  .description('Syncs member data from OfficeRnD and Notion, updates LinkedIn profiles.')
+  .option(
+    '--max-updates <number>',
+    'Maximum number of LinkedIn profiles to update',
+    (value) => Number.parseInt(value, 10),
+    100, // Default value
+  )
+  .option(
+    '--allowed-age-days <number>',
+    'Grace period in days before considering a LinkedIn profile out of date',
+    (value) => Number.parseInt(value, 10),
+    7, // Default value
+  )
+  .action((options) => {
+    syncMembers(options.maxUpdates, options.allowedAgeDays);
   });
-}
 
+program.parse(process.argv);
+
+// Export for potential testing or programmatic use
 export { syncMembers };

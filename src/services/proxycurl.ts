@@ -37,7 +37,6 @@ export interface ProxycurlProfile {
 
 // Constants for time calculations
 const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
-const DAYS_PER_MONTH = 30;
 
 /**
  * Check if a LinkedIn profile needs updating based on last update time
@@ -304,7 +303,8 @@ export async function createLinkedInDocuments(
 /**
  * Get members that need LinkedIn updates, prioritizing those without data
  * @param members - Array of members with their metadata
- * @param maxUpdates - Maximum number of updates to perform (default: 100)
+ * @param maxUpdates - Maximum number of profiles to update (updates cost 1 proxycurl credit each, around 2 cents per credit)
+ * @param allowedAgeDays - Linkedin profile data won't be updated until this many days after the last update
  * @returns Array of members that need updates, limited to maxUpdates
  */
 export function getMembersToUpdate(
@@ -317,9 +317,10 @@ export function getMembersToUpdate(
     };
   }>,
   maxUpdates = 100,
+  allowedAgeDays = 7,
 ): Array<{ id: string; name: string; linkedin_url: string }> {
   const now = Date.now();
-  const minimumUpdateAge = DAYS_PER_MONTH * MILLISECONDS_PER_DAY;
+  const minimumUpdateAge = allowedAgeDays * MILLISECONDS_PER_DAY;
   const cutoffTime = now - minimumUpdateAge;
 
   // Sort members by priority:

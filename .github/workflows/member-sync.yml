@@ -5,6 +5,15 @@ on:
     # Run at midnight Pacific time (UTC-7/8)
     - cron: '0 7 * * *'
   workflow_dispatch:
+    inputs:
+      max-updates:
+        description: 'Maximum number of LinkedIn profiles to update'
+        required: false
+        default: '100'
+      allowed-age-days:
+        description: 'Grace period in days before considering a LinkedIn profile out of date'
+        required: false
+        default: '7'
 
 jobs:
   sync:
@@ -35,4 +44,7 @@ jobs:
           OFFICERND_ORG_SLUG: ${{ secrets.OFFICERND_ORG_SLUG }}
           PROXYCURL_API_KEY: ${{ secrets.PROXYCURL_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        run: pnpm sync:members 
+          NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
+          NOTION_MEMBERS_DATABASE_ID: ${{ secrets.NOTION_MEMBERS_DATABASE_ID }}
+
+        run: pnpm sync:members --max-updates=${{ github.event.inputs.max-updates || '100' }} --allowed-age-days=${{ github.event.inputs.allowed-age-days || '7' }} 

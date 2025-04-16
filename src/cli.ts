@@ -2,7 +2,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { Command } from 'commander';
 import { Client } from 'pg';
-import { config } from './config'; // Import unified config
+import { createConfig } from './config'; // Import createConfig instead of config
 import { type Document, getDocBySource, insertOrUpdateDoc } from './services/database';
 import { logger } from './services/logger';
 import slackSync, { doesSlackMessageMatchDb } from './services/slack_sync';
@@ -28,76 +28,73 @@ program
   .option('-n, --newest <timestamp>', 'End time in Unix timestamp')
   .option('-b, --batch-size <number>', 'Number of messages to process in each batch', '50')
   .action(async (channelName: string, options: SyncOptions) => {
-    try {
-      console.log(`Syncing channel: ${channelName}`);
+    // Run config loader to validate required config
+    createConfig(process.env, 'slack-sync');
 
-      // Get channel ID
-      const channelId = await slackSync.getChannelId(channelName);
-      console.log(`Found channel ID: ${channelId}`);
+    console.log(`Syncing channel: ${channelName}`);
 
-      // Fetch messages
-      const messages = await slackSync.fetchChannelHistory(channelId, {
-        limit: Number.parseInt(options.limit),
-        oldest: options.oldest,
-        latest: options.newest,
-      });
-      console.log(`Fetched ${messages.length} messages`);
+    // Get channel ID
+    const channelId = await slackSync.getChannelId(channelName);
+    console.log(`Found channel ID: ${channelId}`);
 
-      // Process messages in batches
-      const batchSize = Number.parseInt(options.batchSize);
-      const batches: SlackMessage[][] = [];
-      for (let i = 0; i < messages.length; i += batchSize) {
-        batches.push(messages.slice(i, i + batchSize));
-      }
+    // Fetch messages
+    const messages = await slackSync.fetchChannelHistory(channelId, {
+      limit: Number.parseInt(options.limit),
+      oldest: options.oldest,
+      latest: options.newest,
+    });
+    console.log(`Fetched ${messages.length} messages`);
 
-      console.log(`Processing ${batches.length} batches of ${batchSize} messages each`);
+    // Process messages in batches
+    const batchSize = Number.parseInt(options.batchSize);
+    const batches: SlackMessage[][] = [];
+    for (let i = 0; i < messages.length; i += batchSize) {
+      batches.push(messages.slice(i, i + batchSize));
+    }
 
-      for (const [batchIndex, batch] of batches.entries()) {
-        console.log(`Processing batch ${batchIndex + 1}/${batches.length}`);
+    console.log(`Processing ${batches.length} batches of ${batchSize} messages each`);
 
-        // Process batch (format + generate embeddings)
-        const processedMessages = await slackSync.processMessageBatch(batch, channelId);
+    for (const [batchIndex, batch] of batches.entries()) {
+      console.log(`Processing batch ${batchIndex + 1}/${batches.length}`);
 
-        // Store messages
-        for (const msg of processedMessages) {
-          // Construct the source_unique_id (assuming it's channelId:ts)
-          const sourceUniqueId = `${channelId}:${msg.metadata.ts}`;
-          // Construct the document to upsert, matching the Document type
-          const docToUpsert: Document = {
-            source_type: 'slack', // Assuming slack source type
-            source_unique_id: sourceUniqueId,
-            content: msg.content,
-            embedding: msg.embedding,
-            metadata: msg.metadata,
-          };
+      // Process batch (format + generate embeddings)
+      const processedMessages = await slackSync.processMessageBatch(batch, channelId);
 
-          // Check if document already exists and content/metadata has changed
-          const existingDoc = await getDocBySource(sourceUniqueId);
-          // Pass the properly formatted docToUpsert to the comparison function
-          if (existingDoc && doesSlackMessageMatchDb(existingDoc, docToUpsert)) {
-            console.log(`Skipping unchanged document ${sourceUniqueId}`);
-            continue;
-          }
+      // Store messages
+      for (const msg of processedMessages) {
+        // Construct the source_unique_id (assuming it's channelId:ts)
+        const sourceUniqueId = `${channelId}:${msg.metadata.ts}`;
+        // Construct the document to upsert, matching the Document type
+        const docToUpsert: Document = {
+          source_type: 'slack', // Assuming slack source type
+          source_unique_id: sourceUniqueId,
+          content: msg.content,
+          embedding: msg.embedding,
+          metadata: msg.metadata,
+        };
 
-          if (existingDoc) {
-            console.log('Documents considered different:');
-            console.log(JSON.stringify({ existingDoc, newDoc: docToUpsert }, null, 2));
-          }
-
-          // Insert or update document using the correctly formatted object
-          await insertOrUpdateDoc(docToUpsert);
-          console.log(`${existingDoc ? 'Updated' : 'Inserted'} document ${sourceUniqueId}`);
+        // Check if document already exists and content/metadata has changed
+        const existingDoc = await getDocBySource(sourceUniqueId);
+        // Pass the properly formatted docToUpsert to the comparison function
+        if (existingDoc && doesSlackMessageMatchDb(existingDoc, docToUpsert)) {
+          console.log(`Skipping unchanged document ${sourceUniqueId}`);
+          continue;
         }
 
-        console.log(`Completed batch ${batchIndex + 1}`);
+        if (existingDoc) {
+          console.log('Documents considered different:');
+          console.log(JSON.stringify({ existingDoc, newDoc: docToUpsert }, null, 2));
+        }
+
+        // Insert or update document using the correctly formatted object
+        await insertOrUpdateDoc(docToUpsert);
+        console.log(`${existingDoc ? 'Updated' : 'Inserted'} document ${sourceUniqueId}`);
       }
 
-      console.log(`Successfully synced ${messages.length} messages to database`);
-      process.exit(0);
-    } catch (error) {
-      console.error('Error syncing channel:', error);
-      process.exit(1);
+      console.log(`Completed batch ${batchIndex + 1}`);
     }
+
+    console.log(`Successfully synced ${messages.length} messages to database`);
   });
 
 program
@@ -105,6 +102,8 @@ program
   .description('Run a single SQL migration file')
   .argument('<filePath>', 'Path to the SQL migration file')
   .action(async (filePath: string) => {
+    const config = createConfig(process.env, 'migrate');
+
     const absoluteMigrationPath = path.resolve(filePath);
     logger.info(`Attempting to run migration: ${absoluteMigrationPath}`);
 

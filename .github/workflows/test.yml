@@ -36,6 +36,8 @@ jobs:
       SLACK_APP_TOKEN: 'not_a_real_app_token'
       OPENAI_API_KEY: 'not_a_real_openai_api_key'
       OPENROUTER_API_KEY: 'not_a_real_openrouter_api_key'
+      NOTION_API_KEY: 'not_a_real_notion_api_key'
+      NOTION_MEMBERS_DATABASE_ID: 'not_a_real_notion_members_database_id'
 
     steps:
       - uses: actions/checkout@v4

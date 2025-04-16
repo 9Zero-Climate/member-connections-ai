@@ -2,10 +2,20 @@ import { createConfig } from './config';
 
 describe('createConfig', () => {
   it('should throw error when required environment variables are missing', () => {
-    expect(() => createConfig({})).toThrow('Missing required environment variable: SLACK_BOT_TOKEN');
-    expect(() => createConfig({ SLACK_BOT_TOKEN: 'b', SLACK_APP_TOKEN: 'a' /* Missing others */ })).toThrow(
-      'Missing required environment variable: OPENAI_API_KEY',
+    // Test missing var for 'core' context (default)
+    expect(() => createConfig({}, 'core')).toThrow(
+      "Missing required environment variable for context 'core': SLACK_BOT_TOKEN (mapped from config key 'slackBotToken')",
     );
+    // Test missing var for 'member-sync' context
+    expect(() => createConfig({}, 'member-sync')).toThrow(
+      "Missing required environment variable for context 'member-sync': DB_URL (mapped from config key 'dbUrl')",
+    );
+    // Test missing var for 'slack-sync' context
+    expect(() => createConfig({}, 'slack-sync')).toThrow(
+      "Missing required environment variable for context 'slack-sync': SLACK_BOT_TOKEN (mapped from config key 'slackBotToken')",
+    );
+    // Test with test context (should not throw for missing vars)
+    expect(() => createConfig({}, 'no-verify')).not.toThrow();
   });
 
   it('should use default values for optional environment variables', () => {
