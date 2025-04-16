@@ -2,7 +2,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { Command } from 'commander';
 import { Client } from 'pg';
-import { config } from './config'; // Import unified config
+import { createConfig } from './config'; // Import createConfig instead of config
 import { type Document, getDocBySource, insertOrUpdateDoc } from './services/database';
 import { logger } from './services/logger';
 import slackSync, { doesSlackMessageMatchDb } from './services/slack_sync';
@@ -28,6 +28,9 @@ program
   .option('-n, --newest <timestamp>', 'End time in Unix timestamp')
   .option('-b, --batch-size <number>', 'Number of messages to process in each batch', '50')
   .action(async (channelName: string, options: SyncOptions) => {
+    // Run config loader to validate required config
+    createConfig(process.env, 'slack-sync');
+
     try {
       console.log(`Syncing channel: ${channelName}`);
 
@@ -105,6 +108,8 @@ program
   .description('Run a single SQL migration file')
   .argument('<filePath>', 'Path to the SQL migration file')
   .action(async (filePath: string) => {
+    const config = createConfig(process.env, 'migrate');
+
     const absoluteMigrationPath = path.resolve(filePath);
     logger.info(`Attempting to run migration: ${absoluteMigrationPath}`);
 
