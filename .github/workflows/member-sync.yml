@@ -42,8 +42,8 @@ jobs:
           OFFICERND_CLIENT_ID: ${{ secrets.OFFICERND_CLIENT_ID }}
           OFFICERND_CLIENT_SECRET: ${{ secrets.OFFICERND_CLIENT_SECRET }}
           OFFICERND_ORG_SLUG: ${{ secrets.OFFICERND_ORG_SLUG }}
-          PROXYCURL_API_KEY: ${{ secrets.PROXYCURL_API_KEY }} # Optional for LinkedIn sync
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }} # For embeddings
+          PROXYCURL_API_KEY: ${{ secrets.PROXYCURL_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
           NOTION_MEMBERS_DATABASE_ID: ${{ secrets.NOTION_MEMBERS_DATABASE_ID }}
 
