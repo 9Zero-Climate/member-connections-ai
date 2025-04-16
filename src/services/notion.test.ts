@@ -228,9 +228,9 @@ describe('Notion Service', () => {
     });
   });
 
-  describe('parseMemberProperties', () => {
-    it('parses valid member properties', async () => {
-      const result = await notionModule.parseMemberProperties(createMockPage('mock-page-id-1', MOCK_VALID_PROPERTIES));
+  describe('parseMemberPage', () => {
+    it('parses valid member properties', () => {
+      const result = notionModule.parseMemberPage(createMockPage('mock-page-id-1', MOCK_VALID_PROPERTIES));
 
       expect(result).toEqual({
         notionPageId: 'mock-page-id-1',
@@ -244,18 +244,30 @@ describe('Notion Service', () => {
       });
     });
 
-    it('returns null on missing name and logs a warning', async () => {
+    it('returns null on missing name and logs a warning', () => {
       const mockPropertiesMissingName = {
         ...MOCK_VALID_PROPERTIES,
         Name: { id: '1', type: 'title', title: [] },
       };
 
-      const result = await notionModule.parseMemberProperties(
-        createMockPage('mock-page-id-1', mockPropertiesMissingName),
-      );
+      const result = notionModule.parseMemberPage(createMockPage('mock-page-id-1', mockPropertiesMissingName));
 
       expect(result).toEqual(null);
       expect(mockLogger.warn).toHaveBeenCalled();
+    });
+
+    it.each([
+      ['missing property entirely', { LinkedIn: {} }],
+      ['incorrect property type', { LinkedIn: { type: 'title' } }],
+    ])('throws an error on invalid properties (%s)', (description, invalidPropertyOverrides) => {
+      const mockPropertiesMissingName = {
+        ...MOCK_VALID_PROPERTIES,
+        ...invalidPropertyOverrides,
+      };
+
+      const mockPage = createMockPage('mock-page-id-1', mockPropertiesMissingName);
+
+      expect(() => notionModule.parseMemberPage(mockPage)).toThrow();
     });
   });
 });

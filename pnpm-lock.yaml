@@ -31,7 +31,7 @@ dependencies:
     version: 5.2.0
   openai:
     specifier: ^4.93.0
-    version: 4.93.0
+    version: 4.93.0(zod@3.24.2)
   pg:
     specifier: ^8.14.1
     version: 8.14.1
@@ -41,6 +41,9 @@ dependencies:
   qs:
     specifier: ^6.14.0
     version: 6.14.0
+  zod:
+    specifier: ^3.24.2
+    version: 3.24.2
 
 devDependencies:
   '@biomejs/biome':
@@ -3069,7 +3072,7 @@ packages:
       mimic-fn: 2.1.0
     dev: true
 
-  /openai@4.93.0:
+  /openai@4.93.0(zod@3.24.2):
     resolution: {integrity: sha512-2kONcISbThKLfm7T9paVzg+QCE1FOZtNMMUfXyXckUAoXRRS/mTP89JSDHPMp8uM5s0bz28RISbvQjArD6mgUQ==}
     hasBin: true
     peerDependencies:
@@ -3088,6 +3091,7 @@ packages:
       form-data-encoder: 1.7.2
       formdata-node: 4.4.1
       node-fetch: 2.7.0
+      zod: 3.24.2
     transitivePeerDependencies:
       - encoding
     dev: false
@@ -4023,3 +4027,7 @@ packages:
     resolution: {integrity: sha512-rVksvsnNCdJ/ohGc6xgPwyN8eheCxsiLM8mxuE/t/mOVqJewPuO1miLpTHQiRgTKCLexL4MeAFVagts7HmNZ2Q==}
     engines: {node: '>=10'}
     dev: true
+
+  /zod@3.24.2:
+    resolution: {integrity: sha512-lY7CDW43ECgW9u1TcT3IoXHflywfVqDYze4waEz812jR/bZ8FHDsl7pFQoSZTz5N+2NqRXs8GBwnAwo3ZNxqhQ==}
+    dev: false

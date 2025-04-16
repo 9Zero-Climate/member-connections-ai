@@ -6,8 +6,10 @@ import type {
   QueryDatabaseResponse,
   RichTextItemResponse,
 } from '@notionhq/client/build/src/api-endpoints';
+import { z } from 'zod';
 import { config } from '../config';
 import { logger } from './logger';
+import { TitleProperty, UrlProperty, MultiSelectProperty, RichTextProperty, CheckboxProperty } from './notionSchema';
 
 // Initialize Notion Client but allow injection for testing
 let notionClient: Client;
@@ -29,6 +31,20 @@ if (process.env.NODE_ENV !== 'test') {
   initNotionClient();
 }
 
+const MemberPagePropertiesSchema = z.object({
+  Name: TitleProperty,
+  LinkedIn: UrlProperty,
+  Location: MultiSelectProperty,
+  Sectors: MultiSelectProperty,
+  'Sub-Sector': RichTextProperty,
+  'Hobbies/Interests': MultiSelectProperty,
+  'Role (Current or Experienced)': MultiSelectProperty,
+  'Role (Interested)': MultiSelectProperty,
+  'Hiring?': CheckboxProperty,
+  'Open for work?': CheckboxProperty,
+});
+type MemberProperties = z.infer<typeof MemberPagePropertiesSchema>;
+
 export interface NotionMemberData {
   notionPageId: string;
   notionPageUrl: string;
@@ -38,70 +54,47 @@ export interface NotionMemberData {
   expertiseTags: string[];
   hiring: boolean;
   lookingForWork: boolean;
-  // Add other relevant fields as needed
 }
 
-// Helper function to extract plain text from Notion's rich text array
-function getPlainTextFromRichText(richText: Array<RichTextItemResponse>): string {
-  return richText.map((t) => t.plain_text).join('');
-}
+const getTagName = (tag: MultiSelectPropertyItemObjectResponse['multi_select'][number]) => tag.name;
+
+const getPlainTextFromRichText = (richTextItems: Array<RichTextItemResponse>): string => {
+  return richTextItems.map((richTextItem) => richTextItem.plain_text).join(' ');
+};
+
+const isValidMemberProperties = (properties: PageObjectResponse['properties']): properties is MemberProperties => {
+  MemberPagePropertiesSchema.parse(properties);
+
+  // zod parse throws an error on invalid schema, so if we get here, the schema is valid
+  return true;
+};
 
 // Helper function to safely parse page properties
-export function parseMemberProperties(page: PageObjectResponse): NotionMemberData | null {
-  // Property names must match exactly those in your Notion DB
-  const props = page.properties;
+export const parseMemberPage = (page: PageObjectResponse): NotionMemberData | null => {
+  const memberProperties = page.properties;
 
-  // Using type assertion for property access is common with Notion API
-  // as property names are dynamic strings.
-  const nameProp = props.Name;
-  const name = nameProp?.type === 'title' ? getPlainTextFromRichText(nameProp.title) : null;
+  // Validate properties against expected schema
+  // The validation throws an error when invalid, so the return statement is never executed,
+  // but having the validation check in a conditional branch is required to make the TypeScript
+  // narrowing on the 'is' keyword funciton properly
+  if (!isValidMemberProperties(memberProperties)) {
+    return null;
+  }
 
-  // Skip pages without a name
+  const name = getPlainTextFromRichText(memberProperties.Name.title);
+
   if (!name) {
     logger.warn(`Skipping Notion page ${page.id} due to missing Name property.`);
     return null;
   }
 
-  const linkedInProp = props.LinkedIn;
-  const linkedinUrl = linkedInProp?.type === 'url' ? linkedInProp.url : null;
-
-  const locationProp = props.Location;
-  const locationTags =
-    locationProp?.type === 'multi_select'
-      ? locationProp.multi_select.map((tag: MultiSelectPropertyItemObjectResponse['multi_select'][number]) => tag.name)
-      : [];
-
-  const sectorsProp = props.Sectors;
-  const sectorTags =
-    sectorsProp?.type === 'multi_select'
-      ? sectorsProp.multi_select.map((tag: MultiSelectPropertyItemObjectResponse['multi_select'][number]) => tag.name)
-      : [];
-
-  const subSectorProp = props['Sub-Sector']; // Keep brackets for names with special chars
-  const subSectorText = subSectorProp?.type === 'rich_text' ? getPlainTextFromRichText(subSectorProp.rich_text) : '';
-  const subSectorTags = subSectorText ? [subSectorText] : []; // Treat rich text as a single tag
-
-  const hobbiesProp = props['Hobbies/Interests']; // Keep brackets
-  const hobbyTags =
-    hobbiesProp?.type === 'multi_select'
-      ? hobbiesProp.multi_select.map((tag: MultiSelectPropertyItemObjectResponse['multi_select'][number]) => tag.name)
-      : [];
-
-  const roleCurrentProp = props['Role (Current or Experienced)']; // Keep brackets
-  const roleCurrentTags =
-    roleCurrentProp?.type === 'multi_select'
-      ? roleCurrentProp.multi_select.map(
-          (tag: MultiSelectPropertyItemObjectResponse['multi_select'][number]) => tag.name,
-        )
-      : [];
-
-  const roleInterestedProp = props['Role (Interested)']; // Keep brackets
-  const roleInterestedTags =
-    roleInterestedProp?.type === 'multi_select'
-      ? roleInterestedProp.multi_select.map(
-          (tag: MultiSelectPropertyItemObjectResponse['multi_select'][number]) => tag.name,
-        )
-      : [];
+  const linkedinUrl = memberProperties.LinkedIn.url;
+  const locationTags = memberProperties.Location.multi_select.map(getTagName);
+  const sectorTags = memberProperties.Sectors.multi_select.map(getTagName);
+  const subSectorTags = [getPlainTextFromRichText(memberProperties['Sub-Sector'].rich_text)]; // Treat rich text as a single tag
+  const hobbyTags = memberProperties['Hobbies/Interests'].multi_select.map(getTagName);
+  const roleCurrentTags = memberProperties['Role (Current or Experienced)'].multi_select.map(getTagName);
+  const roleInterestedTags = memberProperties['Role (Interested)'].multi_select.map(getTagName);
 
   const expertiseTags = [
     ...sectorTags,
@@ -109,13 +102,10 @@ export function parseMemberProperties(page: PageObjectResponse): NotionMemberDat
     ...hobbyTags,
     ...roleCurrentTags,
     ...roleInterestedTags,
-  ].filter(Boolean); // Combine and remove empty strings
+  ].filter(Boolean);
 
-  const hiringProp = props['Hiring?']; // Keep brackets
-  const hiring = hiringProp?.type === 'checkbox' ? hiringProp.checkbox : false;
-
-  const lookingProp = props['Open for work?']; // Keep brackets
-  const lookingForWork = lookingProp?.type === 'checkbox' ? lookingProp.checkbox : false;
+  const hiring = memberProperties['Hiring?'].checkbox;
+  const lookingForWork = memberProperties['Open for work?'].checkbox;
 
   return {
     notionPageId: page.id,
@@ -127,14 +117,14 @@ export function parseMemberProperties(page: PageObjectResponse): NotionMemberDat
     hiring,
     lookingForWork,
   };
-}
+};
 
 /**
  * Fetches all members (pages) from the configured Notion database.
  * Handles pagination automatically.
  * @returns Array of parsed Notion member data.
  */
-export async function fetchNotionMembers(): Promise<NotionMemberData[]> {
+export const fetchNotionMembers = async (): Promise<NotionMemberData[]> => {
   if (!databaseId) {
     logger.error('Cannot fetch Notion members: Database ID not configured.');
     return [];
@@ -165,7 +155,7 @@ export async function fetchNotionMembers(): Promise<NotionMemberData[]> {
     for (const page of response.results) {
       // Type guard to ensure we have a full PageObjectResponse
       if (page.object === 'page' && 'properties' in page) {
-        const parsedData = parseMemberProperties(page);
+        const parsedData = parseMemberPage(page);
         if (parsedData) {
           allMembers.push(parsedData);
         }
@@ -181,4 +171,4 @@ export async function fetchNotionMembers(): Promise<NotionMemberData[]> {
   logger.info(`Successfully fetched ${allMembers.length} members from Notion.`);
 
   return allMembers;
-}
+};
