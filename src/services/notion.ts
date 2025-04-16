@@ -9,7 +9,7 @@ import type {
 import { z } from 'zod';
 import { config } from '../config';
 import { logger } from './logger';
-import { TitleProperty, UrlProperty, MultiSelectProperty, RichTextProperty, CheckboxProperty } from './notionSchema';
+import { CheckboxProperty, MultiSelectProperty, RichTextProperty, TitleProperty, UrlProperty } from './notionSchema';
 
 // Initialize Notion Client but allow injection for testing
 let notionClient: Client;
