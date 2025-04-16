@@ -1,10 +1,14 @@
 import qs from 'qs';
 import { config } from '../config'; // Import unified config
-import type { Member } from './database';
 import { logger } from './logger';
 
-// Load environment variables - removed
-// config();
+// Define the shape of data returned directly from OfficeRnD fetch
+export interface OfficeRnDRawMemberData {
+  officernd_id: string;
+  name: string;
+  slack_id: string | null;
+  linkedin_url: string | null;
+}
 
 const OFFICERND_API_URL = 'https://app.officernd.com/api/v1';
 const OFFICERND_ORG_SLUG = config.officerndOrgSlug; // Use config
@@ -81,9 +85,9 @@ async function getAccessToken(): Promise<string> {
 }
 
 /**
- * Get all members from OfficeRnD
+ * Get all members from OfficeRnD, returning only the data fetched.
  */
-export async function getAllMembers(): Promise<Member[]> {
+export async function getAllMembers(): Promise<OfficeRnDRawMemberData[]> {
   if (!OFFICERND_ORG_SLUG) {
     throw new Error('OfficeRnD organization slug not configured');
   }
@@ -103,13 +107,12 @@ export async function getAllMembers(): Promise<Member[]> {
   }
 
   const members = (await response.json()) as OfficeRnDMember[];
-  return members.map((member) => {
-    const mappedMember = {
+  return members.map((member): OfficeRnDRawMemberData => {
+    return {
       officernd_id: member._id,
       name: member.name,
       slack_id: member.properties?.slack_id || null,
       linkedin_url: member.properties?.LinkedInViaAdmin || null,
     };
-    return mappedMember;
   });
 }
