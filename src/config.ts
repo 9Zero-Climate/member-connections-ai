@@ -2,7 +2,7 @@ import { config as loadEnv } from 'dotenv';
 import { logUncaughtErrors, logger } from './services/logger';
 
 // Config contexts determine which config variables are required
-type ConfigContext = 'core' | 'member-sync' | 'slack-sync' | 'test' | 'migrate';
+type ConfigContext = 'core' | 'member-sync' | 'slack-sync' | 'no-verify' | 'migrate';
 
 // Setup things that tend to mess up the test environment
 // -> skip them on test environment
@@ -71,7 +71,7 @@ export function createConfig(env: NodeJS.ProcessEnv = process.env, context: Conf
       'dbUrl',
       'openaiApiKey', // Needed for embeddings
     ],
-    test: [], // No required vars for test environment
+    'no-verify': [], // No required vars for test environment
   };
 
   // Map config keys to environment variable names
@@ -138,6 +138,7 @@ export function createConfig(env: NodeJS.ProcessEnv = process.env, context: Conf
   };
 }
 
-// Export a default instance potentially for the main app context, or require explicit context elsewhere.
-// Consider if a default export is appropriate or if all callers should specify context.
-export const config = createConfig(process.env, 'core');
+// Entry points should call createConfig themselves with the appropriate context
+// For use in library functions, we provide a default instance without verifying any particular set of variables
+// This does make runtime errors possible if we forget to call createConfig with the correct context. But that was possible anyway.
+export const config = createConfig(process.env, 'no-verify');

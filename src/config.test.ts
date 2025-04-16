@@ -15,7 +15,7 @@ describe('createConfig', () => {
       "Missing required environment variable for context 'slack-sync': SLACK_BOT_TOKEN (mapped from config key 'slackBotToken')",
     );
     // Test with test context (should not throw for missing vars)
-    expect(() => createConfig({}, 'test')).not.toThrow();
+    expect(() => createConfig({}, 'no-verify')).not.toThrow();
   });
 
   it('should use default values for optional environment variables', () => {
