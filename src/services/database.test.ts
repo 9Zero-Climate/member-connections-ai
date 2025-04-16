@@ -521,13 +521,19 @@ describe('database', () => {
       name: 'Test User',
       linkedinUrl: 'https://linkedin.com/test',
       locationTags: ['New York', 'Remote'],
-      expertiseTags: ['JavaScript', 'Python', 'AI'],
+      expertiseTags: ['Product', 'Design'],
       hiring: true,
       lookingForWork: false,
     };
 
-    beforeEach(() => {
-      if (!process.env.CI) {
+    beforeEach(async () => {
+      if (process.env.CI) {
+        // Insert test member in CI mode
+        await realClient?.query(
+          'INSERT INTO members (officernd_id, name) VALUES ($1, $2) ON CONFLICT (officernd_id) DO UPDATE SET name = $2',
+          [testMemberId, testNotionData.name],
+        );
+      } else {
         // Mock successful member update
         mockQuery.mockImplementation((query: string, params?: QueryParams) => {
           if (query.includes('UPDATE members')) {
@@ -553,17 +559,24 @@ describe('database', () => {
       }
     });
 
+    afterEach(async () => {
+      if (process.env.CI) {
+        // Clean up test member in CI mode
+        await realClient?.query('DELETE FROM members WHERE officernd_id = $1', [testMemberId]);
+      }
+    });
+
     it('should update member data and create RAG documents', async () => {
       if (process.env.CI) {
         // Test with real database
         await upsertNotionDataForMember(testMemberId, testNotionData);
 
         // Verify member update
-        const memberResult = await mockClient.query(
+        const memberResult = await realClient?.query(
           'SELECT notion_page_id, location_tags, notion_page_url FROM members WHERE officernd_id = $1',
           [testMemberId],
         );
-        expect(memberResult.rows[0]).toMatchObject({
+        expect(memberResult?.rows[0]).toMatchObject({
           notion_page_id: testNotionData.notionPageId,
           location_tags: testNotionData.locationTags,
           notion_page_url: testNotionData.notionPageUrl,
@@ -597,7 +610,7 @@ describe('database', () => {
         await upsertNotionDataForMember(testMemberId, testNotionData);
 
         // Verify member update query
-        expect(mockQuery).toHaveBeenCalledWith(expect.stringContaining('UPDATE members'), [
+        expect(mockClient.query).toHaveBeenCalledWith(expect.stringContaining('UPDATE members'), [
           testNotionData.notionPageId,
           testNotionData.locationTags,
           testNotionData.notionPageUrl,
@@ -605,13 +618,13 @@ describe('database', () => {
         ]);
 
         // Verify deletion of old documents
-        expect(mockQuery).toHaveBeenCalledWith(
+        expect(mockClient.query).toHaveBeenCalledWith(
           expect.stringContaining('DELETE FROM rag_docs'),
           expect.arrayContaining(['notion_%', testMemberId]),
         );
 
         // Verify expertise document creation
-        expect(mockQuery).toHaveBeenCalledWith(
+        expect(mockClient.query).toHaveBeenCalledWith(
           expect.stringContaining('INSERT INTO rag_docs'),
           expect.arrayContaining([
             'notion_expertise',
@@ -621,7 +634,7 @@ describe('database', () => {
         );
 
         // Verify status document creation
-        expect(mockQuery).toHaveBeenCalledWith(
+        expect(mockClient.query).toHaveBeenCalledWith(
           expect.stringContaining('INSERT INTO rag_docs'),
           expect.arrayContaining([
             'notion_status',
@@ -654,7 +667,7 @@ describe('database', () => {
         await upsertNotionDataForMember(testMemberId, minimalNotionData);
 
         // Verify member update still happened
-        expect(mockQuery).toHaveBeenCalledWith(expect.stringContaining('UPDATE members'), [
+        expect(mockClient.query).toHaveBeenCalledWith(expect.stringContaining('UPDATE members'), [
           minimalNotionData.notionPageId,
           minimalNotionData.locationTags,
           minimalNotionData.notionPageUrl,
@@ -662,13 +675,13 @@ describe('database', () => {
         ]);
 
         // Verify old documents were still deleted
-        expect(mockQuery).toHaveBeenCalledWith(
+        expect(mockClient.query).toHaveBeenCalledWith(
           expect.stringContaining('DELETE FROM rag_docs'),
           expect.arrayContaining(['notion_%', testMemberId]),
         );
 
         // Verify no expertise or status documents were created
-        const insertCalls = mockQuery.mock.calls.filter((call) => call[0].includes('INSERT INTO rag_docs'));
+        const insertCalls = mockClient.query.mock.calls.filter((call) => call[0].includes('INSERT INTO rag_docs'));
         expect(insertCalls.length).toBe(0);
       }
     });
