@@ -47,7 +47,7 @@ function getPlainTextFromRichText(richText: Array<RichTextItemResponse>): string
 }
 
 // Helper function to safely parse page properties
-function parseMemberProperties(page: PageObjectResponse): NotionMemberData | null {
+export function parseMemberProperties(page: PageObjectResponse): NotionMemberData | null {
   // Property names must match exactly those in your Notion DB
   const props = page.properties;
 
