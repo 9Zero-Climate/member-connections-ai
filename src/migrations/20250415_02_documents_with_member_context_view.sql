@@ -17,7 +17,8 @@ SELECT rd.created_at,
     ) AS member_slack_id,
     m.location_tags as member_location_tags,
     m.linkedin_url as member_linkedin_url,
-    m.notion_page_id as member_notion_page_id
+    m.notion_page_id as member_notion_page_id,
+    m.notion_page_url as member_notion_page_url
 FROM rag_docs rd
     LEFT JOIN members m ON (
         m.linkedin_url = (rd.metadata->>'linkedin_url'::text)
