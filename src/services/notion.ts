@@ -76,7 +76,7 @@ export const parseMemberPage = (page: PageObjectResponse): NotionMemberData | nu
   // Validate properties against expected schema
   // The validation throws an error when invalid, so the return statement is never executed,
   // but having the validation check in a conditional branch is required to make the TypeScript
-  // narrowing on the 'is' keyword funciton properly
+  // narrowing on the 'is' keyword function properly
   if (!isValidMemberProperties(memberProperties)) {
     return null;
   }
