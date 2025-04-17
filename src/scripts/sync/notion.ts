@@ -1,3 +1,4 @@
+import { Command } from 'commander';
 import { ConfigContext, validateConfig } from '../../config';
 import { updateMembersFromNotion } from '../../services/database';
 import { logger } from '../../services/logger';
@@ -15,3 +16,12 @@ export async function syncNotion(): Promise<void> {
   await updateMembersFromNotion(notionMembers);
   logger.info('Notion sync complete');
 }
+
+const program = new Command();
+program
+  //
+  .name('sync-notion')
+  .description('Syncs data from Notion')
+  .action(syncNotion);
+
+program.parse();

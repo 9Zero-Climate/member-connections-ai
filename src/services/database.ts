@@ -388,33 +388,50 @@ async function deleteNotionDocuments(officerndMemberId: string): Promise<void> {
   return deleteTypedDocumentsForMember(officerndMemberId, 'notion_');
 }
 
-/**
- * Get the last update times for multiple members LinkedIn documents in a single query
- * @returns Map of member IDs to their last update timestamps in milliseconds
- */
-async function getLastLinkedInUpdates(): Promise<Map<string, number | null>> {
-  try {
-    // This query needs updating if member ID is consistently in metadata
-    const result = (await client.query(
-      `SELECT
-        member_id,
-        MAX(last_update) as last_update
-      FROM (
-        SELECT
-          -- Prioritize metadata, then parse source_unique_id
-          COALESCE(metadata->>'officernd_member_id', SUBSTRING(source_unique_id FROM 'officernd_member_(.+):.*')) as member_id,
-          GREATEST(created_at, updated_at) as last_update
-        FROM rag_docs
-        WHERE source_type LIKE 'linkedin_%'
-      ) AS subquery
-      WHERE member_id IS NOT NULL -- Ensure we have a member ID
-      GROUP BY member_id;`,
-    )) as { rows: { member_id: string; last_update: string | null }[] };
+export interface MemberWithLinkedInUpdateMetadata {
+  id: string;
+  name: string;
+  linkedin_url: string | null;
+  last_linkedin_update?: number;
+}
 
-    const updates = new Map<string, number | null>(
-      result.rows.map((row) => [row.member_id, row.last_update ? new Date(row.last_update).getTime() : null]),
-    );
-    return updates;
+/**
+ * Get all members with their last LinkedIn documents update times in a single query
+ * @returns List of members
+ */
+async function getMembersWithLastLinkedInUpdates(): Promise<MemberWithLinkedInUpdateMetadata[]> {
+  logger.info('Fetching Members with last LinkedIn update metadata...');
+
+  try {
+    const result = (await client.query(`
+      WITH linked_in_last_updates_by_member as (
+        SELECT
+          member_id,
+          MAX(last_update) as last_update
+        FROM (
+          SELECT
+            -- Prioritize metadata, then parse source_unique_id
+            COALESCE(metadata->>'officernd_member_id', SUBSTRING(source_unique_id FROM 'officernd_member_(.+):.*')) as member_id,
+            GREATEST(created_at, updated_at) as last_update
+          FROM rag_docs
+          WHERE source_type LIKE 'linkedin_%'
+        ) AS subquery
+        WHERE member_id IS NOT NULL -- Ensure we have a member ID
+        GROUP BY member_id
+      )
+      SELECT 
+        officernd_id as id,
+        name,
+        linkedin_url,
+        linked_in_last_updates_by_member.last_update as last_linkedin_update
+      FROM members
+      LEFT JOIN linked_in_last_updates_by_member on linked_in_last_updates_by_member.member_id = members.officernd_id;
+    `)) as { rows: MemberWithLinkedInUpdateMetadata[] };
+
+    const members = result.rows;
+
+    logger.info(`Fetched ${members.length} members`);
+    return members;
   } catch (error) {
     logger.error('Error getting last LinkedIn updates:', error);
     throw error;
@@ -670,7 +687,7 @@ export {
   deleteDoc,
   findSimilar,
   close,
-  getLastLinkedInUpdates,
+  getMembersWithLastLinkedInUpdates,
   bulkUpsertMembers,
   deleteLinkedInDocuments,
   deleteNotionDocuments,

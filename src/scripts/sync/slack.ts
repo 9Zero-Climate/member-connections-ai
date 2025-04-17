@@ -1,40 +1,46 @@
+import { Command } from 'commander';
 import { ConfigContext, validateConfig } from '../../config';
 import { type Document, getDocBySource, insertOrUpdateDoc } from '../../services/database';
 import { logger } from '../../services/logger';
 import slackSync, { doesSlackMessageMatchDb } from '../../services/slack_sync';
 import type { SlackMessage } from '../../services/slack_sync';
 
-interface SyncOptions {
-  limit: string;
+interface SlackSyncOptions {
+  limit: number;
   oldest?: string;
   newest?: string;
-  batchSize: string;
+  batchSize: number;
 }
+
+const defaultSyncOptions: SlackSyncOptions = {
+  limit: 1000,
+  batchSize: 50,
+};
 
 /**
  * Sync data from Slack
  */
-export async function syncSlackChannel(channelName: string, options: SyncOptions): Promise<void> {
-  logger.info('Starting Slack sync...');
+export async function syncSlackChannel(channelName: string, syncOptionOverrides: SlackSyncOptions): Promise<void> {
+  logger.info(`Starting Slack sync for channel: ${channelName}...`);
   // Run config loader to validate required config
   validateConfig(process.env, ConfigContext.SyncSlack);
-
-  console.log(`Syncing channel: ${channelName}`);
 
   // Get channel ID
   const channelId = await slackSync.getChannelId(channelName);
   console.log(`Found channel ID: ${channelId}`);
 
+  const syncOptions = { ...defaultSyncOptions, ...syncOptionOverrides };
+  const { limit, oldest, newest: latest, batchSize } = syncOptions;
+
   // Fetch messages
   const messages = await slackSync.fetchChannelHistory(channelId, {
-    limit: Number.parseInt(options.limit),
-    oldest: options.oldest,
-    latest: options.newest,
+    limit,
+    oldest,
+    latest,
   });
   console.log(`Fetched ${messages.length} messages`);
 
   // Process messages in batches
-  const batchSize = Number.parseInt(options.batchSize);
   const batches: SlackMessage[][] = [];
   for (let i = 0; i < messages.length; i += batchSize) {
     batches.push(messages.slice(i, i + batchSize));
@@ -85,3 +91,17 @@ export async function syncSlackChannel(channelName: string, options: SyncOptions
   console.log(`Successfully synced ${messages.length} messages to database`);
   logger.info('Slack sync complete');
 }
+
+const program = new Command();
+
+program
+  .name('sync-slack-channel')
+  .description('Sync messages from a specific Slack channel')
+  .argument('<channelName>', 'Name of the channel to sync')
+  .option('-l, --limit <number>', 'Maximum number of messages to sync', Number.parseInt)
+  .option('-o, --oldest <timestamp>', 'Start time in Unix timestamp')
+  .option('-n, --newest <timestamp>', 'End time in Unix timestamp')
+  .option('-b, --batch-size <number>', 'Number of messages to process in each batch', Number.parseInt)
+  .action(syncSlackChannel);
+
+program.parse();

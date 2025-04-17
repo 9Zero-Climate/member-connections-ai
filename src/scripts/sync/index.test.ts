@@ -3,11 +3,12 @@ import { syncAll } from '.';
 import {
   bulkUpsertMembers,
   close as closeDb,
-  getLastLinkedInUpdates,
+  getMembersWithLastLinkedInUpdates,
   updateMembersFromNotion,
 } from '../../services/database';
 import { getAllMembers as getOfficeRnDMembers } from '../../services/officernd';
-import { getLinkedInProfile, getMembersToUpdate } from '../../services/proxycurl';
+import { getLinkedInProfile } from '../../services/proxycurl';
+import { getMembersToUpdate } from './linkedin';
 
 // Load environment variables
 config();
@@ -47,12 +48,10 @@ jest.mock('../../services/database', () => {
 
   return {
     bulkUpsertMembers: jest.fn().mockResolvedValue(mockMembers),
-    getLastLinkedInUpdates: jest.fn().mockResolvedValue(
-      new Map([
-        ['1', 1717334400000],
-        ['2', 1717334400000],
-      ]),
-    ),
+    getMembersWithLastLinkedInUpdates: jest.fn().mockResolvedValue([
+      { id: '1', last_linkedin_update: 1717334400000 },
+      { id: '2', last_linkedin_update: 1717334400000 },
+    ]),
     updateMembersFromNotion: jest.fn().mockResolvedValue(undefined),
     close: jest.fn().mockResolvedValue(undefined),
   };

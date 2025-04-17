@@ -35,9 +35,6 @@ export interface ProxycurlProfile {
   languages: string[];
 }
 
-// Constants for time calculations
-const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
-
 /**
  * Check if a LinkedIn profile needs updating based on last update time
  * @param lastUpdate - Last update timestamp in milliseconds
@@ -298,53 +295,4 @@ export async function createLinkedInDocuments(
     logger.error('Error creating LinkedIn documents:', error);
     throw error;
   }
-}
-
-/**
- * Get members that need LinkedIn updates, prioritizing those without data
- * @param members - Array of members with their metadata
- * @param maxUpdates - Maximum number of profiles to update (updates cost 1 proxycurl credit each, around 2 cents per credit)
- * @param allowedAgeDays - Linkedin profile data won't be updated until this many days after the last update
- * @returns Array of members that need updates, limited to maxUpdates
- */
-export function getMembersToUpdate(
-  members: Array<{
-    id: string;
-    name: string;
-    linkedin_url: string;
-    metadata?: {
-      last_linkedin_update?: number;
-    };
-  }>,
-  maxUpdates = 100,
-  allowedAgeDays = 7,
-): Array<{ id: string; name: string; linkedin_url: string }> {
-  const now = Date.now();
-  const minimumUpdateAge = allowedAgeDays * MILLISECONDS_PER_DAY;
-  const cutoffTime = now - minimumUpdateAge;
-
-  // Sort members by priority:
-  // 1. No LinkedIn data (no last_linkedin_update)
-  // 2. Oldest updates first
-  const sortedMembers = [...members].sort((a, b) => {
-    const aUpdate = a.metadata?.last_linkedin_update;
-    const bUpdate = b.metadata?.last_linkedin_update;
-
-    // If neither has an update, maintain original order
-    if (!aUpdate && !bUpdate) return 0;
-    // If only one has an update, prioritize the one without
-    if (!aUpdate) return -1;
-    if (!bUpdate) return 1;
-    // If both have updates, prioritize the older one
-    return aUpdate - bUpdate;
-  });
-
-  // Filter members that need updates and limit to maxUpdates
-  return sortedMembers
-    .filter((member) => {
-      const lastUpdate = member.metadata?.last_linkedin_update;
-      return !lastUpdate || lastUpdate < cutoffTime;
-    })
-    .slice(0, maxUpdates)
-    .map(({ id, name, linkedin_url }) => ({ id, name, linkedin_url }));
 }

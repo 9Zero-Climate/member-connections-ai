@@ -19,9 +19,9 @@ async function syncAll(linkedinMaxUpdates: number, linkedinAllowedAgeDays: numbe
 
   logger.info('Starting member synchronization...');
   try {
-    const dbMembers = await syncOfficeRnD();
+    await syncOfficeRnD();
     await syncNotion();
-    await syncLinkedIn(dbMembers, linkedinMaxUpdates, linkedinAllowedAgeDays);
+    await syncLinkedIn({ maxUpdates: linkedinMaxUpdates, allowedAgeDays: linkedinAllowedAgeDays });
   } finally {
     // Close database connection
     await closeDb();
@@ -49,7 +49,7 @@ program
     syncAll(options.linkedinMaxUpdates, options.linkedinAllowedAgeDays);
   });
 
-program.parse(process.argv);
+program.parse();
 
 // Export for potential testing or programmatic use
 export { syncAll };
