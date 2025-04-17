@@ -17,7 +17,7 @@ import {
 } from './eventHandlers/feedbackHandler';
 import initiateFeedbackFlowFromReactionEvent from './eventHandlers/initiateFeedbackFlowFromReactionEvent';
 import threadStartedHandler from './eventHandlers/threadStartedHandler';
-import { getUserMessageHandler } from './eventHandlers/userMessageHandler';
+import { handleUserMessage } from './eventHandlers/userMessageHandler';
 
 export type ChatMessage =
   | ChatCompletionSystemMessageParam
@@ -37,7 +37,7 @@ export const registerAssistantAndHandlers = (app: App, config: Config, client: W
 
   const assistant = new Assistant({
     threadStarted: threadStartedHandler,
-    userMessage: getUserMessageHandler(openRouter, client),
+    userMessage: (args) => handleUserMessage(openRouter, client, args),
   });
 
   app.assistant(assistant);

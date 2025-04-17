@@ -4,7 +4,6 @@ import type { OpenAI } from 'openai';
 import type {
   ChatCompletionMessageToolCall,
   ChatCompletionTool,
-  ChatCompletionToolMessageParam,
   ChatCompletionUserMessageParam,
 } from 'openai/resources/chat';
 import type { ChatMessage } from '..';
@@ -14,6 +13,7 @@ import { type ToolCall, getToolCallShortDescription, toolImplementations, tools 
 import ResponseManager from '../ResponseManager';
 import { DEFAULT_SYSTEM_CONTENT } from '../constants';
 import executeToolCalls from '../executeToolCalls';
+import { convertSlackHistoryToLLMHistory, packToolCallInfoIntoSlackMessageMetadata } from '../messagePacking';
 
 interface SlackMessage {
   channel: string;
@@ -40,240 +40,212 @@ interface UserInfo {
 }
 
 /**
- * Factory function for a user message handler.
  * Handles a user message from Slack, managing an agentic LLM loop to generate response message(s) and post them to the source channel.
  *
  * @param llmClient - An OpenAI-compatible LLM client.
  * @param client - The Slack client.
  * @returns The user message handler.
  */
-export function getUserMessageHandler(llmClient: OpenAI, client: WebClient): AssistantUserMessageMiddleware {
-  const handleUserMessage = async ({ message: slackMessage, say }: AssistantUserMessageMiddlewareArgs) => {
-    const { channel: slackChannel, thread_ts, text, ts: userSlackMessageTs } = slackMessage as SlackMessage;
-    const responseManager = new ResponseManager({ client, say });
+export const handleUserMessage = async (
+  llmClient: OpenAI,
+  client: WebClient,
+  { message: slackMessage, say }: AssistantUserMessageMiddlewareArgs,
+) => {
+  const { channel: slackChannel, thread_ts, text, ts: userSlackMessageTs } = slackMessage as SlackMessage;
+  const responseManager = new ResponseManager({ client, say });
 
-    if (!text) {
-      logger.warn({ slackMessage }, 'Received message without text');
-      return;
+  logger.info(
+    {
+      messageText: text,
+      fullSlackMessage: slackMessage,
+      triggeringMessageTs: userSlackMessageTs,
+      user: (slackMessage as SlackMessage).user,
+    },
+    'Handling message from user',
+  );
+
+  await client.reactions.add({
+    name: 'thinking_face',
+    channel: slackChannel,
+    timestamp: userSlackMessageTs,
+  });
+
+  try {
+    const slackThread = thread_ts
+      ? await client.conversations.replies({
+          channel: slackChannel,
+          ts: thread_ts,
+          include_all_metadata: true,
+        })
+      : { messages: [], ok: true };
+    logger.debug({ slackThread }, 'Slack thread');
+
+    if (!slackThread.ok || !slackThread.messages) {
+      throw new Error(`Failed to fetch thread replies: ${slackThread.error || 'Unknown error'}`);
     }
 
-    logger.info(
-      {
-        messageText: text,
-        fullSlackMessage: slackMessage,
-        triggeringMessageTs: userSlackMessageTs,
-        user: (slackMessage as SlackMessage).user,
-      },
-      'Handling message from user',
-    );
+    const userMessage: ChatCompletionUserMessageParam = { role: 'user', content: text };
+    const threadHistoryForLLM = convertSlackHistoryToLLMHistory(slackThread.messages, userSlackMessageTs);
 
-    await client.reactions.add({
-      name: 'thinking_face',
-      channel: slackChannel,
-      timestamp: userSlackMessageTs,
-    });
-
-    try {
-      const slackThread = thread_ts
-        ? await client.conversations.replies({
-            channel: slackChannel,
-            ts: thread_ts,
-          })
-        : { messages: [], ok: true };
-
-      if (!slackThread.ok || !slackThread.messages) {
-        throw new Error(`Failed to fetch thread replies: ${slackThread.error || 'Unknown error'}`);
-      }
-
-      const userMessage: ChatCompletionUserMessageParam = { role: 'user', content: text };
-      const threadHistory = slackThread.messages
-        .filter((m) => m?.ts !== userSlackMessageTs && typeof m?.text === 'string')
-        .map((m): ChatMessage | null => {
-          const role = m?.bot_id ? 'assistant' : 'user';
-          const messageText = m?.text ?? '';
-          const metadata = m?.metadata;
-          const eventPayload = metadata?.event_payload as {
-            tool_call_id?: string;
-            tool_calls?: ChatCompletionMessageToolCall[];
+    let userInfoForBot: UserInfo;
+    if (slackMessage.subtype === undefined && slackMessage.user) {
+      try {
+        const userRes = await client.users.info({ user: slackMessage.user });
+        if (userRes.ok && userRes.user) {
+          const user = userRes.user;
+          const userProfile = user.profile;
+          userInfoForBot = {
+            slack_ID: `<@${slackMessage.user}>`,
+            preferred_name: userProfile?.display_name || userProfile?.real_name_normalized,
+            real_name: userProfile?.real_name,
+            time_zone: user.tz,
+            time_zone_offset: user.tz_offset,
           };
-
-          if (metadata?.event_type === 'slack_tool_result') {
-            return {
-              role: 'tool',
-              tool_call_id: eventPayload?.tool_call_id,
-              content: messageText,
-            } as ChatCompletionToolMessageParam;
-          }
-          if (m?.bot_id && eventPayload?.tool_calls) {
-            return {
-              role: 'assistant',
-              content: messageText,
-              tool_calls: eventPayload.tool_calls,
-            };
-          }
-          if (messageText) {
-            return { role, content: messageText } as ChatMessage;
-          }
-          return null;
-        })
-        .filter((m): m is ChatMessage => m !== null);
-
-      let userInfoForBot: UserInfo;
-      if (slackMessage.subtype === undefined && slackMessage.user) {
-        try {
-          const userRes = await client.users.info({ user: slackMessage.user });
-          if (userRes.ok && userRes.user) {
-            const user = userRes.user;
-            const userProfile = user.profile;
-            userInfoForBot = {
-              slack_ID: `<@${slackMessage.user}>`,
-              preferred_name: userProfile?.display_name || userProfile?.real_name_normalized,
-              real_name: userProfile?.real_name,
-              time_zone: user.tz,
-              time_zone_offset: user.tz_offset,
-            };
-          } else {
-            logger.warn({ userId: slackMessage.user, error: userRes.error }, 'Could not fetch user info');
-            userInfoForBot = { slack_ID: `<@${slackMessage.user}>`, error: 'Could not fetch user info' };
-          }
-        } catch (e) {
-          logger.error({ userId: slackMessage.user, error: e }, 'Error fetching user info');
-          userInfoForBot = { slack_ID: `<@${slackMessage.user}>`, error: 'Exception fetching user info' };
+        } else {
+          logger.warn({ userId: slackMessage.user, error: userRes.error }, 'Could not fetch user info');
+          userInfoForBot = { slack_ID: `<@${slackMessage.user}>`, error: 'Could not fetch user info' };
         }
-      } else {
-        userInfoForBot = {
-          slack_ID: 'SystemEvent',
-          source: `a system event (${slackMessage.subtype || 'unknown'})`,
-        };
+      } catch (e) {
+        logger.error({ userId: slackMessage.user, error: e }, 'Error fetching user info');
+        userInfoForBot = { slack_ID: `<@${slackMessage.user}>`, error: 'Exception fetching user info' };
       }
+    } else {
+      userInfoForBot = {
+        slack_ID: 'SystemEvent',
+        source: `a system event (${slackMessage.subtype || 'unknown'})`,
+      };
+    }
 
-      const llmThread: ChatMessage[] = [
-        { role: 'system', content: DEFAULT_SYSTEM_CONTENT },
-        {
-          role: 'system',
-          content: `The current date and time is ${new Date().toISOString()}.`,
-        },
-        { role: 'system', content: 'Here is the conversation history:' },
-        ...threadHistory,
-        {
-          role: 'system',
-          content:
-            slackMessage.subtype === undefined && slackMessage.user
-              ? `The following message is from: ${JSON.stringify(userInfoForBot)}`
-              : `The following message is from ${userInfoForBot.source || 'an unknown source'}.`,
-        },
-        userMessage,
-      ];
-      logger.debug({ threadLength: llmThread.length }, 'LLM thread prepared');
+    const llmThread: ChatMessage[] = [
+      { role: 'system', content: DEFAULT_SYSTEM_CONTENT },
+      {
+        role: 'system',
+        content: `The current date and time is ${new Date().toISOString()}.`,
+      },
+      { role: 'system', content: 'Here is the conversation history:' },
+      ...threadHistoryForLLM,
+      {
+        role: 'system',
+        content:
+          slackMessage.subtype === undefined && slackMessage.user
+            ? `The following message is from: ${JSON.stringify(userInfoForBot)}`
+            : `The following message is from ${userInfoForBot.source || 'an unknown source'}.`,
+      },
+      userMessage,
+    ];
+    logger.debug({ threadLength: llmThread.length }, 'LLM thread prepared');
 
-      let remainingLlmLoopsAllowed = config.maxToolCallIterations;
+    let remainingLlmLoopsAllowed = config.maxToolCallIterations;
 
-      while (remainingLlmLoopsAllowed > 0) {
-        remainingLlmLoopsAllowed--;
-        responseManager.startNewMessageWithPlaceholder('_thinking..._');
+    while (remainingLlmLoopsAllowed > 0) {
+      logger.debug({ remainingLlmLoopsAllowed, llmThread }, 'Tool call / response loop iteration');
+      remainingLlmLoopsAllowed--;
+      responseManager.startNewMessageWithPlaceholder('_thinking..._');
 
-        const streamFromLlm = await llmClient.chat.completions.create({
-          model: config.modelName,
-          messages: llmThread,
-          tools: tools as ChatCompletionTool[],
-          // On the last loop, don't allow tool calls
-          tool_choice: remainingLlmLoopsAllowed === 0 ? 'none' : 'auto',
-          stream: true,
-        });
+      const streamFromLlm = await llmClient.chat.completions.create({
+        model: config.modelName,
+        messages: llmThread,
+        tools: tools as ChatCompletionTool[],
+        // On the last loop, don't allow tool calls
+        tool_choice: remainingLlmLoopsAllowed === 0 ? 'none' : 'auto',
+        stream: true,
+      });
 
-        const toolCalls: ToolCall[] = [];
+      const toolCalls: ToolCall[] = [];
 
-        for await (const chunk of streamFromLlm) {
-          const delta = chunk.choices[0]?.delta;
-          if (!delta) continue;
+      for await (const chunk of streamFromLlm) {
+        const delta = chunk.choices[0]?.delta;
+        if (!delta) continue;
 
-          // Handle content streaming: immediately update the chat message, within limits
-          if (delta.content) {
-            await responseManager.appendToMessage(delta.content);
-          }
+        // Handle content streaming: immediately update the chat message, within limits
+        if (delta.content) {
+          await responseManager.appendToMessage(delta.content);
+        }
 
-          // Handle tool calls: buffer them until we have the complete set
-          if (delta.tool_calls) {
-            for (const toolCallDelta of delta.tool_calls) {
-              if (toolCallDelta.index === undefined) continue;
-              const index = toolCallDelta.index;
+        // Handle tool calls: buffer them until we have the complete set
+        if (delta.tool_calls) {
+          for (const toolCallDelta of delta.tool_calls) {
+            if (toolCallDelta.index === undefined) continue;
+            const index = toolCallDelta.index;
 
-              // Initialize or update tool call
-              if (!toolCalls[index]) {
-                toolCalls[index] = {
-                  id: toolCallDelta.id || '',
-                  type: 'function',
-                  function: {
-                    name: toolCallDelta.function?.name || '',
-                    arguments: toolCallDelta.function?.arguments || '',
-                  },
-                };
-              } else {
-                // Tool call already buffered -> update with any new arguments
-                if (toolCallDelta.function?.name) {
-                  toolCalls[index].function.name = toolCallDelta.function.name;
-                }
-                if (toolCallDelta.function?.arguments) {
-                  toolCalls[index].function.arguments += toolCallDelta.function.arguments;
-                }
+            // Initialize or update tool call
+            if (!toolCalls[index]) {
+              toolCalls[index] = {
+                id: toolCallDelta.id || '',
+                type: 'function',
+                function: {
+                  name: toolCallDelta.function?.name || '',
+                  arguments: toolCallDelta.function?.arguments || '',
+                },
+              };
+            } else {
+              // Tool call already buffered -> update with any new arguments
+              if (toolCallDelta.function?.name) {
+                toolCalls[index].function.name = toolCallDelta.function.name;
+              }
+              if (toolCallDelta.function?.arguments) {
+                toolCalls[index].function.arguments += toolCallDelta.function.arguments;
               }
             }
           }
         }
+      }
 
-        const responseText = await responseManager.finalizeMessage();
-        logger.debug({ responseText, triggeringMessageTs: userSlackMessageTs }, 'Finalized response text');
-        if (responseText) {
-          llmThread.push({
-            role: 'assistant',
-            content: responseText,
-          });
-        }
-
-        const validToolCalls = toolCalls.filter((tc) => tc?.id && tc?.function?.name);
-        if (validToolCalls.length === 0) {
-          logger.info({ triggeringMessageTs: userSlackMessageTs }, 'LLM finished without tool calls in this loop.');
-          break;
-        }
-
-        const toolCallDescriptions = validToolCalls.map(getToolCallShortDescription).join(', ');
-
-        // Bypass response manager for this message because we want to show the tool call descriptions as a standalone message
-        await say({
-          text: `_${toolCallDescriptions}..._`,
-          parse: 'full',
+      const responseText = await responseManager.finalizeMessage();
+      logger.debug({ responseText, triggeringMessageTs: userSlackMessageTs }, 'Finalized response text');
+      if (responseText) {
+        llmThread.push({
+          role: 'assistant',
+          content: responseText,
         });
-
-        // Actually do the tool calls
-        const toolResultMessages = await executeToolCalls(validToolCalls, toolImplementations);
-        llmThread.push(...toolResultMessages);
       }
 
-      if (remainingLlmLoopsAllowed <= 0) {
-        logger.warn({ triggeringMessageTs: userSlackMessageTs }, 'Reached max tool call iterations.');
+      const validToolCalls = toolCalls.filter((tc) => tc?.id && tc?.function?.name);
+      if (validToolCalls.length === 0) {
+        logger.info({ triggeringMessageTs: userSlackMessageTs }, 'LLM finished without tool calls in this loop.');
+        break;
       }
-    } catch (e) {
-      logger.error(
-        {
-          triggeringMessageTs: userSlackMessageTs,
-          err: e instanceof Error ? { message: e.message, stack: e.stack } : e,
-        },
-        'Error in user message handler',
-      );
-      await say({
-        text: `Sorry, something went wrong.\n You may want to forward this error message to an admin:
-          \`\`\`\n${JSON.stringify(e, null, 2)}\n\`\`\``,
+
+      logger.debug({ validToolCalls }, 'Handling tool calls');
+      const toolCallDescriptions = validToolCalls.map(getToolCallShortDescription).join(', ');
+
+      // Bypass response manager for this message because we want to show the tool call descriptions as a standalone message
+      await client.chat.postMessage({
+        channel: slackChannel,
+        thread_ts: userSlackMessageTs,
+        text: `_${toolCallDescriptions}..._`,
+        parse: 'full',
+        metadata: packToolCallInfoIntoSlackMessageMetadata(validToolCalls),
       });
-    } finally {
-      await client.reactions
-        .remove({
-          name: 'thinking_face',
-          channel: slackChannel,
-          timestamp: userSlackMessageTs,
-        })
-        .catch((e: unknown) => logger.error({ error: e }, 'Failed to remove reaction'));
-    }
-  };
 
-  return handleUserMessage;
-}
+      // Actually do the tool calls
+      const toolCallAndResultMessages = await executeToolCalls(validToolCalls, toolImplementations);
+
+      llmThread.push(...toolCallAndResultMessages);
+    }
+
+    if (remainingLlmLoopsAllowed <= 0) {
+      logger.warn({ triggeringMessageTs: userSlackMessageTs }, 'Reached max tool call iterations.');
+    }
+  } catch (e) {
+    logger.error(
+      {
+        triggeringMessageTs: userSlackMessageTs,
+        err: e instanceof Error ? { message: e.message, stack: e.stack } : e,
+      },
+      'Error in user message handler',
+    );
+    await say({
+      text: `Sorry, something went wrong.\n You may want to forward this error message to an admin:
+          \`\`\`\n${JSON.stringify(e, null, 2)}\n\`\`\``,
+    });
+  } finally {
+    await client.reactions
+      .remove({
+        name: 'thinking_face',
+        channel: slackChannel,
+        timestamp: userSlackMessageTs,
+      })
+      .catch((e: unknown) => logger.error({ error: e }, 'Failed to remove reaction'));
+  }
+};
