@@ -1,4 +1,4 @@
-import { validateConfig, ConfigContext } from '../../config';
+import { ConfigContext, validateConfig } from '../../config';
 import { updateMembersFromNotion } from '../../services/database';
 import { logger } from '../../services/logger';
 import { fetchNotionMembers } from '../../services/notion';

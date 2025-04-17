@@ -1,4 +1,5 @@
 import { config } from 'dotenv';
+import { syncAll } from '.';
 import {
   bulkUpsertMembers,
   close as closeDb,
@@ -7,7 +8,6 @@ import {
 } from '../../services/database';
 import { getAllMembers as getOfficeRnDMembers } from '../../services/officernd';
 import { getLinkedInProfile, getMembersToUpdate } from '../../services/proxycurl';
-import { syncAll } from '.';
 
 // Load environment variables
 config();

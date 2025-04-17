@@ -1,5 +1,5 @@
-import { validateConfig, ConfigContext } from '../../config';
-import { getLastLinkedInUpdates, type Member } from '../../services/database';
+import { ConfigContext, validateConfig } from '../../config';
+import { type Member, getLastLinkedInUpdates } from '../../services/database';
 import { logger } from '../../services/logger';
 import {
   type ProxycurlProfile,

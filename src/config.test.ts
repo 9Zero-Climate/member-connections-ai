@@ -1,4 +1,4 @@
-import { createConfig, validateConfig, ConfigContext } from './config';
+import { ConfigContext, createConfig, validateConfig } from './config';
 
 describe('validateConfig', () => {
   it.each([[ConfigContext.Core], [ConfigContext.Migrate], [ConfigContext.SyncAll], [ConfigContext.SyncSlack]])(

@@ -1,5 +1,5 @@
-import { validateConfig, ConfigContext } from '../../config';
-import { bulkUpsertMembers, type Member } from '../../services/database';
+import { ConfigContext, validateConfig } from '../../config';
+import { type Member, bulkUpsertMembers } from '../../services/database';
 import { logger } from '../../services/logger';
 import { getAllMembers } from '../../services/officernd';
 

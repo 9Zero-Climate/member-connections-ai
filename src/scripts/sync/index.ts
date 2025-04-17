@@ -10,8 +10,8 @@ import { Command } from 'commander';
 import { ConfigContext, validateConfig } from '../../config';
 import { close as closeDb } from '../../services/database';
 import { logger } from '../../services/logger';
-import { syncNotion } from './notion';
 import { syncLinkedIn } from './linkedin';
+import { syncNotion } from './notion';
 import { syncOfficeRnD } from './officernd';
 
 async function syncAll(linkedinMaxUpdates: number, linkedinAllowedAgeDays: number): Promise<void> {

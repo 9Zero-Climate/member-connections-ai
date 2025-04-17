@@ -3,8 +3,8 @@ import * as path from 'node:path';
 import { Command } from 'commander';
 import { Client } from 'pg';
 import { ConfigContext, createConfig } from './config'; // Import createConfig instead of config
-import { logger } from './services/logger';
 import { syncSlackChannel } from './scripts/sync/slack';
+import { logger } from './services/logger';
 
 const program = new Command();
 
