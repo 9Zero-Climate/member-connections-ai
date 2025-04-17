@@ -7,6 +7,11 @@ interface AssistantPrompt {
   message: string;
 }
 
+const FEEDBACK_HINT_TEXT = '_Tip: To provide feedback, you can use the :+1: or :-1: reactions._';
+const HELLO_MESSAGE_TEXT = 'Hi, how can I help?';
+// Basic messages that are sent when the thread is started.
+export const INITIAL_MESSAGES = [HELLO_MESSAGE_TEXT, FEEDBACK_HINT_TEXT];
+
 export default async function threadStartedHandler({
   event,
   say,
@@ -16,7 +21,11 @@ export default async function threadStartedHandler({
   const { context } = event.assistant_thread;
 
   try {
-    await say('Hi, how can I help?');
+    await say(HELLO_MESSAGE_TEXT);
+    await say({
+      text: FEEDBACK_HINT_TEXT,
+      parse: 'full',
+    });
 
     await saveThreadContext();
 
