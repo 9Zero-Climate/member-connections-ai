@@ -320,6 +320,8 @@ function setTestClient(testClient: TestClient): void {
  * @returns The inserted/updated members
  */
 async function bulkUpsertMembers(members: Partial<Member>[]): Promise<Member[]> {
+  logger.info('Upserting basic member info into database...');
+
   if (members.length === 0) return [];
 
   try {
@@ -340,6 +342,7 @@ async function bulkUpsertMembers(members: Partial<Member>[]): Promise<Member[]> 
         members.map((m) => m.linkedin_url),
       ],
     );
+    logger.info(`Upserted ${members.length} members into the database.`);
     return result.rows;
   } catch (error) {
     logger.error('Error bulk upserting members:', error);
@@ -520,14 +523,7 @@ async function saveFeedback(feedback: FeedbackVote): Promise<FeedbackVote> {
   }
 }
 
-/**
- * Upserts Notion data for a specific member.
- * Updates members table and manages RAG documents.
- * @param officerndMemberId - The OfficeRnD ID of the member.
- * @param notionData - Parsed data from Notion.
- */
-async function upsertNotionDataForMember(officerndMemberId: string, notionData: NotionMemberData): Promise<void> {
-  // 1. Update members table
+async function updateMemberWithNotionData(officerndMemberId: string, notionData: NotionMemberData): Promise<void> {
   await client.query(
     `UPDATE members
        SET notion_page_id = $1, location_tags = $2, notion_page_url = $3, updated_at = CURRENT_TIMESTAMP
@@ -539,11 +535,9 @@ async function upsertNotionDataForMember(officerndMemberId: string, notionData: 
       officerndMemberId,
     ],
   );
+}
 
-  // 2. Delete old Notion RAG documents for this member
-  await deleteNotionDocuments(officerndMemberId);
-
-  // 3. Create new RAG documents (granular approach)
+async function createNotionRagDocsForMember(officerndMemberId: string, notionData: NotionMemberData): Promise<void> {
   const baseMetadata = {
     officernd_member_id: officerndMemberId,
     notion_page_id: notionData.notionPageId,
@@ -584,6 +578,21 @@ async function upsertNotionDataForMember(officerndMemberId: string, notionData: 
       embedding: null,
     });
   }
+}
+
+/**
+ * Upserts Notion data for a specific member.
+ * Updates members table and manages RAG documents.
+ * @param officerndMemberId - The OfficeRnD ID of the member.
+ * @param notionData - Parsed data from Notion.
+ */
+async function upsertNotionDataForMember(officerndMemberId: string, notionData: NotionMemberData): Promise<void> {
+  // 1. Update member row in members table
+  await updateMemberWithNotionData(officerndMemberId, notionData);
+
+  // 2. Replace all RAG docs relating to this member (delete existing & create new)
+  await deleteNotionDocuments(officerndMemberId);
+  await createNotionRagDocsForMember(officerndMemberId, notionData);
 
   logger.debug(`Upserted Notion data for member ${officerndMemberId}`);
 }
@@ -593,6 +602,8 @@ async function upsertNotionDataForMember(officerndMemberId: string, notionData: 
  * @param notionMembers - Array of member data fetched from Notion.
  */
 async function updateMembersFromNotion(notionMembers: NotionMemberData[]): Promise<void> {
+  logger.info('Updating members in database with Notion data...');
+
   // Fetch existing members from DB for matching
   const dbResult = await client.query('SELECT officernd_id, name, notion_page_id FROM members');
   const dbMembers = dbResult.rows as Pick<Member, 'officernd_id' | 'name' | 'notion_page_id'>[];
@@ -650,7 +661,7 @@ async function updateMembersFromNotion(notionMembers: NotionMemberData[]): Promi
       unmatchedCount++;
     }
   }
-  logger.info(`Notion sync completed. Matched: ${matchedCount}, Unmatched: ${unmatchedCount}`);
+  logger.info(`Finished updating database with Notion data. Matched: ${matchedCount}, Unmatched: ${unmatchedCount}`);
 }
 
 export {

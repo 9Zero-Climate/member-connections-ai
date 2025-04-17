@@ -3,7 +3,7 @@ import { config } from '../config'; // Import unified config
 import { logger } from './logger';
 
 // Define the shape of data returned directly from OfficeRnD fetch
-export interface OfficeRnDRawMemberData {
+export interface OfficeRnDMember {
   officernd_id: string;
   name: string;
   slack_id: string | null;
@@ -24,7 +24,7 @@ interface OfficeRnDMemberProperty {
   value: string;
 }
 
-interface OfficeRnDMember {
+interface OfficeRnDRawMemberData {
   _id: string;
   name: string;
   properties: {
@@ -87,7 +87,9 @@ async function getAccessToken(): Promise<string> {
 /**
  * Get all members from OfficeRnD, returning only the data fetched.
  */
-export async function getAllMembers(): Promise<OfficeRnDRawMemberData[]> {
+export async function getAllMembers(): Promise<OfficeRnDMember[]> {
+  logger.info('Fetching members from OfficeRnD...');
+
   if (!OFFICERND_ORG_SLUG) {
     throw new Error('OfficeRnD organization slug not configured');
   }
@@ -106,8 +108,9 @@ export async function getAllMembers(): Promise<OfficeRnDRawMemberData[]> {
     throw new Error(`Failed to get OfficeRnD members: ${response.statusText}, response: ${JSON.stringify(response)}`);
   }
 
-  const members = (await response.json()) as OfficeRnDMember[];
-  return members.map((member): OfficeRnDRawMemberData => {
+  const rawMembers = (await response.json()) as OfficeRnDRawMemberData[];
+
+  const members = rawMembers.map((member): OfficeRnDMember => {
     return {
       officernd_id: member._id,
       name: member.name,
@@ -115,4 +118,8 @@ export async function getAllMembers(): Promise<OfficeRnDRawMemberData[]> {
       linkedin_url: member.properties?.LinkedInViaAdmin || null,
     };
   });
+
+  logger.info(`Fetched ${members.length} active members from OfficeRnD.`);
+
+  return members;
 }
