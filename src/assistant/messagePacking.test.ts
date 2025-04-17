@@ -194,7 +194,8 @@ describe('messagePacking', () => {
       expect(toolResponseMessage.role).toBe('tool');
     });
 
-    it('should filter out messages with undefined text', () => {
+    it('should skip messages with undefined text', () => {
+      // There may be other types of slack messages that don't have any text; ignore those for now
       const slackHistory: MessageElement[] = [
         {
           type: 'message',
