@@ -13,6 +13,6 @@ export const handleFeedbackCancel = async ({
   await respond({
     response_type: 'ephemeral',
     replace_original: true,
-    text: 'Feedback cancelled. Use reactions to send feedback if you have any!',
+    text: 'Feedback cancelled. React to any normal Fabric message in the future to send feedback.',
   });
 };
