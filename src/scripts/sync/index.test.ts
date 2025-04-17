@@ -4,16 +4,16 @@ import {
   close as closeDb,
   getLastLinkedInUpdates,
   updateMembersFromNotion,
-} from '../services/database';
-import { getAllMembers as getOfficeRnDMembers } from '../services/officernd';
-import { getLinkedInProfile, getMembersToUpdate } from '../services/proxycurl';
-import { syncMembers } from './sync-members';
+} from '../../services/database';
+import { getAllMembers as getOfficeRnDMembers } from '../../services/officernd';
+import { getLinkedInProfile, getMembersToUpdate } from '../../services/proxycurl';
+import { syncAll } from '.';
 
 // Load environment variables
 config();
 
 // Mock dependencies
-jest.mock('../services/officernd', () => ({
+jest.mock('../../services/officernd', () => ({
   getAllMembers: jest.fn().mockResolvedValue([
     {
       officernd_id: '1',
@@ -29,7 +29,7 @@ jest.mock('../services/officernd', () => ({
     },
   ]),
 }));
-jest.mock('../services/database', () => {
+jest.mock('../../services/database', () => {
   const mockMembers = [
     {
       officernd_id: '1',
@@ -57,7 +57,7 @@ jest.mock('../services/database', () => {
     close: jest.fn().mockResolvedValue(undefined),
   };
 });
-jest.mock('../services/proxycurl', () => {
+jest.mock('../../services/proxycurl', () => {
   const mockMembers = [
     {
       id: '1',
@@ -100,10 +100,10 @@ jest.mock('../services/proxycurl', () => {
     createLinkedInDocuments: jest.fn().mockResolvedValue(undefined),
   };
 });
-jest.mock('../services/notion', () => ({
+jest.mock('../../services/notion', () => ({
   fetchNotionMembers: jest.fn().mockResolvedValue([]),
 }));
-jest.mock('../services/logger', () => ({
+jest.mock('../../services/logger', () => ({
   logger: {
     info: jest.fn(),
     error: jest.fn(),
@@ -158,7 +158,7 @@ describe('Member Sync Script', () => {
 
   describe('successful operations', () => {
     it('should sync members successfully', async () => {
-      await syncMembers(10, 30);
+      await syncAll(10, 30);
 
       // Verify calls
       expect(getOfficeRnDMembers).toHaveBeenCalledTimes(1);
@@ -173,17 +173,17 @@ describe('Member Sync Script', () => {
     it('should handle API errors gracefully', async () => {
       // Override the default mock for this specific test
       (getOfficeRnDMembers as jest.Mock).mockRejectedValueOnce(new Error('API Error'));
-      await expect(syncMembers(10, 30)).rejects.toThrow('API Error');
+      await expect(syncAll(10, 30)).rejects.toThrow('API Error');
     });
 
     it('should handle undefined response from OfficeRnD', async () => {
       (getOfficeRnDMembers as jest.Mock).mockResolvedValueOnce(undefined);
-      await expect(syncMembers(10, 30)).rejects.toThrow();
+      await expect(syncAll(10, 30)).rejects.toThrow();
     });
 
     it('should handle non-array response from OfficeRnD', async () => {
       (getOfficeRnDMembers as jest.Mock).mockResolvedValueOnce({} as unknown);
-      await expect(syncMembers(10, 30)).rejects.toThrow();
+      await expect(syncAll(10, 30)).rejects.toThrow();
     });
   });
 });

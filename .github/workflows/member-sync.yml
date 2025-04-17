@@ -3,17 +3,17 @@ name: Member Sync
 on:
   schedule:
     # Run at midnight Pacific time (UTC-7/8)
-    - cron: '0 7 * * *'
+    - cron: "0 7 * * *"
   workflow_dispatch:
     inputs:
-      max-updates:
-        description: 'Maximum number of LinkedIn profiles to update'
+      linkedin-max-updates:
+        description: "Maximum number of LinkedIn profiles to update"
         required: false
-        default: '100'
-      allowed-age-days:
-        description: 'Grace period in days before considering a LinkedIn profile out of date'
+        default: "100"
+      linkedin-allowed-age-days:
+        description: "Grace period in days before considering a LinkedIn profile out of date"
         required: false
-        default: '7'
+        default: "7"
 
 jobs:
   sync:
@@ -31,12 +31,12 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: 'pnpm'
+          cache: "pnpm"
 
       - name: Install dependencies
         run: pnpm install
 
-      - name: Sync members
+      - name: Sync from all sources
         env:
           DB_URL: ${{ secrets.DB_URL }}
           OFFICERND_CLIENT_ID: ${{ secrets.OFFICERND_CLIENT_ID }}
@@ -47,4 +47,4 @@ jobs:
           NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
           NOTION_MEMBERS_DATABASE_ID: ${{ secrets.NOTION_MEMBERS_DATABASE_ID }}
 
-        run: pnpm sync:members --max-updates=${{ github.event.inputs.max-updates || '100' }} --allowed-age-days=${{ github.event.inputs.allowed-age-days || '7' }} 
+        run: pnpm sync:all --linkedin-max-updates=${{ github.event.inputs.linkedin-max-updates || '100' }} --linkedin-allowed-age-days=${{ github.event.inputs.linkedin-allowed-age-days || '7' }}
