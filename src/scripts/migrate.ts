@@ -2,7 +2,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { Command } from 'commander';
 import { Client } from 'pg';
-import { createValidConfig, ConfigContext } from '../config';
+import { ConfigContext, createValidConfig } from '../config';
 import { logger } from '../services/logger';
 
 /**
