@@ -46,7 +46,7 @@ program
     7, // Default value
   )
   .action((options) => {
-    syncAll(options.maxUpdates, options.allowedAgeDays);
+    syncAll(options.linkedinMaxUpdates, options.linkedinAllowedAgeDays);
   });
 
 program.parse(process.argv);
