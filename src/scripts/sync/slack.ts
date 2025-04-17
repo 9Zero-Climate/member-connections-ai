@@ -33,11 +33,7 @@ export async function syncSlackChannel(channelName: string, syncOptionOverrides:
   const { limit, oldest, newest: latest, batchSize } = syncOptions;
 
   // Fetch messages
-  const messages = await slackSync.fetchChannelHistory(channelId, {
-    limit,
-    oldest,
-    latest,
-  });
+  const messages = await slackSync.fetchChannelHistory(channelId, { limit, oldest, latest });
   console.log(`Fetched ${messages.length} messages`);
 
   // Process messages in batches

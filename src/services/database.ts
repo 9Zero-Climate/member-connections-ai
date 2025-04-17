@@ -403,7 +403,7 @@ async function getMembersWithLastLinkedInUpdates(): Promise<MemberWithLinkedInUp
   logger.info('Fetching Members with last LinkedIn update metadata...');
 
   try {
-    const result = (await client.query(`
+    const result = await client.query(`
       WITH linked_in_last_updates_by_member as (
         SELECT
           member_id,
@@ -426,9 +426,9 @@ async function getMembersWithLastLinkedInUpdates(): Promise<MemberWithLinkedInUp
         linked_in_last_updates_by_member.last_update as last_linkedin_update
       FROM members
       LEFT JOIN linked_in_last_updates_by_member on linked_in_last_updates_by_member.member_id = members.officernd_id;
-    `)) as { rows: MemberWithLinkedInUpdateMetadata[] };
+    `);
 
-    const members = result.rows;
+    const members: MemberWithLinkedInUpdateMetadata[] = result.rows;
 
     logger.info(`Fetched ${members.length} members`);
     return members;
