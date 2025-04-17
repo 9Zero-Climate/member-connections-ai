@@ -1,4 +1,4 @@
-import { ConfigContext, createConfig, validateConfig } from './config';
+import { ConfigContext, loadConfig, validateConfig } from './config';
 
 describe('validateConfig', () => {
   it.each([[ConfigContext.Core], [ConfigContext.Migrate], [ConfigContext.SyncAll], [ConfigContext.SyncSlack]])(
@@ -23,7 +23,7 @@ describe('validateConfig', () => {
   });
 });
 
-describe('createConfig', () => {
+describe('loadConfig', () => {
   it('uses default values for optional environment variables', () => {
     const env = {
       SLACK_BOT_TOKEN: 'test-bot-token',
@@ -36,7 +36,7 @@ describe('createConfig', () => {
       DB_URL: 'test-db-url',
     };
 
-    const config = createConfig(env);
+    const config = loadConfig(env);
     expect(config.port).toBe(8080);
     expect(config.appUrl).toBe('https://github.com/9Zero-Climate/member-connections-ai');
   });
@@ -56,7 +56,7 @@ describe('createConfig', () => {
       PROXYCURL_API_KEY: 'test-proxy-key',
     };
 
-    const config = createConfig(env);
+    const config = loadConfig(env);
     expect(config.port).toBe(3000);
     expect(config.appUrl).toBe('http://test.com');
     expect(config.slackBotToken).toBe('test-bot-token');

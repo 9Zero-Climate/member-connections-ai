@@ -141,12 +141,7 @@ export function validateConfig(env: NodeJS.ProcessEnv, context: ConfigContext) {
   }
 }
 
-export function createConfig(
-  env: NodeJS.ProcessEnv = process.env,
-  context: ConfigContext = ConfigContext.Core,
-): Config {
-  validateConfig(env, context);
-
+export function loadConfig(env: NodeJS.ProcessEnv) {
   // Return config object, attempting to load all values but allowing undefined
   // for those not required by the current context.
   return {
@@ -174,7 +169,15 @@ export function createConfig(
   };
 }
 
-// Entry points should call createConfig themselves with the appropriate context
+export function createValidConfig(
+  env: NodeJS.ProcessEnv = process.env,
+  context: ConfigContext = ConfigContext.Core,
+): Config {
+  validateConfig(env, context);
+  return loadConfig(env);
+}
+
+// Entry points should call validateConfig themselves with the appropriate context
 // For use in library functions, we provide a default instance without verifying any particular set of variables
 // This does make runtime errors possible if we forget to call createConfig with the correct context. But that was possible anyway.
-export const config = createConfig(process.env, ConfigContext.NoVerify);
+export const config = loadConfig(process.env);
