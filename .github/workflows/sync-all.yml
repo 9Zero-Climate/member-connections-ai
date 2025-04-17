@@ -1,0 +1,87 @@
+name: Member Sync
+
+on:
+  schedule:
+    # Run at midnight Pacific time (UTC-7/8)
+    - cron: "0 7 * * *"
+  workflow_dispatch:
+    inputs:
+      linkedin-max-updates:
+        description: "Maximum number of LinkedIn profiles to update"
+        required: false
+        default: "100"
+      linkedin-allowed-age-days:
+        description: "Grace period in days before considering a LinkedIn profile out of date"
+        required: false
+        default: "7"
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 8.15.4
+          run_install: false # Wait for node setup before running install
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: "pnpm"
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Sync OfficeRnD
+        env:
+          DB_URL: ${{ secrets.DB_URL }}
+          OFFICERND_CLIENT_ID: ${{ secrets.OFFICERND_CLIENT_ID }}
+          OFFICERND_CLIENT_SECRET: ${{ secrets.OFFICERND_CLIENT_SECRET }}
+          OFFICERND_ORG_SLUG: ${{ secrets.OFFICERND_ORG_SLUG }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+        run: pnpm sync:officernd
+
+      - name: Sync Notion
+        env:
+          DB_URL: ${{ secrets.DB_URL }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
+          NOTION_MEMBERS_DATABASE_ID: ${{ secrets.NOTION_MEMBERS_DATABASE_ID }}
+
+        run: pnpm sync:notion
+
+      - name: Sync LinkedIn
+        env:
+          DB_URL: ${{ secrets.DB_URL }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          PROXYCURL_API_KEY: ${{ secrets.PROXYCURL_API_KEY }}
+
+        run: pnpm sync:linkedin --max-updates=${{ github.event.inputs.linkedin-max-updates || '100' }} --allowed-age-days=${{ github.event.inputs.linkedin-allowed-age-days || '7' }}
+
+      - name: Sync Slack (all configured channels)
+        env:
+          DB_URL: ${{ secrets.DB_URL }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+
+        run: |
+          echo "Running sync for all configured channels"
+          # Add more channels as needed
+          pnpm sync:slack introductions
+          pnpm sync:slack general
+          pnpm sync:slack member-news
+          pnpm sync:slack meetups
+          pnpm sync:slack sf-events
+          pnpm sync:slack jobs
+          pnpm sync:slack sea-announcements
+          pnpm sync:slack green-collectives-network
+          pnpm sync:slack sea-job-seekers-support
+          pnpm sync:slack sf-general
+          pnpm sync:slack investing
+          pnpm sync:slack sea-requests-for-support
+          pnpm sync:slack sea-events
