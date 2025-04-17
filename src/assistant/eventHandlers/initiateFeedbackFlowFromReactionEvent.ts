@@ -89,7 +89,7 @@ export default async function initiateFeedbackFlowFromReactionEvent({
 
   const responseIntro = getResponseIntro(originalMessageText, reactionName);
 
-  const responseText = `${responseIntro}\n\nWould you like to share feedback with the development team?\n\n If you send feedback, the thread will be provided to our development team for review.`;
+  const responseText = `${responseIntro}\n\nWould you like to share feedback with the development team?\n\n If you send feedback, the thread will be provided to our development for review.`;
   await client.chat.postEphemeral({
     channel: event.item.channel,
     thread_ts: event.item.ts,
