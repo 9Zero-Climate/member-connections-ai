@@ -1,4 +1,4 @@
-import { createConfig } from '../../config';
+import { ConfigContext, validateConfig } from '../../config';
 import { type Document, getDocBySource, insertOrUpdateDoc } from '../../services/database';
 import { logger } from '../../services/logger';
 import slackSync, { doesSlackMessageMatchDb } from '../../services/slack_sync';
@@ -17,7 +17,7 @@ interface SyncOptions {
 export async function syncSlackChannel(channelName: string, options: SyncOptions): Promise<void> {
   logger.info('Starting Slack sync...');
   // Run config loader to validate required config
-  createConfig(process.env, 'slack-sync');
+  validateConfig(process.env, ConfigContext.SyncSlack);
 
   console.log(`Syncing channel: ${channelName}`);
 

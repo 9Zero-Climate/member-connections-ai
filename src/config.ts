@@ -2,8 +2,16 @@ import { config as loadEnv } from 'dotenv';
 import { logUncaughtErrors, logger } from './services/logger';
 
 // Config contexts determine which config variables are required
-type ConfigContext = 'core' | 'member-sync' | 'slack-sync' | 'no-verify' | 'migrate';
-
+export enum ConfigContext {
+  Core = 'core',
+  SyncAll = 'sync-all',
+  SyncOfficeRnD = 'sync-officernd',
+  SyncLinkedIn = 'sync-linkedin',
+  SyncNotion = 'sync-notion',
+  SyncSlack = 'sync-slack',
+  Migrate = 'migrate',
+  NoVerify = 'no-verify',
+}
 // Setup things that tend to mess up the test environment
 // -> skip them on test environment
 if (process.env.NODE_ENV !== 'test') {
@@ -51,65 +59,93 @@ export interface Config {
   notionMembersDbId?: string;
 }
 
-export function createConfig(env: NodeJS.ProcessEnv = process.env, context: ConfigContext = 'core'): Config {
-  // Define required variables per context
-  const requiredVarsMap: Record<ConfigContext, (keyof Config)[]> = {
-    core: ['slackBotToken', 'slackAppToken', 'openaiApiKey', 'openRouterApiKey', 'dbUrl'],
-    migrate: ['dbUrl'],
-    'member-sync': [
-      'dbUrl',
-      'officerndOrgSlug',
-      'officerndClientId',
-      'officerndClientSecret',
-      'proxycurlApiKey', // Assuming proxycurl is needed for linkedin updates during member sync
-      'notionApiKey',
-      'notionMembersDbId',
-      'openaiApiKey', // Needed for embeddings
-    ],
-    'slack-sync': [
-      'slackBotToken', // Needed to interact with Slack API
-      'dbUrl',
-      'openaiApiKey', // Needed for embeddings
-    ],
-    'no-verify': [], // No required vars for test environment
-  };
+// Define required variables per context
+const REQUIRED_CONFIG_KEYS_FOR_CONTEXT: Record<ConfigContext, (keyof Config)[]> = {
+  core: ['slackBotToken', 'slackAppToken', 'openaiApiKey', 'openRouterApiKey', 'dbUrl'],
+  migrate: ['dbUrl'],
+  'sync-all': [
+    'dbUrl',
+    'notionApiKey',
+    'notionMembersDbId',
+    'officerndOrgSlug',
+    'officerndClientId',
+    'officerndClientSecret',
+    'openaiApiKey', // Needed for embeddings
+    'proxycurlApiKey', // Assuming proxycurl is needed for linkedin updates during member sync
+  ],
+  'sync-officernd': [
+    'dbUrl',
+    'officerndOrgSlug',
+    'officerndClientId',
+    'officerndClientSecret',
+    'openaiApiKey', // Needed for embeddings
+  ],
+  'sync-linkedin': [
+    'dbUrl',
+    'openaiApiKey', // Needed for embeddings
+    'proxycurlApiKey', // Assuming proxycurl is needed for linkedin updates during member sync
+  ],
+  'sync-notion': [
+    'dbUrl',
+    'notionApiKey',
+    'notionMembersDbId',
+    'openaiApiKey', // Needed for embeddings
+  ],
+  'sync-slack': [
+    'dbUrl',
+    'openaiApiKey', // Needed for embeddings
+    'slackBotToken', // Needed to interact with Slack API
+  ],
+  'no-verify': [], // No required vars for test environment
+};
 
-  // Map config keys to environment variable names
-  const envVarMap: Record<keyof Config, string> = {
-    slackBotToken: 'SLACK_BOT_TOKEN',
-    slackAppToken: 'SLACK_APP_TOKEN',
-    openaiApiKey: 'OPENAI_API_KEY',
-    openRouterApiKey: 'OPENROUTER_API_KEY',
-    modelName: 'OPENROUTER_MODEL_NAME',
-    openRouterBaseUrl: 'OPENROUTER_BASE_URL',
-    appName: 'APP_NAME',
-    appUrl: 'APP_URL',
-    proxycurlApiKey: 'PROXYCURL_API_KEY',
-    port: 'PORT',
-    dbUrl: 'DB_URL',
-    environment: 'NODE_ENV',
-    officerndOrgSlug: 'OFFICERND_ORG_SLUG',
-    officerndClientId: 'OFFICERND_CLIENT_ID',
-    officerndClientSecret: 'OFFICERND_CLIENT_SECRET',
-    maxMessageLength: 'MAX_MESSAGE_LENGTH', // These might not be env vars, adjust if needed
-    maxToolCallIterations: 'MAX_TOOL_CALL_ITERATIONS',
-    chatEditIntervalMs: 'CHAT_EDIT_INTERVAL_MS',
-    notionApiKey: 'NOTION_API_KEY',
-    notionMembersDbId: 'NOTION_MEMBERS_DATABASE_ID',
-  };
+// Map config keys to environment variable names
+const CONFIG_KEY_TO_ENV_VAR: Record<keyof Config, string> = {
+  slackBotToken: 'SLACK_BOT_TOKEN',
+  slackAppToken: 'SLACK_APP_TOKEN',
+  openaiApiKey: 'OPENAI_API_KEY',
+  openRouterApiKey: 'OPENROUTER_API_KEY',
+  modelName: 'OPENROUTER_MODEL_NAME',
+  openRouterBaseUrl: 'OPENROUTER_BASE_URL',
+  appName: 'APP_NAME',
+  appUrl: 'APP_URL',
+  proxycurlApiKey: 'PROXYCURL_API_KEY',
+  port: 'PORT',
+  dbUrl: 'DB_URL',
+  environment: 'NODE_ENV',
+  officerndOrgSlug: 'OFFICERND_ORG_SLUG',
+  officerndClientId: 'OFFICERND_CLIENT_ID',
+  officerndClientSecret: 'OFFICERND_CLIENT_SECRET',
+  maxMessageLength: 'MAX_MESSAGE_LENGTH', // These might not be env vars, adjust if needed
+  maxToolCallIterations: 'MAX_TOOL_CALL_ITERATIONS',
+  chatEditIntervalMs: 'CHAT_EDIT_INTERVAL_MS',
+  notionApiKey: 'NOTION_API_KEY',
+  notionMembersDbId: 'NOTION_MEMBERS_DATABASE_ID',
+};
 
-  // Get the required variables for the current context
-  const requiredConfigKeys = requiredVarsMap[context] || [];
+/**
+ * Validate that the environment variables required for this config context are present
+ */
+export function validateConfig(env: NodeJS.ProcessEnv, context: ConfigContext) {
+  logger.info('Validating config...');
 
-  // Validate required variables for the current context
-  for (const configKey of requiredConfigKeys) {
-    const envVarName = envVarMap[configKey];
-    if (!env[envVarName]) {
-      throw new Error(
-        `Missing required environment variable for context '${context}': ${envVarName} (mapped from config key '${configKey}')`,
-      );
-    }
+  const requiredConfigKeys = REQUIRED_CONFIG_KEYS_FOR_CONTEXT[context];
+  const requiredEnvVars = requiredConfigKeys.map((requiredConfigKey) => CONFIG_KEY_TO_ENV_VAR[requiredConfigKey]);
+
+  const missingRequiredEnvVars = requiredEnvVars.filter((requiredEnvVar) => !env[requiredEnvVar]);
+
+  if (missingRequiredEnvVars.length > 0) {
+    throw new Error(
+      `Missing required environment variables for context '${context}': ${missingRequiredEnvVars.join(', ')}')`,
+    );
   }
+}
+
+export function createConfig(
+  env: NodeJS.ProcessEnv = process.env,
+  context: ConfigContext = ConfigContext.Core,
+): Config {
+  validateConfig(env, context);
 
   // Return config object, attempting to load all values but allowing undefined
   // for those not required by the current context.
@@ -141,4 +177,4 @@ export function createConfig(env: NodeJS.ProcessEnv = process.env, context: Conf
 // Entry points should call createConfig themselves with the appropriate context
 // For use in library functions, we provide a default instance without verifying any particular set of variables
 // This does make runtime errors possible if we forget to call createConfig with the correct context. But that was possible anyway.
-export const config = createConfig(process.env, 'no-verify');
+export const config = createConfig(process.env, ConfigContext.NoVerify);

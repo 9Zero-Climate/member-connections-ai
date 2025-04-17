@@ -2,7 +2,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { Command } from 'commander';
 import { Client } from 'pg';
-import { createConfig } from './config'; // Import createConfig instead of config
+import { ConfigContext, createConfig } from './config'; // Import createConfig instead of config
 import { logger } from './services/logger';
 import { syncSlackChannel } from './scripts/sync/slack';
 
@@ -25,7 +25,7 @@ program
   .description('Run a single SQL migration file')
   .argument('<filePath>', 'Path to the SQL migration file')
   .action(async (filePath: string) => {
-    const config = createConfig(process.env, 'migrate');
+    const config = createConfig(process.env, ConfigContext.Migrate);
 
     const absoluteMigrationPath = path.resolve(filePath);
     logger.info(`Attempting to run migration: ${absoluteMigrationPath}`);

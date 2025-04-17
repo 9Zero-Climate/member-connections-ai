@@ -1,3 +1,4 @@
+import { validateConfig, ConfigContext } from '../../config';
 import { updateMembersFromNotion } from '../../services/database';
 import { logger } from '../../services/logger';
 import { fetchNotionMembers } from '../../services/notion';
@@ -9,6 +10,7 @@ import { fetchNotionMembers } from '../../services/notion';
  */
 export async function syncNotion(): Promise<void> {
   logger.info('Starting Notion sync...');
+  validateConfig(process.env, ConfigContext.SyncNotion);
   const notionMembers = await fetchNotionMembers();
   await updateMembersFromNotion(notionMembers);
   logger.info('Notion sync complete');

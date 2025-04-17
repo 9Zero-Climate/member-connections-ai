@@ -7,7 +7,7 @@ import { Command } from 'commander';
  *  - Slack: conversations
  * We store structured data & embeddings in PostgreSQL
  */
-import { createConfig } from '../../config';
+import { ConfigContext, validateConfig } from '../../config';
 import { close as closeDb } from '../../services/database';
 import { logger } from '../../services/logger';
 import { syncNotion } from './notion';
@@ -15,8 +15,7 @@ import { syncLinkedIn } from './linkedin';
 import { syncOfficeRnD } from './officernd';
 
 async function syncAll(linkedinMaxUpdates: number, linkedinAllowedAgeDays: number): Promise<void> {
-  logger.info('Checking config...');
-  createConfig(process.env, 'member-sync');
+  validateConfig(process.env, ConfigContext.SyncAll);
 
   logger.info('Starting member synchronization...');
   try {

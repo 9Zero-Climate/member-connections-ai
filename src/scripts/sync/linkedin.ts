@@ -1,3 +1,4 @@
+import { validateConfig, ConfigContext } from '../../config';
 import { getLastLinkedInUpdates, type Member } from '../../services/database';
 import { logger } from '../../services/logger';
 import {
@@ -24,6 +25,7 @@ interface MemberWithMeta {
  */
 export async function syncLinkedIn(dbMembers: Member[], maxUpdates: number, allowedAgeDays: number): Promise<void> {
   logger.info('Starting LinkedIn profile synchronization...');
+  validateConfig(process.env, ConfigContext.SyncLinkedIn);
 
   // Get last update times for LinkedIn docs
   logger.info('Fetching last LinkedIn update timestamps...');
