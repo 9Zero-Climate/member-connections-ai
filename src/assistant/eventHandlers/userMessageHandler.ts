@@ -4,7 +4,6 @@ import type { OpenAI } from 'openai';
 import type {
   ChatCompletionMessageToolCall,
   ChatCompletionTool,
-  ChatCompletionToolMessageParam,
   ChatCompletionUserMessageParam,
 } from 'openai/resources/chat';
 import type { ChatMessage } from '..';
@@ -14,6 +13,7 @@ import { type ToolCall, getToolCallShortDescription, toolImplementations, tools 
 import ResponseManager from '../ResponseManager';
 import { DEFAULT_SYSTEM_CONTENT } from '../constants';
 import executeToolCalls from '../executeToolCalls';
+import { convertSlackHistoryToLLMHistory, packToolCallInfoIntoSlackMessageMetadata } from '../messagePacking';
 
 interface SlackMessage {
   channel: string;
@@ -54,11 +54,6 @@ export const handleUserMessage = async (
   const { channel: slackChannel, thread_ts, text, ts: userSlackMessageTs } = slackMessage as SlackMessage;
   const responseManager = new ResponseManager({ client, say });
 
-  if (!text) {
-    logger.warn({ slackMessage }, 'Received message without text');
-    return;
-  }
-
   logger.info(
     {
       messageText: text,
@@ -80,45 +75,17 @@ export const handleUserMessage = async (
       ? await client.conversations.replies({
           channel: slackChannel,
           ts: thread_ts,
+          include_all_metadata: true,
         })
       : { messages: [], ok: true };
+    logger.debug({ slackThread }, 'Slack thread');
 
     if (!slackThread.ok || !slackThread.messages) {
       throw new Error(`Failed to fetch thread replies: ${slackThread.error || 'Unknown error'}`);
     }
 
     const userMessage: ChatCompletionUserMessageParam = { role: 'user', content: text };
-    const threadHistory = slackThread.messages
-      .filter((m) => m?.ts !== userSlackMessageTs && typeof m?.text === 'string')
-      .map((m): ChatMessage | null => {
-        const role = m?.bot_id ? 'assistant' : 'user';
-        const messageText = m?.text ?? '';
-        const metadata = m?.metadata;
-        const eventPayload = metadata?.event_payload as {
-          tool_call_id?: string;
-          tool_calls?: ChatCompletionMessageToolCall[];
-        };
-
-        if (metadata?.event_type === 'slack_tool_result') {
-          return {
-            role: 'tool',
-            tool_call_id: eventPayload?.tool_call_id,
-            content: messageText,
-          } as ChatCompletionToolMessageParam;
-        }
-        if (m?.bot_id && eventPayload?.tool_calls) {
-          return {
-            role: 'assistant',
-            content: messageText,
-            tool_calls: eventPayload.tool_calls,
-          };
-        }
-        if (messageText) {
-          return { role, content: messageText } as ChatMessage;
-        }
-        return null;
-      })
-      .filter((m): m is ChatMessage => m !== null);
+    const threadHistoryForLLM = convertSlackHistoryToLLMHistory(slackThread.messages, userSlackMessageTs);
 
     let userInfoForBot: UserInfo;
     if (slackMessage.subtype === undefined && slackMessage.user) {
@@ -156,7 +123,7 @@ export const handleUserMessage = async (
         content: `The current date and time is ${new Date().toISOString()}.`,
       },
       { role: 'system', content: 'Here is the conversation history:' },
-      ...threadHistory,
+      ...threadHistoryForLLM,
       {
         role: 'system',
         content:
@@ -171,6 +138,7 @@ export const handleUserMessage = async (
     let remainingLlmLoopsAllowed = config.maxToolCallIterations;
 
     while (remainingLlmLoopsAllowed > 0) {
+      logger.debug({ remainingLlmLoopsAllowed, llmThread }, 'Tool call / response loop iteration');
       remainingLlmLoopsAllowed--;
       responseManager.startNewMessageWithPlaceholder('_thinking..._');
 
@@ -238,17 +206,22 @@ export const handleUserMessage = async (
         break;
       }
 
+      logger.debug({ validToolCalls }, 'Handling tool calls');
       const toolCallDescriptions = validToolCalls.map(getToolCallShortDescription).join(', ');
 
       // Bypass response manager for this message because we want to show the tool call descriptions as a standalone message
-      await say({
+      await client.chat.postMessage({
+        channel: slackChannel,
+        thread_ts: userSlackMessageTs,
         text: `_${toolCallDescriptions}..._`,
         parse: 'full',
+        metadata: packToolCallInfoIntoSlackMessageMetadata(validToolCalls),
       });
 
       // Actually do the tool calls
-      const toolResultMessages = await executeToolCalls(validToolCalls, toolImplementations);
-      llmThread.push(...toolResultMessages);
+      const toolCallAndResultMessages = await executeToolCalls(validToolCalls, toolImplementations);
+
+      llmThread.push(...toolCallAndResultMessages);
     }
 
     if (remainingLlmLoopsAllowed <= 0) {
