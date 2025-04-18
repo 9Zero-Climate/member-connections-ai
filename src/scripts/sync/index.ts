@@ -8,7 +8,7 @@ import { Command } from 'commander';
  * We store structured data & embeddings in PostgreSQL
  */
 import { ConfigContext, validateConfig } from '../../config';
-import { close as closeDb } from '../../services/database';
+import { closeDbConnection } from '../../services/database';
 import { logger } from '../../services/logger';
 import { syncLinkedIn } from './linkedin';
 import { syncNotion } from './notion';
@@ -23,8 +23,7 @@ async function syncAll(linkedinMaxUpdates: number, linkedinAllowedAgeDays: numbe
     await syncNotion();
     await syncLinkedIn({ maxUpdates: linkedinMaxUpdates, allowedAgeDays: linkedinAllowedAgeDays });
   } finally {
-    // Close database connection
-    await closeDb();
+    await closeDbConnection();
   }
 }
 

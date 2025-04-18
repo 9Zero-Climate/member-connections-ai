@@ -3,6 +3,7 @@ import { ConfigContext, validateConfig } from '../../config';
 import {
   type Member,
   type MemberWithLinkedInUpdateMetadata,
+  closeDbConnection,
   getMembersWithLastLinkedInUpdates,
 } from '../../services/database';
 import { logger } from '../../services/logger';
@@ -36,24 +37,28 @@ export async function syncLinkedIn(syncOptionOverrides: LinkedInSyncOptions): Pr
   const syncOptions = { ...defaultSyncOptions, ...syncOptionOverrides };
   const { maxUpdates, allowedAgeDays } = syncOptions;
 
-  // Get all members along with their last linkedin update times
-  const membersWithLastLinkedInUpdates = await getMembersWithLastLinkedInUpdates();
+  try {
+    // Get all members along with their last linkedin update times
+    const membersWithLastLinkedInUpdates = await getMembersWithLastLinkedInUpdates();
 
-  const membersToUpdate = getMembersToUpdate(membersWithLastLinkedInUpdates, maxUpdates, allowedAgeDays);
+    const membersToUpdate = getMembersToUpdate(membersWithLastLinkedInUpdates, maxUpdates, allowedAgeDays);
 
-  // Process updates
-  for (const member of membersToUpdate) {
-    console.log(`Fetching LinkedIn profile for ${member.name}...`);
-    const profileData: ProxycurlProfile | null = await getLinkedInProfile(member.linkedin_url);
-    if (profileData) {
-      await createLinkedInDocuments(member.id, member.name, member.linkedin_url, profileData);
-      console.log(`Created/Updated LinkedIn documents for ${member.name}`);
-    } else {
-      console.log(`Could not fetch LinkedIn profile for ${member.name} from ${member.linkedin_url}`);
+    // Process updates
+    for (const member of membersToUpdate) {
+      console.log(`Fetching LinkedIn profile for ${member.name}...`);
+      const profileData: ProxycurlProfile | null = await getLinkedInProfile(member.linkedin_url);
+      if (profileData) {
+        await createLinkedInDocuments(member.id, member.name, member.linkedin_url, profileData);
+        console.log(`Created/Updated LinkedIn documents for ${member.name}`);
+      } else {
+        console.log(`Could not fetch LinkedIn profile for ${member.name} from ${member.linkedin_url}`);
+      }
     }
-  }
 
-  console.log('LinkedIn profile sync completed');
+    console.log('LinkedIn profile sync completed');
+  } finally {
+    closeDbConnection();
+  }
 }
 
 /**

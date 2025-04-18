@@ -1,6 +1,6 @@
 import { Command } from 'commander';
 import { ConfigContext, validateConfig } from '../../config';
-import { type Member, bulkUpsertMembers } from '../../services/database';
+import { bulkUpsertMembers, closeDbConnection } from '../../services/database';
 import { logger } from '../../services/logger';
 import { getAllMembers } from '../../services/officernd';
 
@@ -12,10 +12,14 @@ import { getAllMembers } from '../../services/officernd';
  */
 export async function syncOfficeRnD(): Promise<void> {
   logger.info('Starting OfficeRnD sync...');
-
   validateConfig(process.env, ConfigContext.SyncOfficeRnD);
-  const officeRndMembers = await getAllMembers();
-  await bulkUpsertMembers(officeRndMembers);
+
+  try {
+    const officeRndMembers = await getAllMembers();
+    await bulkUpsertMembers(officeRndMembers);
+  } finally {
+    closeDbConnection();
+  }
 
   logger.info('OfficeRnD sync complete');
 }

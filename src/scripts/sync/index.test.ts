@@ -2,7 +2,7 @@ import { config } from 'dotenv';
 import { syncAll } from '.';
 import {
   bulkUpsertMembers,
-  close as closeDb,
+  closeDbConnection,
   getMembersWithLastLinkedInUpdates,
   updateMembersFromNotion,
 } from '../../services/database';
@@ -164,7 +164,7 @@ describe('Member Sync Script', () => {
       expect(bulkUpsertMembers).toHaveBeenCalledTimes(1);
       expect(bulkUpsertMembers).toHaveBeenCalledWith(mockMembers);
       expect(getLinkedInProfile).toHaveBeenCalledTimes(2); // Once for each member
-      expect(closeDb).toHaveBeenCalledTimes(1);
+      expect(closeDbConnection).toHaveBeenCalledTimes(1);
     });
   });
 

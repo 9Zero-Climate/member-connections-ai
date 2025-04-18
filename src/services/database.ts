@@ -81,12 +81,19 @@ function getClient(): Client | TestClient {
       logger.error('Failed to connect to database:', err);
       throw err;
     });
+
+    logger.info('Global database connection opened.');
   }
   return client;
 }
 
 // Initialize client
 client = getClient();
+
+async function closeDbConnection(): Promise<void> {
+  await client.end();
+  logger.info('Global database connection closed.');
+}
 
 /**
  * Parse a stored embedding from the database
@@ -293,18 +300,6 @@ async function findSimilar(embedding: number[], options: SearchOptions = {}): Pr
     );
   } catch (error) {
     logger.error('Error finding similar documents:', error);
-    throw error;
-  }
-}
-
-/**
- * Close the database connection
- */
-async function close(): Promise<void> {
-  try {
-    await client.end();
-  } catch (error) {
-    logger.error('Error closing database connection:', error);
     throw error;
   }
 }
@@ -686,7 +681,7 @@ export {
   getDocBySource,
   deleteDoc,
   findSimilar,
-  close,
+  closeDbConnection,
   getMembersWithLastLinkedInUpdates,
   bulkUpsertMembers,
   deleteLinkedInDocuments,
