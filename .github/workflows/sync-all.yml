@@ -1,4 +1,4 @@
-name: Member Sync
+name: Sync All
 
 on:
   schedule:
