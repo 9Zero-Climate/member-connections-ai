@@ -44,7 +44,7 @@ jobs:
           OFFICERND_ORG_SLUG: ${{ secrets.OFFICERND_ORG_SLUG }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
-        run: pnpm sync:officernd
+        run: pnpm sync:officernd | npx pino-pretty
 
       - name: Sync Notion
         env:
@@ -53,7 +53,7 @@ jobs:
           NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
           NOTION_MEMBERS_DATABASE_ID: ${{ secrets.NOTION_MEMBERS_DATABASE_ID }}
 
-        run: pnpm sync:notion
+        run: pnpm sync:notion | npx pino-pretty
 
       - name: Sync LinkedIn
         env:
@@ -61,7 +61,11 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           PROXYCURL_API_KEY: ${{ secrets.PROXYCURL_API_KEY }}
 
-        run: pnpm sync:linkedin --max-updates=${{ github.event.inputs.linkedin-max-updates || '100' }} --allowed-age-days=${{ github.event.inputs.linkedin-allowed-age-days || '7' }}
+        run: |
+          pnpm sync:linkedin \
+            --max-updates=${{ github.event.inputs.linkedin-max-updates }} \
+            --allowed-age-days=${{ github.event.inputs.linkedin-allowed-age-days }} \
+            | npx pino-pretty
 
       - name: Sync Slack (all configured channels)
         env:
@@ -72,16 +76,18 @@ jobs:
         run: |
           echo "Running sync for all configured channels"
           # Add more channels as needed
-          pnpm sync:slack introductions
-          pnpm sync:slack general
-          pnpm sync:slack member-news
-          pnpm sync:slack meetups
-          pnpm sync:slack sf-events
-          pnpm sync:slack jobs
-          pnpm sync:slack sea-announcements
-          pnpm sync:slack green-collectives-network
-          pnpm sync:slack sea-job-seekers-support
-          pnpm sync:slack sf-general
-          pnpm sync:slack investing
-          pnpm sync:slack sea-requests-for-support
-          pnpm sync:slack sea-events
+          pnpm sync:slack \
+            introductions \
+            general \
+            member-news \
+            meetups \
+            sf-events \
+            jobs \
+            sea-announcements \
+            green-collectives-network \
+            sea-job-seekers-support \
+            sf-general \
+            investing \
+            sea-requests-for-support \
+            sea-events \
+            | npx pino-pretty
