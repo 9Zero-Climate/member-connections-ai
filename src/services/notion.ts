@@ -125,6 +125,8 @@ export const parseMemberPage = (page: PageObjectResponse): NotionMemberData | nu
  * @returns Array of parsed Notion member data.
  */
 export const fetchNotionMembers = async (): Promise<NotionMemberData[]> => {
+  logger.info('Fetching members from Notion...');
+
   if (!databaseId) {
     logger.error('Cannot fetch Notion members: Database ID not configured.');
     return [];

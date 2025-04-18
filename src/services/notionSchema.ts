@@ -53,7 +53,7 @@ export const TitleProperty = z.object({
 export const UrlProperty = z.object({
   id: z.string(),
   type: z.literal('url'),
-  url: z.string(),
+  url: z.string().nullable(),
 });
 
 export const MultiSelectProperty = z.object({

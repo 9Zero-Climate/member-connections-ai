@@ -81,12 +81,19 @@ function getClient(): Client | TestClient {
       logger.error('Failed to connect to database:', err);
       throw err;
     });
+
+    logger.info('Global database connection opened.');
   }
   return client;
 }
 
 // Initialize client
 client = getClient();
+
+async function closeDbConnection(): Promise<void> {
+  await client.end();
+  logger.info('Global database connection closed.');
+}
 
 /**
  * Parse a stored embedding from the database
@@ -297,18 +304,6 @@ async function findSimilar(embedding: number[], options: SearchOptions = {}): Pr
   }
 }
 
-/**
- * Close the database connection
- */
-async function close(): Promise<void> {
-  try {
-    await client.end();
-  } catch (error) {
-    logger.error('Error closing database connection:', error);
-    throw error;
-  }
-}
-
 // For testing
 function setTestClient(testClient: TestClient): void {
   client = testClient;
@@ -320,6 +315,8 @@ function setTestClient(testClient: TestClient): void {
  * @returns The inserted/updated members
  */
 async function bulkUpsertMembers(members: Partial<Member>[]): Promise<Member[]> {
+  logger.info('Upserting basic member info into database...');
+
   if (members.length === 0) return [];
 
   try {
@@ -340,6 +337,7 @@ async function bulkUpsertMembers(members: Partial<Member>[]): Promise<Member[]> 
         members.map((m) => m.linkedin_url),
       ],
     );
+    logger.info(`Upserted ${members.length} members into the database.`);
     return result.rows;
   } catch (error) {
     logger.error('Error bulk upserting members:', error);
@@ -385,33 +383,50 @@ async function deleteNotionDocuments(officerndMemberId: string): Promise<void> {
   return deleteTypedDocumentsForMember(officerndMemberId, 'notion_');
 }
 
-/**
- * Get the last update times for multiple members LinkedIn documents in a single query
- * @returns Map of member IDs to their last update timestamps in milliseconds
- */
-async function getLastLinkedInUpdates(): Promise<Map<string, number | null>> {
-  try {
-    // This query needs updating if member ID is consistently in metadata
-    const result = (await client.query(
-      `SELECT
-        member_id,
-        MAX(last_update) as last_update
-      FROM (
-        SELECT
-          -- Prioritize metadata, then parse source_unique_id
-          COALESCE(metadata->>'officernd_member_id', SUBSTRING(source_unique_id FROM 'officernd_member_(.+):.*')) as member_id,
-          GREATEST(created_at, updated_at) as last_update
-        FROM rag_docs
-        WHERE source_type LIKE 'linkedin_%'
-      ) AS subquery
-      WHERE member_id IS NOT NULL -- Ensure we have a member ID
-      GROUP BY member_id;`,
-    )) as { rows: { member_id: string; last_update: string | null }[] };
+export interface MemberWithLinkedInUpdateMetadata {
+  id: string;
+  name: string;
+  linkedin_url: string | null;
+  last_linkedin_update?: number;
+}
 
-    const updates = new Map<string, number | null>(
-      result.rows.map((row) => [row.member_id, row.last_update ? new Date(row.last_update).getTime() : null]),
-    );
-    return updates;
+/**
+ * Get all members with their last LinkedIn documents update times in a single query
+ * @returns List of members
+ */
+async function getMembersWithLastLinkedInUpdates(): Promise<MemberWithLinkedInUpdateMetadata[]> {
+  logger.info('Fetching Members with last LinkedIn update metadata...');
+
+  try {
+    const result = await client.query(`
+      WITH linked_in_last_updates_by_member as (
+        SELECT
+          member_id,
+          MAX(last_update) as last_update
+        FROM (
+          SELECT
+            -- Prioritize metadata, then parse source_unique_id
+            COALESCE(metadata->>'officernd_member_id', SUBSTRING(source_unique_id FROM 'officernd_member_(.+):.*')) as member_id,
+            GREATEST(created_at, updated_at) as last_update
+          FROM rag_docs
+          WHERE source_type LIKE 'linkedin_%'
+        ) AS subquery
+        WHERE member_id IS NOT NULL -- Ensure we have a member ID
+        GROUP BY member_id
+      )
+      SELECT 
+        officernd_id as id,
+        name,
+        linkedin_url,
+        linked_in_last_updates_by_member.last_update as last_linkedin_update
+      FROM members
+      LEFT JOIN linked_in_last_updates_by_member on linked_in_last_updates_by_member.member_id = members.officernd_id;
+    `);
+
+    const members: MemberWithLinkedInUpdateMetadata[] = result.rows;
+
+    logger.info(`Fetched ${members.length} members`);
+    return members;
   } catch (error) {
     logger.error('Error getting last LinkedIn updates:', error);
     throw error;
@@ -520,30 +535,29 @@ async function saveFeedback(feedback: FeedbackVote): Promise<FeedbackVote> {
   }
 }
 
-/**
- * Upserts Notion data for a specific member.
- * Updates members table and manages RAG documents.
- * @param officerndMemberId - The OfficeRnD ID of the member.
- * @param notionData - Parsed data from Notion.
- */
-async function upsertNotionDataForMember(officerndMemberId: string, notionData: NotionMemberData): Promise<void> {
-  // 1. Update members table
+async function updateMemberWithNotionData(officerndMemberId: string, notionData: NotionMemberData): Promise<void> {
   await client.query(
-    `UPDATE members
-       SET notion_page_id = $1, location_tags = $2, notion_page_url = $3, updated_at = CURRENT_TIMESTAMP
-       WHERE officernd_id = $4`,
+    `
+    UPDATE members
+    SET 
+      notion_page_id = $1, 
+      location_tags = $2, 
+      notion_page_url = $3, 
+      linkedin_url = COALESCE($4, linkedin_url), -- Don't overwrite with null
+      updated_at = CURRENT_TIMESTAMP
+    WHERE officernd_id = $5
+    `,
     [
       notionData.notionPageId,
       notionData.locationTags.length > 0 ? notionData.locationTags : null,
       notionData.notionPageUrl,
+      notionData.linkedinUrl,
       officerndMemberId,
     ],
   );
+}
 
-  // 2. Delete old Notion RAG documents for this member
-  await deleteNotionDocuments(officerndMemberId);
-
-  // 3. Create new RAG documents (granular approach)
+async function createNotionRagDocsForMember(officerndMemberId: string, notionData: NotionMemberData): Promise<void> {
   const baseMetadata = {
     officernd_member_id: officerndMemberId,
     notion_page_id: notionData.notionPageId,
@@ -584,6 +598,21 @@ async function upsertNotionDataForMember(officerndMemberId: string, notionData: 
       embedding: null,
     });
   }
+}
+
+/**
+ * Upserts Notion data for a specific member.
+ * Updates members table and manages RAG documents.
+ * @param officerndMemberId - The OfficeRnD ID of the member.
+ * @param notionData - Parsed data from Notion.
+ */
+async function upsertNotionDataForMember(officerndMemberId: string, notionData: NotionMemberData): Promise<void> {
+  // 1. Update member row in members table
+  await updateMemberWithNotionData(officerndMemberId, notionData);
+
+  // 2. Replace all RAG docs relating to this member (delete existing & create new)
+  await deleteNotionDocuments(officerndMemberId);
+  await createNotionRagDocsForMember(officerndMemberId, notionData);
 
   logger.debug(`Upserted Notion data for member ${officerndMemberId}`);
 }
@@ -593,6 +622,8 @@ async function upsertNotionDataForMember(officerndMemberId: string, notionData: 
  * @param notionMembers - Array of member data fetched from Notion.
  */
 async function updateMembersFromNotion(notionMembers: NotionMemberData[]): Promise<void> {
+  logger.info('Updating members in database with Notion data...');
+
   // Fetch existing members from DB for matching
   const dbResult = await client.query('SELECT officernd_id, name, notion_page_id FROM members');
   const dbMembers = dbResult.rows as Pick<Member, 'officernd_id' | 'name' | 'notion_page_id'>[];
@@ -650,7 +681,7 @@ async function updateMembersFromNotion(notionMembers: NotionMemberData[]): Promi
       unmatchedCount++;
     }
   }
-  logger.info(`Notion sync completed. Matched: ${matchedCount}, Unmatched: ${unmatchedCount}`);
+  logger.info(`Finished updating database with Notion data. Matched: ${matchedCount}, Unmatched: ${unmatchedCount}`);
 }
 
 export {
@@ -658,8 +689,8 @@ export {
   getDocBySource,
   deleteDoc,
   findSimilar,
-  close,
-  getLastLinkedInUpdates,
+  closeDbConnection,
+  getMembersWithLastLinkedInUpdates,
   bulkUpsertMembers,
   deleteLinkedInDocuments,
   deleteNotionDocuments,

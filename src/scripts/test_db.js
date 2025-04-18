@@ -53,7 +53,7 @@ async function testDatabase() {
   } catch (error) {
     console.error('Error during testing:', error);
   } finally {
-    await database.close();
+    await database.closeDbConnection();
   }
 }
 

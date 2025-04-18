@@ -1,7 +1,7 @@
 # Member Connections AI (Friendly name: "Fabric")
 
 [![Tests](https://github.com/9Zero-Climate/member-connections-ai/actions/workflows/test.yml/badge.svg)](https://github.com/9Zero-Climate/member-connections-ai/actions/workflows/test.yml)
-[![Slack Sync](https://github.com/9Zero-Climate/member-connections-ai/actions/workflows/slack-sync.yml/badge.svg)](https://github.com/9Zero-Climate/member-connections-ai/actions/workflows/slack-sync.yml)
+[![Sync](https://github.com/9Zero-Climate/member-connections-ai/actions/workflows/sync-all.yml/badge.svg)](https://github.com/9Zero-Climate/member-connections-ai/actions/workflows/sync-all.yml)
 
 AI-powered member connections for Slack, helping community members find and connect with each other.
 

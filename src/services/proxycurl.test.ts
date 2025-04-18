@@ -1,6 +1,6 @@
 import { config } from 'dotenv';
 import { deleteLinkedInDocuments, insertOrUpdateDoc } from './database';
-import { createLinkedInDocuments, getLinkedInProfile, getMembersToUpdate, needsLinkedInUpdate } from './proxycurl';
+import { createLinkedInDocuments, getLinkedInProfile, needsLinkedInUpdate } from './proxycurl';
 
 // Load environment variables
 config();
@@ -332,74 +332,6 @@ describe('Proxycurl Service', () => {
       const update = Date.now() - 31 * 24 * 60 * 60 * 1000; // 31 days ago
       expect(needsLinkedInUpdate(update, 30 * 24 * 60 * 60 * 1000)).toBe(true);
       expect(needsLinkedInUpdate(update, 32 * 24 * 60 * 60 * 1000)).toBe(false);
-    });
-  });
-
-  describe('getMembersToUpdate', () => {
-    const now = Date.now();
-    const twoMonthsAgo = now - 60 * 24 * 60 * 60 * 1000;
-
-    it('should prioritize members without LinkedIn data', () => {
-      const members = [
-        { id: '1', name: 'New User', linkedin_url: 'https://linkedin.com/in/new', metadata: {} },
-        {
-          id: '2',
-          name: 'Old User',
-          linkedin_url: 'https://linkedin.com/in/old',
-          metadata: { last_linkedin_update: twoMonthsAgo },
-        },
-      ];
-
-      const result = getMembersToUpdate(members);
-      expect(result).toHaveLength(2);
-      expect(result[0].id).toBe('1'); // New user should be first
-      expect(result[1].id).toBe('2'); // Old user should be second
-    });
-
-    it('should respect maxUpdates limit', () => {
-      const members = Array.from({ length: 150 }, (_, i) => ({
-        id: String(i),
-        name: `User ${i}`,
-        linkedin_url: `https://linkedin.com/in/user${i}`,
-        metadata: { last_linkedin_update: twoMonthsAgo },
-      }));
-
-      const result = getMembersToUpdate(members);
-      expect(result).toHaveLength(100); // Should be limited to 100
-    });
-
-    it('should not include recently updated members', () => {
-      const members = [
-        { id: '1', name: 'New User', linkedin_url: 'https://linkedin.com/in/new', metadata: {} },
-        {
-          id: '2',
-          name: 'Recent User',
-          linkedin_url: 'https://linkedin.com/in/recent',
-          metadata: { last_linkedin_update: now - 1000 },
-        },
-        {
-          id: '3',
-          name: 'Old User',
-          linkedin_url: 'https://linkedin.com/in/old',
-          metadata: { last_linkedin_update: twoMonthsAgo },
-        },
-      ];
-
-      const result = getMembersToUpdate(members);
-      expect(result).toHaveLength(2);
-      expect(result.map((m) => m.id)).toEqual(['1', '3']); // Should only include new and old users
-    });
-
-    it('should handle custom maxUpdates parameter', () => {
-      const members = Array.from({ length: 50 }, (_, i) => ({
-        id: String(i),
-        name: `User ${i}`,
-        linkedin_url: `https://linkedin.com/in/user${i}`,
-        metadata: { last_linkedin_update: twoMonthsAgo },
-      }));
-
-      const result = getMembersToUpdate(members, 10);
-      expect(result).toHaveLength(10); // Should respect custom limit
     });
   });
 });

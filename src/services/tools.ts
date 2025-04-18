@@ -85,14 +85,14 @@ export const tools = [
     function: {
       name: 'searchDocuments',
       description:
-        'Search for relevant content (Slack messages, LinkedIn profiles, and data from the Notion members database) using semantic similarity. Results include member location tags when available. Tips: Rather than attempting multi-topic searches (e.g., investors AND solar), instead consider multiple specific searches (one for "investors", one for "solar", one for "investors in solar").',
+        'Search for relevant content (Slack messages, LinkedIn experiences, and data from the Notion members database) using semantic similarity based on the content of results. Tips: Rather than attempting multi-topic searches (e.g., investors AND solar), instead consider multiple specific searches (one for "investors", one for "solar", one for "investors in solar").',
       parameters: {
         type: 'object',
         properties: {
           query: {
             type: 'string',
             description:
-              'The search query. Content from Slack, LinkedIn, and Notion profiles will be ranked by semantic similarity. Use terms similar to what you want to find.',
+              'The search query. Content from Slack, LinkedIn, and Notion profiles will be ranked by semantic similarity. Use terms similar to what you want to find. If you want a member\'s full LinkedIn profile, use the "fetchLinkedInProfile" tool instead.',
           },
           limit: {
             type: 'number',

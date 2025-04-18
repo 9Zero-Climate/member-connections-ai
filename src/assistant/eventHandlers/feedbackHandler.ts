@@ -15,7 +15,7 @@ import { logger } from '../../services/logger';
 // Unique identifiers for the shortcut and the modal view
 export const FEEDBACK_SHORTCUT_ID = 'give_feedback_shortcut';
 export const FEEDBACK_MODAL_ID = 'feedback_modal';
-export const ADD_REASON_BUTTON_ACTION_ID = 'add_feedback_reason_button';
+export const FEEDBACK_ADD_REASON_BUTTON_ACTION_ID = 'add_feedback_reason_button';
 const REASONING_BLOCK_ID = 'reasoning_block';
 const REASONING_ACTION_ID = 'reasoning_action';
 

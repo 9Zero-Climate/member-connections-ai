@@ -1,7 +1,9 @@
 import type { AllMiddlewareArgs } from '@slack/bolt';
 import type { ReactionAddedEvent, WebClient } from '@slack/web-api';
 import { logger } from '../../services/logger';
-import { ADD_REASON_BUTTON_ACTION_ID, type FeedbackContext } from './feedbackHandler';
+import { FEEDBACK_CANCEL_BUTTON_ACTION_ID } from './feedbackCancelHandler';
+import { FEEDBACK_ADD_REASON_BUTTON_ACTION_ID, type FeedbackContext } from './feedbackHandler';
+import { INITIAL_MESSAGES } from './threadStartedHandler';
 
 // Store bot user ID - will be fetched once
 let botUserId: string | undefined;
@@ -19,6 +21,19 @@ async function getBotUserId(client: WebClient): Promise<string> {
   logger.info({ botUserId }, 'Fetched bot user ID');
   return botUserId;
 }
+
+const getResponseIntro = (originalMessageText: string | undefined, reactionName: string) => {
+  if (originalMessageText && INITIAL_MESSAGES.includes(originalMessageText)) {
+    // This is a response to our initial messages - do a special response
+    if (reactionName === '+1' || reactionName === '-1') {
+      return 'Yep, just like that :wink:!';
+    }
+    // response to our intial message, but with an unusual reaction.
+    return `Getting fancy, eh! Yep, you can react with ":${reactionName}:" too.`;
+  }
+  // response to a message that wasn't one of our initial messages.
+  return `I see your ":${reactionName}:" reaction!`;
+};
 
 /**
  * Called when a reaction is added to a message.
@@ -72,7 +87,9 @@ export default async function initiateFeedbackFlowFromReactionEvent({
 
   const contextString = JSON.stringify(context);
 
-  const responseText = `I see your ":${reactionName}:" reaction! Would you like to share that feedback with the development team?\n\n If you send feedback, the thread will be provided to our development team for review.`;
+  const responseIntro = getResponseIntro(originalMessageText, reactionName);
+
+  const responseText = `${responseIntro}\n\nWould you like to share feedback with the development team?\n\n If you send feedback, the thread will be provided to our development for review.`;
   await client.chat.postEphemeral({
     channel: event.item.channel,
     thread_ts: event.item.ts,
@@ -96,8 +113,18 @@ export default async function initiateFeedbackFlowFromReactionEvent({
               text: 'Send Feedback',
               emoji: true,
             },
-            action_id: ADD_REASON_BUTTON_ACTION_ID,
+            style: 'primary',
+            action_id: FEEDBACK_ADD_REASON_BUTTON_ACTION_ID,
             value: contextString,
+          },
+          {
+            type: 'button',
+            text: {
+              type: 'plain_text',
+              text: "Don't send feedback",
+            },
+            style: 'danger',
+            action_id: FEEDBACK_CANCEL_BUTTON_ACTION_ID,
           },
         ],
       },

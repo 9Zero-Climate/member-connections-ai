@@ -1,4 +1,4 @@
-import { close, deleteDoc, findSimilar, getDocBySource, insertOrUpdateDoc } from '../services/database';
+import { closeDbConnection, deleteDoc, findSimilar, getDocBySource, insertOrUpdateDoc } from '../services/database';
 
 interface TestDoc {
   source_type: string;
@@ -82,7 +82,7 @@ async function testDatabase(): Promise<void> {
   } catch (error) {
     console.error('Error during testing:', error);
   } finally {
-    await close();
+    await closeDbConnection();
   }
 }
 
