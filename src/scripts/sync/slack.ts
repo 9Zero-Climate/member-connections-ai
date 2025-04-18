@@ -70,7 +70,7 @@ async function processMessages(messages: SlackMessage[], channelId: string, batc
 /**
  * Sync data from Slack
  */
-export async function syncSlackChannels(channelNames: string[], syncOptionOverrides: SlackSyncOptions): Promise<void> {
+export async function syncSlackChannels(channelNames: string[], syncOptionOverrides?: SlackSyncOptions): Promise<void> {
   logger.info(`Starting Slack sync for channels: ${channelNames.join(', ')}`);
   validateConfig(process.env, ConfigContext.SyncSlack);
 
@@ -93,22 +93,8 @@ export async function syncSlackChannels(channelNames: string[], syncOptionOverri
       logger.info(`Successfully synced ${messages.length} messages to database`);
     }
   } finally {
-    closeDbConnection();
+    await closeDbConnection();
   }
 
   logger.info('Slack sync complete');
 }
-
-const program = new Command();
-
-program
-  .name('sync-slack-channels')
-  .description('Sync messages from a specific set of Slack channels')
-  .argument('<channelNames...>', 'Names of the channels to sync')
-  .option('-l, --limit <number>', 'Maximum number of messages to sync', Number.parseInt)
-  .option('-o, --oldest <timestamp>', 'Start time in Unix timestamp')
-  .option('-n, --newest <timestamp>', 'End time in Unix timestamp')
-  .option('-b, --batch-size <number>', 'Number of messages to process in each batch', Number.parseInt)
-  .action(syncSlackChannels);
-
-program.parse();

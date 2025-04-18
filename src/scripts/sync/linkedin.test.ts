@@ -1,8 +1,113 @@
 import { config } from 'dotenv';
-import { getMembersToUpdate } from './linkedin';
+import { mockProxycurlService, mockDatabaseService, mockLoggerService } from '../../services/mocks'; // These have to be imported before the libraries they are going to mock are imported
+import { syncLinkedIn, getMembersToUpdate } from './linkedin';
 
 // Load environment variables
 config();
+
+jest.mock('../../services/proxycurl', () => mockProxycurlService);
+jest.mock('../../services/database', () => mockDatabaseService);
+jest.mock('../../services/logger', () => mockLoggerService);
+
+const VALID_ENV_VARS = {
+  DB_URL: 'postgresql://postgres.test',
+  OPENAI_API_KEY: 'test-open-api-key',
+  PROXYCURL_API_KEY: 'test-proxycurl-api-key',
+};
+
+const mockMembers = [
+  {
+    id: '1',
+    name: 'John Doe',
+    last_linkedin_update: 1717334400000,
+    linkedin_url: 'https://linkedin.com/in/johndoe',
+  },
+  {
+    id: '2',
+    name: 'Jane Smith',
+    last_linkedin_update: 1717334400000,
+    linkedin_url: 'https://linkedin.com/in/janesmith',
+  },
+];
+
+const mockLinkedInProfile = {
+  headline: 'Software Engineer',
+  summary: 'Experienced developer',
+  experiences: [
+    {
+      title: 'Software Engineer',
+      company: '9Zero',
+      description: 'Led development',
+      date_range: '2020-2024',
+      location: 'San Francisco',
+    },
+  ],
+  education: [
+    {
+      school: 'Stanford',
+      degree_name: 'BS',
+      field_of_study: 'Computer Science',
+      date_range: '2016-2020',
+      description: 'Focus on AI',
+    },
+  ],
+  skills: ['Python', 'TypeScript'],
+  languages: ['English'],
+};
+
+describe('syncLinkedIn', () => {
+  // Store original env vars
+  const originalEnv = { ...process.env };
+
+  beforeEach(() => {
+    process.env = VALID_ENV_VARS;
+
+    jest.clearAllMocks();
+
+    mockDatabaseService.getMembersWithLastLinkedInUpdates.mockResolvedValue(mockMembers);
+    mockProxycurlService.getLinkedInProfile.mockResolvedValue(mockLinkedInProfile);
+  });
+
+  afterAll(() => {
+    jest.resetAllMocks();
+
+    // Restore original environment
+    process.env = originalEnv;
+  });
+
+  it('syncs members successfully', async () => {
+    await syncLinkedIn();
+
+    expect(mockDatabaseService.getMembersWithLastLinkedInUpdates).toHaveBeenCalledTimes(1);
+
+    // Expect each of these two be called once per member
+    expect(mockProxycurlService.getLinkedInProfile).toHaveBeenCalledTimes(2);
+    expect(mockProxycurlService.createLinkedInDocuments).toHaveBeenCalledTimes(2);
+  });
+
+  it('throws on Proxycurl API errors', async () => {
+    mockDatabaseService.getMembersWithLastLinkedInUpdates.mockResolvedValue(mockMembers);
+    mockProxycurlService.getLinkedInProfile.mockRejectedValueOnce(new Error('API Error'));
+
+    await expect(syncLinkedIn()).rejects.toThrow('API Error');
+  });
+
+  it('throws on invalid environment variable configuration', async () => {
+    mockDatabaseService.getMembersWithLastLinkedInUpdates.mockResolvedValue(mockMembers);
+    process.env = {};
+
+    await expect(syncLinkedIn()).rejects.toThrow(/^Missing required environment variables/);
+  });
+
+  it('closes db connection even after error', async () => {
+    mockDatabaseService.getMembersWithLastLinkedInUpdates.mockResolvedValue(mockMembers);
+    mockProxycurlService.getLinkedInProfile.mockRejectedValueOnce(new Error());
+
+    await expect(syncLinkedIn()).rejects.toThrow();
+
+    expect(mockDatabaseService.closeDbConnection).toHaveBeenCalledTimes(1);
+  });
+});
 
 describe('getMembersToUpdate', () => {
   const now = Date.now();

@@ -1,13 +1,12 @@
 import { Command } from 'commander';
 import { ConfigContext, validateConfig } from '../../config';
 import {
-  type Member,
   type MemberWithLinkedInUpdateMetadata,
   closeDbConnection,
   getMembersWithLastLinkedInUpdates,
 } from '../../services/database';
 import { logger } from '../../services/logger';
-import { type ProxycurlProfile, createLinkedInDocuments, getLinkedInProfile } from '../../services/proxycurl';
+import { createLinkedInDocuments, getLinkedInProfile } from '../../services/proxycurl';
 
 // Constants for time calculations
 const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -17,9 +16,12 @@ interface LinkedInSyncOptions {
   allowedAgeDays: number;
 }
 
+const DEFAULT_MAX_UPDATES = 100;
+const DEFAULT_ALLOWED_AGE_DATES = 7;
+
 const defaultSyncOptions: LinkedInSyncOptions = {
-  maxUpdates: 100,
-  allowedAgeDays: 7,
+  maxUpdates: DEFAULT_MAX_UPDATES,
+  allowedAgeDays: DEFAULT_ALLOWED_AGE_DATES,
 };
 
 type MemberWithLinkedInUrl = MemberWithLinkedInUpdateMetadata & { linkedin_url: string };
@@ -30,7 +32,7 @@ type MemberWithLinkedInUrl = MemberWithLinkedInUpdateMetadata & { linkedin_url: 
  * 2. Fetch data from LinkedIn for those members
  * 3. Replace all LinkedIn RAG docs for to these members
  */
-export async function syncLinkedIn(syncOptionOverrides: LinkedInSyncOptions): Promise<void> {
+export async function syncLinkedIn(syncOptionOverrides?: LinkedInSyncOptions): Promise<void> {
   logger.info('Starting LinkedIn profile synchronization...');
   validateConfig(process.env, ConfigContext.SyncLinkedIn);
 
@@ -45,19 +47,19 @@ export async function syncLinkedIn(syncOptionOverrides: LinkedInSyncOptions): Pr
 
     // Process updates
     for (const member of membersToUpdate) {
-      console.log(`Fetching LinkedIn profile for ${member.name}...`);
-      const profileData: ProxycurlProfile | null = await getLinkedInProfile(member.linkedin_url);
+      logger.info(`Fetching LinkedIn profile for ${member.name}...`);
+      const profileData = await getLinkedInProfile(member.linkedin_url);
       if (profileData) {
         await createLinkedInDocuments(member.id, member.name, member.linkedin_url, profileData);
-        console.log(`Created/Updated LinkedIn documents for ${member.name}`);
+        logger.info(`Created/Updated LinkedIn documents for ${member.name}`);
       } else {
-        console.log(`Could not fetch LinkedIn profile for ${member.name} from ${member.linkedin_url}`);
+        logger.info(`Could not fetch LinkedIn profile for ${member.name} from ${member.linkedin_url}`);
       }
     }
 
-    console.log('LinkedIn profile sync completed');
+    logger.info('LinkedIn profile sync completed');
   } finally {
-    closeDbConnection();
+    await closeDbConnection();
   }
 }
 
@@ -70,8 +72,8 @@ export async function syncLinkedIn(syncOptionOverrides: LinkedInSyncOptions): Pr
  */
 export function getMembersToUpdate(
   members: MemberWithLinkedInUpdateMetadata[],
-  maxUpdates = 100,
-  allowedAgeDays = 7,
+  maxUpdates = DEFAULT_MAX_UPDATES,
+  allowedAgeDays = DEFAULT_ALLOWED_AGE_DATES,
 ): MemberWithLinkedInUrl[] {
   const now = Date.now();
   const minimumUpdateAge = allowedAgeDays * MILLISECONDS_PER_DAY;
@@ -115,17 +117,3 @@ export function getMembersToUpdate(
 
   return membersToUpdate;
 }
-
-const program = new Command();
-program
-  .name('sync-linkedin')
-  .description('Syncs data from LinkedIn')
-  .option('--max-updates <number>', 'Maximum number of profiles to fetch updates for', Number.parseInt)
-  .option(
-    '--allowed-age-days <number>',
-    'Grace period in days before considering a profile out of date',
-    Number.parseInt,
-  )
-  .action(syncLinkedIn);
-
-program.parse();

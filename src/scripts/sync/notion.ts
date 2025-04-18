@@ -17,17 +17,8 @@ export async function syncNotion(): Promise<void> {
     const notionMembers = await fetchNotionMembers();
     await updateMembersFromNotion(notionMembers);
   } finally {
-    closeDbConnection();
+    await closeDbConnection();
   }
 
   logger.info('Notion sync complete');
 }
-
-const program = new Command();
-program
-  //
-  .name('sync-notion')
-  .description('Syncs data from Notion')
-  .action(syncNotion);
-
-program.parse();

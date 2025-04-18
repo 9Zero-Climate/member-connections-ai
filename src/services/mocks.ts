@@ -1,0 +1,35 @@
+export const mockOfficeRndService = {
+  getAllMembers: jest.fn(),
+};
+
+export const mockNotionService = {
+  fetchNotionMembers: jest.fn(),
+};
+
+export const mockDatabaseService = {
+  bulkUpsertMembers: jest.fn(),
+  closeDbConnection: jest.fn(),
+  updateMembersFromNotion: jest.fn(),
+  getMembersWithLastLinkedInUpdates: jest.fn(),
+  getDocBySource: jest.fn(),
+};
+
+export const mockProxycurlService = {
+  getLinkedInProfile: jest.fn(),
+  createLinkedInDocuments: jest.fn(),
+};
+
+export const mockSlackService = {
+  getChannelId: jest.fn(),
+  fetchChannelHistory: jest.fn(),
+  processMessageBatch: jest.fn(),
+};
+
+export const mockLoggerService = {
+  logger: {
+    info: jest.fn(),
+    error: jest.fn(),
+    warn: jest.fn(),
+    debug: jest.fn(),
+  },
+};

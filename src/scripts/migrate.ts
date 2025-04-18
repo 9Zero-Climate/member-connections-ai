@@ -49,12 +49,3 @@ export async function migrate(filePath: string): Promise<void> {
   }
   logger.info('Migration complete');
 }
-
-const program = new Command();
-program
-  .name('migrate')
-  .description('Run a single SQL migration file')
-  .argument('<filePath>', 'Path to the SQL migration file')
-  .action(migrate);
-
-program.parse();

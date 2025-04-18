@@ -18,17 +18,8 @@ export async function syncOfficeRnD(): Promise<void> {
     const officeRndMembers = await getAllMembers();
     await bulkUpsertMembers(officeRndMembers);
   } finally {
-    closeDbConnection();
+    await closeDbConnection();
   }
 
   logger.info('OfficeRnD sync complete');
 }
-
-const program = new Command();
-program
-  //
-  .name('sync-officernd')
-  .description('Syncs data from OfficeRnD')
-  .action(syncOfficeRnD);
-
-program.parse();
