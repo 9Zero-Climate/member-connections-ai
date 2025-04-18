@@ -537,13 +537,21 @@ async function saveFeedback(feedback: FeedbackVote): Promise<FeedbackVote> {
 
 async function updateMemberWithNotionData(officerndMemberId: string, notionData: NotionMemberData): Promise<void> {
   await client.query(
-    `UPDATE members
-       SET notion_page_id = $1, location_tags = $2, notion_page_url = $3, updated_at = CURRENT_TIMESTAMP
-       WHERE officernd_id = $4`,
+    `
+    UPDATE members
+    SET 
+      notion_page_id = $1, 
+      location_tags = $2, 
+      notion_page_url = $3, 
+      linkedin_url = COALESCE($4, linkedin_url), -- Don't overwrite with null
+      updated_at = CURRENT_TIMESTAMP
+    WHERE officernd_id = $5
+    `,
     [
       notionData.notionPageId,
       notionData.locationTags.length > 0 ? notionData.locationTags : null,
       notionData.notionPageUrl,
+      notionData.linkedinUrl,
       officerndMemberId,
     ],
   );
