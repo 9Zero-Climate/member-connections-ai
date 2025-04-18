@@ -23,5 +23,6 @@ FROM rag_docs rd
     LEFT JOIN members m ON (
         m.linkedin_url = (rd.metadata->>'linkedin_url'::text)
         OR m.slack_id = (rd.metadata->>'slack_user_id'::text)
+        OR m.slack_id = (rd.metadata->>'user'::text) -- alternative place we sometimes store slack ID
         OR m.officernd_id = (rd.metadata->>'officernd_member_id'::text)
     );
