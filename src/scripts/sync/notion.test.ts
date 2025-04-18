@@ -1,7 +1,7 @@
 // Mock dependencies
 
 import { config } from 'dotenv';
-import { mockNotionService, mockDatabaseService, mockLoggerService } from '../../services/mocks'; // These have to be imported before the libraries they are going to mock are imported
+import { mockDatabaseService, mockLoggerService, mockNotionService } from '../../services/mocks'; // These have to be imported before the libraries they are going to mock are imported
 import { syncNotion } from './notion';
 
 jest.mock('../../services/notion', () => mockNotionService);

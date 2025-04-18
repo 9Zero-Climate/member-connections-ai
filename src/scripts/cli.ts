@@ -1,9 +1,9 @@
 import { Command } from 'commander';
+import { migrate } from './migrate';
 import { syncLinkedIn } from './sync/linkedin';
 import { syncNotion } from './sync/notion';
 import { syncOfficeRnD } from './sync/officernd';
 import { syncSlackChannels } from './sync/slack';
-import { migrate } from './migrate';
 
 const program = new Command();
 program.name('member-connections-ai').description('CLI tool for member connections AI');

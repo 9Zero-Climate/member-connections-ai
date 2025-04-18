@@ -1,7 +1,7 @@
 // Mock dependencies
 
 import { config } from 'dotenv';
-import { mockSlackService, mockDatabaseService, mockLoggerService } from '../../services/mocks'; // These have to be imported before the libraries they are going to mock are imported
+import { mockDatabaseService, mockLoggerService, mockSlackService } from '../../services/mocks'; // These have to be imported before the libraries they are going to mock are imported
 import { syncSlackChannels } from './slack';
 
 jest.mock('../../services/slack_sync', () => mockSlackService);

@@ -1,6 +1,6 @@
 import { config } from 'dotenv';
-import { mockProxycurlService, mockDatabaseService, mockLoggerService } from '../../services/mocks'; // These have to be imported before the libraries they are going to mock are imported
-import { syncLinkedIn, getMembersToUpdate } from './linkedin';
+import { mockDatabaseService, mockLoggerService, mockProxycurlService } from '../../services/mocks'; // These have to be imported before the libraries they are going to mock are imported
+import { getMembersToUpdate, syncLinkedIn } from './linkedin';
 
 // Load environment variables
 config();
