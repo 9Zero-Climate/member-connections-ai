@@ -1,7 +1,7 @@
 import { Client } from 'pg';
 import {
   bulkUpsertMembers,
-  close,
+  closeDbConnection,
   deleteDoc,
   deleteLinkedInDocuments,
   findSimilar,

@@ -1,24 +1,30 @@
-import { createConfig } from './config';
+import { ConfigContext, loadConfig, validateConfig } from './config';
 
-describe('createConfig', () => {
-  it('should throw error when required environment variables are missing', () => {
-    // Test missing var for 'core' context (default)
-    expect(() => createConfig({}, 'core')).toThrow(
-      "Missing required environment variable for context 'core': SLACK_BOT_TOKEN (mapped from config key 'slackBotToken')",
+describe('validateConfig', () => {
+  it.each([[ConfigContext.Core], [ConfigContext.Migrate], [ConfigContext.SyncAll], [ConfigContext.SyncSlack]])(
+    'throws error when required environment variables are missing for context',
+    (context) => {
+      expect(() => validateConfig({}, context)).toThrow(/^Missing required environment variables for context/);
+    },
+  );
+
+  it('lists all missing environment variables in error message', () => {
+    expect(() => validateConfig({ DB_URL: 'not missing' }, ConfigContext.SyncSlack)).toThrow(
+      `Missing required environment variables for context 'sync-slack': OPENAI_API_KEY, SLACK_BOT_TOKEN`,
     );
-    // Test missing var for 'member-sync' context
-    expect(() => createConfig({}, 'member-sync')).toThrow(
-      "Missing required environment variable for context 'member-sync': DB_URL (mapped from config key 'dbUrl')",
-    );
-    // Test missing var for 'slack-sync' context
-    expect(() => createConfig({}, 'slack-sync')).toThrow(
-      "Missing required environment variable for context 'slack-sync': SLACK_BOT_TOKEN (mapped from config key 'slackBotToken')",
-    );
-    // Test with test context (should not throw for missing vars)
-    expect(() => createConfig({}, 'no-verify')).not.toThrow();
   });
 
-  it('should use default values for optional environment variables', () => {
+  it('does not throw error for no-verify context', () => {
+    expect(() => validateConfig({}, ConfigContext.NoVerify)).not.toThrow();
+  });
+
+  it('does not throw error for valid config', () => {
+    expect(() => validateConfig({ DB_URL: 'not missing' }, ConfigContext.Migrate)).not.toThrow();
+  });
+});
+
+describe('loadConfig', () => {
+  it('uses default values for optional environment variables', () => {
     const env = {
       SLACK_BOT_TOKEN: 'test-bot-token',
       SLACK_APP_TOKEN: 'test-app-token',
@@ -30,12 +36,12 @@ describe('createConfig', () => {
       DB_URL: 'test-db-url',
     };
 
-    const config = createConfig(env);
+    const config = loadConfig(env);
     expect(config.port).toBe(8080);
     expect(config.appUrl).toBe('https://github.com/9Zero-Climate/member-connections-ai');
   });
 
-  it('should use provided environment values', () => {
+  it('uses provided environment values', () => {
     const env = {
       SLACK_BOT_TOKEN: 'test-bot-token',
       SLACK_APP_TOKEN: 'test-app-token',
@@ -50,7 +56,7 @@ describe('createConfig', () => {
       PROXYCURL_API_KEY: 'test-proxy-key',
     };
 
-    const config = createConfig(env);
+    const config = loadConfig(env);
     expect(config.port).toBe(3000);
     expect(config.appUrl).toBe('http://test.com');
     expect(config.slackBotToken).toBe('test-bot-token');
