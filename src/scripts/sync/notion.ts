@@ -1,4 +1,3 @@
-import { Command } from 'commander';
 import { ConfigContext, validateConfig } from '../../config';
 import { closeDbConnection, updateMembersFromNotion } from '../../services/database';
 import { logger } from '../../services/logger';

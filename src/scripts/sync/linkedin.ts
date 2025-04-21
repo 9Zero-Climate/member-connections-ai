@@ -1,4 +1,3 @@
-import { Command } from 'commander';
 import { ConfigContext, validateConfig } from '../../config';
 import {
   type MemberWithLinkedInUpdateMetadata,
@@ -11,20 +10,45 @@ import { createLinkedInDocuments, getLinkedInProfile } from '../../services/prox
 // Constants for time calculations
 const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
 
-interface LinkedInSyncOptions {
+export type LinkedInSyncOptions = {
   maxUpdates: number;
   allowedAgeDays: number;
-}
+};
+
+type LinkedInSyncOptionOverrides =
+  | undefined
+  | {
+      maxUpdates?: unknown;
+      allowedAgeDays?: unknown;
+    };
 
 const DEFAULT_MAX_UPDATES = 100;
 const DEFAULT_ALLOWED_AGE_DATES = 7;
 
-const defaultSyncOptions: LinkedInSyncOptions = {
-  maxUpdates: DEFAULT_MAX_UPDATES,
-  allowedAgeDays: DEFAULT_ALLOWED_AGE_DATES,
-};
-
 type MemberWithLinkedInUrl = MemberWithLinkedInUpdateMetadata & { linkedin_url: string };
+
+const isValidNumber = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value);
+const isValidOption = (value: unknown): value is number | undefined => value === undefined || isValidNumber(value);
+
+/**
+ * Handle missing or invalid sync option overrides:
+ *  - if provided and invalid, fail fast
+ *  - if provided and valid, use those
+ *  - if not provided, fall back to default values
+ */
+export const getValidSyncOptions = (syncOptionOverrides?: LinkedInSyncOptionOverrides): LinkedInSyncOptions => {
+  const maxUpdates = syncOptionOverrides?.maxUpdates;
+  const allowedAgeDays = syncOptionOverrides?.allowedAgeDays;
+
+  if (!isValidOption(maxUpdates) || !isValidOption(allowedAgeDays)) {
+    throw new Error(`Invalid sync option: maxUpdates: ${maxUpdates}, allowedAgeDays: ${allowedAgeDays}`);
+  }
+
+  return {
+    maxUpdates: maxUpdates ? maxUpdates : DEFAULT_MAX_UPDATES,
+    allowedAgeDays: allowedAgeDays ? allowedAgeDays : DEFAULT_ALLOWED_AGE_DATES,
+  };
+};
 
 /**
  * Sync data from LinkedIn. This is expensive, so we are careful to only fetch the data we really need
@@ -32,14 +56,13 @@ type MemberWithLinkedInUrl = MemberWithLinkedInUpdateMetadata & { linkedin_url: 
  * 2. Fetch data from LinkedIn for those members
  * 3. Replace all LinkedIn RAG docs for to these members
  */
-export async function syncLinkedIn(syncOptionOverrides?: LinkedInSyncOptions): Promise<void> {
+export async function syncLinkedIn(syncOptionOverrides?: LinkedInSyncOptionOverrides): Promise<void> {
   logger.info('Starting LinkedIn profile synchronization...');
   validateConfig(process.env, ConfigContext.SyncLinkedIn);
 
-  const syncOptions = { ...defaultSyncOptions, ...syncOptionOverrides };
-  const { maxUpdates, allowedAgeDays } = syncOptions;
-
   try {
+    const { maxUpdates, allowedAgeDays } = getValidSyncOptions(syncOptionOverrides);
+
     // Get all members along with their last linkedin update times
     const membersWithLastLinkedInUpdates = await getMembersWithLastLinkedInUpdates();
 
