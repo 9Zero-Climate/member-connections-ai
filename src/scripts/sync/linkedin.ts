@@ -1,4 +1,3 @@
-import { Command } from 'commander';
 import { ConfigContext, validateConfig } from '../../config';
 import {
   type MemberWithLinkedInUpdateMetadata,
@@ -7,7 +6,6 @@ import {
 } from '../../services/database';
 import { logger } from '../../services/logger';
 import { createLinkedInDocuments, getLinkedInProfile } from '../../services/proxycurl';
-import { isValid } from 'zod';
 
 // Constants for time calculations
 const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
