@@ -11,7 +11,7 @@ import { createLinkedInDocuments, getLinkedInProfile } from '../../services/prox
 // Constants for time calculations
 const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
 
-interface LinkedInSyncOptions {
+export interface LinkedInSyncOptions {
   maxUpdates: number;
   allowedAgeDays: number;
 }
@@ -19,12 +19,24 @@ interface LinkedInSyncOptions {
 const DEFAULT_MAX_UPDATES = 100;
 const DEFAULT_ALLOWED_AGE_DATES = 7;
 
-const defaultSyncOptions: LinkedInSyncOptions = {
-  maxUpdates: DEFAULT_MAX_UPDATES,
-  allowedAgeDays: DEFAULT_ALLOWED_AGE_DATES,
-};
-
 type MemberWithLinkedInUrl = MemberWithLinkedInUpdateMetadata & { linkedin_url: string };
+
+const isValidNumber = (value: any): value is number => typeof value === 'number' && Number.isFinite(value);
+
+/**
+ * Guard against invalid or missing sync option overrides and fall back to default values
+ */
+const getValidSyncOptions = (syncOptionOverrides?: LinkedInSyncOptions): LinkedInSyncOptions => {
+  const maxUpdates = isValidNumber(syncOptionOverrides?.maxUpdates)
+    ? syncOptionOverrides.maxUpdates
+    : DEFAULT_MAX_UPDATES;
+
+  const allowedAgeDays = isValidNumber(syncOptionOverrides?.allowedAgeDays)
+    ? syncOptionOverrides.allowedAgeDays
+    : DEFAULT_ALLOWED_AGE_DATES;
+
+  return { maxUpdates, allowedAgeDays };
+};
 
 /**
  * Sync data from LinkedIn. This is expensive, so we are careful to only fetch the data we really need
@@ -36,8 +48,7 @@ export async function syncLinkedIn(syncOptionOverrides?: LinkedInSyncOptions): P
   logger.info('Starting LinkedIn profile synchronization...');
   validateConfig(process.env, ConfigContext.SyncLinkedIn);
 
-  const syncOptions = { ...defaultSyncOptions, ...syncOptionOverrides };
-  const { maxUpdates, allowedAgeDays } = syncOptions;
+  const { maxUpdates, allowedAgeDays } = getValidSyncOptions(syncOptionOverrides);
 
   try {
     // Get all members along with their last linkedin update times

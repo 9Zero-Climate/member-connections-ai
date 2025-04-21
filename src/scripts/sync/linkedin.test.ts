@@ -1,6 +1,6 @@
 import { config } from 'dotenv';
 import { mockDatabaseService, mockLoggerService, mockProxycurlService } from '../../services/mocks'; // These have to be imported before the libraries they are going to mock are imported
-import { getMembersToUpdate, syncLinkedIn } from './linkedin';
+import { getMembersToUpdate, LinkedInSyncOptions, syncLinkedIn } from './linkedin';
 
 // Load environment variables
 config();
@@ -84,6 +84,19 @@ describe('syncLinkedIn', () => {
     expect(mockProxycurlService.getLinkedInProfile).toHaveBeenCalledTimes(2);
     expect(mockProxycurlService.createLinkedInDocuments).toHaveBeenCalledTimes(2);
   });
+
+  it.each([[undefined], [Number.NaN], [null]])(
+    'uses default sync options on invalid sync option overrides (%s)',
+    async (invalidOverride) => {
+      await syncLinkedIn({ maxUpdates: invalidOverride, allowedAgeDays: invalidOverride } as LinkedInSyncOptions);
+
+      expect(mockDatabaseService.getMembersWithLastLinkedInUpdates).toHaveBeenCalledTimes(1);
+
+      // Invalid options would result in no calls
+      expect(mockProxycurlService.getLinkedInProfile).toHaveBeenCalledTimes(2);
+      expect(mockProxycurlService.createLinkedInDocuments).toHaveBeenCalledTimes(2);
+    },
+  );
 
   it('throws on Proxycurl API errors', async () => {
     mockDatabaseService.getMembersWithLastLinkedInUpdates.mockResolvedValue(mockMembers);
