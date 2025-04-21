@@ -63,8 +63,8 @@ jobs:
 
         run: |
           pnpm sync:linkedin \
-            --max-updates=${{ github.event.inputs.linkedin-max-updates }} \
-            --allowed-age-days=${{ github.event.inputs.linkedin-allowed-age-days }} \
+            --max-updates=${{ github.event.inputs.linkedin-max-updates || 100 }} \
+            --allowed-age-days=${{ github.event.inputs.linkedin-allowed-age-days || 7 }} \
             | npx pino-pretty
 
       - name: Sync Slack (all configured channels)

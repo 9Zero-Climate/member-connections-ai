@@ -1,6 +1,6 @@
 import { config } from 'dotenv';
 import { mockDatabaseService, mockLoggerService, mockProxycurlService } from '../../services/mocks'; // These have to be imported before the libraries they are going to mock are imported
-import { getMembersToUpdate, LinkedInSyncOptions, syncLinkedIn } from './linkedin';
+import { getMembersToUpdate, getValidSyncOptions, LinkedInSyncOptions, syncLinkedIn } from './linkedin';
 
 // Load environment variables
 config();
@@ -15,20 +15,13 @@ const VALID_ENV_VARS = {
   PROXYCURL_API_KEY: 'test-proxycurl-api-key',
 };
 
-const mockMembers = [
-  {
-    id: '1',
-    name: 'John Doe',
-    last_linkedin_update: 1717334400000,
-    linkedin_url: 'https://linkedin.com/in/johndoe',
-  },
-  {
-    id: '2',
-    name: 'Jane Smith',
-    last_linkedin_update: 1717334400000,
-    linkedin_url: 'https://linkedin.com/in/janesmith',
-  },
-];
+const createMockMembers = (count: number) =>
+  Array.from({ length: count }, (_, i) => ({
+    id: String(i),
+    name: `User ${i}`,
+    linkedin_url: `https://linkedin.com/in/user${i}`,
+    metadata: { last_linkedin_update: Date.now() },
+  }));
 
 const mockLinkedInProfile = {
   headline: 'Software Engineer',
@@ -64,6 +57,7 @@ describe('syncLinkedIn', () => {
 
     jest.clearAllMocks();
 
+    const mockMembers = createMockMembers(10);
     mockDatabaseService.getMembersWithLastLinkedInUpdates.mockResolvedValue(mockMembers);
     mockProxycurlService.getLinkedInProfile.mockResolvedValue(mockLinkedInProfile);
   });
@@ -76,49 +70,77 @@ describe('syncLinkedIn', () => {
   });
 
   it('syncs members successfully', async () => {
+    mockDatabaseService.getMembersWithLastLinkedInUpdates.mockResolvedValue(createMockMembers(10));
+
     await syncLinkedIn();
 
     expect(mockDatabaseService.getMembersWithLastLinkedInUpdates).toHaveBeenCalledTimes(1);
 
     // Expect each of these two be called once per member
-    expect(mockProxycurlService.getLinkedInProfile).toHaveBeenCalledTimes(2);
-    expect(mockProxycurlService.createLinkedInDocuments).toHaveBeenCalledTimes(2);
+    expect(mockProxycurlService.getLinkedInProfile).toHaveBeenCalledTimes(10);
+    expect(mockProxycurlService.createLinkedInDocuments).toHaveBeenCalledTimes(10);
   });
 
-  it.each([[undefined], [Number.NaN], [null]])(
-    'uses default sync options on invalid sync option overrides (%s)',
-    async (invalidOverride) => {
-      await syncLinkedIn({ maxUpdates: invalidOverride, allowedAgeDays: invalidOverride } as LinkedInSyncOptions);
+  it('respects default maxUpdates', async () => {
+    mockDatabaseService.getMembersWithLastLinkedInUpdates.mockResolvedValue(createMockMembers(150));
 
-      expect(mockDatabaseService.getMembersWithLastLinkedInUpdates).toHaveBeenCalledTimes(1);
+    await syncLinkedIn();
 
-      // Invalid options would result in no calls
-      expect(mockProxycurlService.getLinkedInProfile).toHaveBeenCalledTimes(2);
-      expect(mockProxycurlService.createLinkedInDocuments).toHaveBeenCalledTimes(2);
-    },
-  );
+    // Should limit to default # calls (100)
+    expect(mockProxycurlService.getLinkedInProfile).toHaveBeenCalledTimes(100);
+  });
+
+  it('respects custom maxUpdates', async () => {
+    mockDatabaseService.getMembersWithLastLinkedInUpdates.mockResolvedValue(createMockMembers(150));
+
+    await syncLinkedIn({ maxUpdates: 125 });
+
+    // Should return as many as requested
+    expect(mockProxycurlService.getLinkedInProfile).toHaveBeenCalledTimes(125);
+  });
+
+  it('throws on invalid sync options', async () => {
+    await expect(syncLinkedIn({ maxUpdates: Number.NaN })).rejects.toThrow();
+  });
 
   it('throws on Proxycurl API errors', async () => {
-    mockDatabaseService.getMembersWithLastLinkedInUpdates.mockResolvedValue(mockMembers);
     mockProxycurlService.getLinkedInProfile.mockRejectedValueOnce(new Error('API Error'));
 
     await expect(syncLinkedIn()).rejects.toThrow('API Error');
   });
 
   it('throws on invalid environment variable configuration', async () => {
-    mockDatabaseService.getMembersWithLastLinkedInUpdates.mockResolvedValue(mockMembers);
     process.env = {};
 
     await expect(syncLinkedIn()).rejects.toThrow(/^Missing required environment variables/);
   });
 
   it('closes db connection even after error', async () => {
-    mockDatabaseService.getMembersWithLastLinkedInUpdates.mockResolvedValue(mockMembers);
     mockProxycurlService.getLinkedInProfile.mockRejectedValueOnce(new Error());
 
     await expect(syncLinkedIn()).rejects.toThrow();
 
     expect(mockDatabaseService.closeDbConnection).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('getValidSyncOptions', () => {
+  it.each([
+    ['undefined', undefined, { maxUpdates: 100, allowedAgeDays: 7 }],
+    ['empty object', {}, { maxUpdates: 100, allowedAgeDays: 7 }],
+    ['both undefined', { maxUpdates: undefined, allowedAgeDays: undefined }, { maxUpdates: 100, allowedAgeDays: 7 }],
+    ['allowedAgeDays undefined', { maxUpdates: 1, allowedAgeDays: undefined }, { maxUpdates: 1, allowedAgeDays: 7 }],
+    ['maxUpdates undefined', { maxUpdates: undefined, allowedAgeDays: 1 }, { maxUpdates: 100, allowedAgeDays: 1 }],
+    ['both provided', { maxUpdates: 1, allowedAgeDays: 1 }, { maxUpdates: 1, allowedAgeDays: 1 }],
+  ])('falls back to default sync options as appropriate (%s)', (_testName, syncOptionOverrides, expected) => {
+    const result = getValidSyncOptions(syncOptionOverrides);
+    expect(result).toEqual(expected);
+  });
+
+  it.each([['not a number'], [Number.NaN], [null]])('throws on invalid sync options (%s)', async (invalidOption) => {
+    expect(() => getValidSyncOptions({ maxUpdates: 1, allowedAgeDays: invalidOption })).toThrow();
+    expect(() => getValidSyncOptions({ maxUpdates: invalidOption, allowedAgeDays: 1 })).toThrow();
+    expect(() => getValidSyncOptions({ maxUpdates: invalidOption, allowedAgeDays: invalidOption })).toThrow();
   });
 });
 
@@ -156,40 +178,37 @@ describe('getMembersToUpdate', () => {
     const members = [memberWithOldLinkedInData, memberWithNoLinkedInData];
 
     const result = getMembersToUpdate(members);
-    expect(result).toHaveLength(2);
-    expect(result[0]).toBe(memberWithNoLinkedInData); // New user should be first
-    expect(result[1]).toBe(memberWithOldLinkedInData); // Old user should be second
+
+    expect(result).toEqual([
+      memberWithNoLinkedInData, // New user should be first
+      memberWithOldLinkedInData, // Old user should be second
+    ]);
   });
 
   it('should not include recently updated members', () => {
     const members = [memberWithNoLinkedInData, memberWithRecentLinkedInData, memberWithOldLinkedInData];
 
     const result = getMembersToUpdate(members);
-    expect(result).toHaveLength(2);
-    expect(result).toEqual([memberWithNoLinkedInData, memberWithOldLinkedInData]); // Should only include new and old users
+
+    // Should only include new and old users, skipping member with recent data
+    expect(result).toEqual([memberWithNoLinkedInData, memberWithOldLinkedInData]);
   });
 
   it('should respect maxUpdates limit', () => {
-    const members = Array.from({ length: 150 }, (_, i) => ({
-      id: String(i),
-      name: `User ${i}`,
-      linkedin_url: `https://linkedin.com/in/user${i}`,
-      metadata: { last_linkedin_update: twoMonthsAgo },
-    }));
+    const members = createMockMembers(150);
 
     const result = getMembersToUpdate(members);
-    expect(result).toHaveLength(100); // Should be limited to 100
+
+    // Should be limited to 100, the default maxUpdates setting
+    expect(result).toHaveLength(100);
   });
 
   it('should handle custom maxUpdates parameter', () => {
-    const members = Array.from({ length: 50 }, (_, i) => ({
-      id: String(i),
-      name: `User ${i}`,
-      linkedin_url: `https://linkedin.com/in/user${i}`,
-      metadata: { last_linkedin_update: twoMonthsAgo },
-    }));
+    const members = createMockMembers(50);
 
     const result = getMembersToUpdate(members, 10);
-    expect(result).toHaveLength(10); // Should respect custom limit
+
+    // Should respect custom maxUpdates limit
+    expect(result).toHaveLength(10);
   });
 });
