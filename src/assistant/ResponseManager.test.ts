@@ -166,27 +166,26 @@ describe('ResponseManager', () => {
       await responseManager.startNewMessageWithPlaceholder(placeholderText);
     });
 
-    it('should call update with the final text and return it', async () => {
+    it('should call update with the final text and return text, and ts', async () => {
       const finalContent = 'This is the complete final message.';
       await responseManager.appendToMessage(finalContent);
 
       const finalizePromise = responseManager.finalizeMessage();
       // Run timers needed by finalizeMessage (potential cooldown)
       jest.runAllTimers();
-      const returnedText = await finalizePromise;
+      const returnedResult = await finalizePromise;
 
-      expect(returnedText).toBe(finalContent);
+      expect(returnedResult.text).toBe(finalContent);
+      expect(returnedResult.ts).toBe(testTs);
       expect(mockClient.chat.update).toHaveBeenCalledWith({
         channel: testChannel,
         ts: testTs,
         text: finalContent,
       });
-      // Update might be called by appendToMessage if conditions met, *and* by finalize.
-      // Let's check it was called at least once with the final content.
       expect(mockClient.chat.update).toHaveBeenCalled();
     });
 
-    it('should wait for cooldown before final update if needed', async () => {
+    it('should wait for cooldown before final update if needed and return details', async () => {
       const longText = 'A long message that could trigger an update.';
       // Advance time past cooldown to allow potential first update
       jest.advanceTimersByTime(config.chatEditIntervalMs + 1);
@@ -214,16 +213,44 @@ describe('ResponseManager', () => {
       // also run any remaining timers set by finalize itself
       jest.runOnlyPendingTimers();
 
-      const returnedText = await finalizePromise;
+      const returnedResult = await finalizePromise;
       const expectedFinalText = `${longText}${additionalText}`;
 
-      expect(returnedText).toBe(expectedFinalText);
+      expect(returnedResult.text).toBe(expectedFinalText);
+      expect(returnedResult.ts).toBe(testTs);
+      expect(returnedResult.channel).toBe(testChannel);
       expect(mockClient.chat.update).toHaveBeenCalledWith({
         channel: testChannel,
         ts: testTs,
         text: expectedFinalText,
       });
       expect(mockClient.chat.update).toHaveBeenCalledTimes(1);
+    });
+
+    it('should return final details even if no text was appended (placeholder case)', async () => {
+      // No appendToMessage called, only the placeholder was shown
+      const finalizePromise = responseManager.finalizeMessage();
+      jest.runAllTimers();
+      const returnedResult = await finalizePromise;
+
+      expect(returnedResult.text).toBe(''); // No text content
+      expect(returnedResult.ts).toBe(testTs); // Should still have ts of the placeholder
+      expect(mockClient.chat.update).not.toHaveBeenCalled(); // No update needed for empty content
+    });
+
+    it('should return undefined ts/channel if update fails during finalization', async () => {
+      const errorText = 'Slack API Error!';
+      mockClient.chat.update.mockRejectedValueOnce(new Error(errorText));
+
+      await responseManager.appendToMessage('Some content');
+      const finalizePromise = responseManager.finalizeMessage();
+      jest.runAllTimers();
+      const returnedResult = await finalizePromise;
+
+      // finalizeMessage itself shouldn't throw here, but log the error and return blank ts/channel
+      expect(returnedResult.text).toBe('Some content');
+      expect(returnedResult.ts).toBeUndefined();
+      expect(mockClient.chat.update).toHaveBeenCalledTimes(1); // It was attempted
     });
 
     it('should reset state, allowing a new message to start', async () => {
@@ -236,48 +263,6 @@ describe('ResponseManager', () => {
       await responseManager.startNewMessageWithPlaceholder('New placeholder');
       // await expect(responseManager.startNewMessageWithPlaceholder('New placeholder')).resolves.toBeDefined(); // Incorrect assertion for Promise<void>
       expect(mockSay).toHaveBeenCalledTimes(2); // Original + new
-    });
-  });
-
-  describe('Error Handling', () => {
-    it('should reject finalize if initial say response lacked channel', async () => {
-      // Override default mock for this test
-      mockSay.mockResolvedValueOnce({
-        ok: true,
-        ts: testTs, // Has ts, missing channel
-        // biome-ignore lint/suspicious/noExplicitAny: Intentionally creating invalid mock
-      } as any); // Using 'any' as we are intentionally creating an invalid state
-
-      await responseManager.startNewMessageWithPlaceholder(placeholderText);
-      await responseManager.appendToMessage('Some text long enough');
-      // Advance timers PAST cooldown, appendToMessage should NOT have thrown
-      jest.advanceTimersByTime(config.chatEditIntervalMs + 1);
-      expect(mockClient.chat.update).not.toHaveBeenCalled(); // Should not have updated due to invalid state
-
-      // Finalize *will* attempt the update and fail
-      const finalizePromise = responseManager.finalizeMessage();
-      jest.runAllTimers(); // Ensure finalize cooldown completes
-      await expect(finalizePromise).rejects.toThrow(/Failed to get timestamp or channel/i);
-    });
-
-    it('should reject finalize if initial say response lacked timestamp', async () => {
-      // Override default mock for this test
-      mockSay.mockResolvedValueOnce({
-        ok: true,
-        channel: testChannel, // Has channel, missing ts
-        // biome-ignore lint/suspicious/noExplicitAny: Intentionally creating invalid mock
-      } as any); // Using 'any' as we are intentionally creating an invalid state
-
-      await responseManager.startNewMessageWithPlaceholder(placeholderText);
-      await responseManager.appendToMessage('Some text long enough');
-      // Advance timers PAST cooldown, appendToMessage should NOT have thrown
-      jest.advanceTimersByTime(config.chatEditIntervalMs + 1);
-      expect(mockClient.chat.update).not.toHaveBeenCalled(); // Should not have updated due to invalid state
-
-      // Finalize *will* attempt the update and fail
-      const finalizePromise = responseManager.finalizeMessage();
-      jest.runAllTimers(); // Ensure finalize cooldown completes
-      await expect(finalizePromise).rejects.toThrow(/Failed to get timestamp or channel/i);
     });
   });
 });

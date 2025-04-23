@@ -136,6 +136,7 @@ export const handleUserMessage = async (
     logger.debug({ threadLength: llmThread.length }, 'LLM thread prepared');
 
     let remainingLlmLoopsAllowed = config.maxToolCallIterations;
+    let finalizedMessageTs: string | undefined;
 
     while (remainingLlmLoopsAllowed > 0) {
       logger.debug({ remainingLlmLoopsAllowed, llmThread }, 'Tool call / response loop iteration');
@@ -191,13 +192,17 @@ export const handleUserMessage = async (
         }
       }
 
-      const responseText = await responseManager.finalizeMessage();
+      // Finalize the response manager for this iteration
+      const finalizedResult = await responseManager.finalizeMessage();
+      const responseText = finalizedResult.text;
       logger.debug({ responseText, triggeringMessageTs: userSlackMessageTs }, 'Finalized response text');
+
       if (responseText) {
         llmThread.push({
           role: 'assistant',
           content: responseText,
         });
+        finalizedMessageTs = finalizedResult.ts;
       }
 
       const validToolCalls = toolCalls.filter((tc) => tc?.id && tc?.function?.name);
@@ -227,6 +232,20 @@ export const handleUserMessage = async (
     if (remainingLlmLoopsAllowed <= 0) {
       logger.warn({ triggeringMessageTs: userSlackMessageTs }, 'Reached max tool call iterations.');
     }
+
+    // Add feedback reactions if finalizeMessage returned a timestamp for the last message
+    if (finalizedMessageTs) {
+      logger.info(
+        { finalizedMessageTs: finalizedMessageTs, slackChannel },
+        'Adding feedback reaction hints to final message',
+      );
+      addFeedbackHintReactions(client, slackChannel, finalizedMessageTs);
+    } else {
+      logger.info(
+        { triggeringMessageTs: userSlackMessageTs },
+        'No final text message tracked by ResponseManager, skipping feedback reactions.',
+      );
+    }
   } catch (e) {
     logger.error(
       {
@@ -248,4 +267,19 @@ export const handleUserMessage = async (
       })
       .catch((e: unknown) => logger.error({ error: e }, 'Failed to remove reaction'));
   }
+};
+
+const addFeedbackHintReactions = async (client: WebClient, slackChannel: string, finalizedMessageTs: string) => {
+  await Promise.all([
+    client.reactions.add({
+      name: '+1',
+      channel: slackChannel,
+      timestamp: finalizedMessageTs,
+    }),
+    client.reactions.add({
+      name: '-1',
+      channel: slackChannel,
+      timestamp: finalizedMessageTs,
+    }),
+  ]);
 };
