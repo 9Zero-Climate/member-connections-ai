@@ -67,23 +67,49 @@ export default class ResponseManager {
     }
   }
 
-  async finalizeMessage(): Promise<string> {
+  async finalizeMessage(): Promise<{ text: string; ts?: string; channel?: string }> {
     const finalMessageText = this.currentResponseText;
+    let finalTs: string | undefined;
+    let finalChannel: string | undefined;
+
     const cooldownTimeRemaining = config.chatEditIntervalMs - (Date.now() - this.lastUpdateTime);
     if (cooldownTimeRemaining > 0) {
       await new Promise((resolve) => setTimeout(resolve, cooldownTimeRemaining));
     }
-    if (this.currentResponseText) {
-      await this.updateMessage();
+
+    if (this.currentResponseText && this.inProgressMessage?.ts && this.inProgressMessage?.channel) {
+      try {
+        // Ensure the final update happens
+        await this.updateMessage();
+        // Capture ts/channel from the potentially updated inProgressMessage
+        finalTs = this.inProgressMessage?.ts;
+        finalChannel = this.inProgressMessage?.channel;
+      } catch (error) {
+        logger.error(
+          { error, inProgressMessage: this.inProgressMessage },
+          'Failed to update message during finalization',
+        );
+        // Ensure we don't return potentially stale ts/channel on error
+        finalTs = undefined;
+        finalChannel = undefined;
+      }
+    } else if (!this.currentResponseText && this.inProgressMessage?.ts && this.inProgressMessage?.channel) {
+      // If there was no text, but we had a placeholder message, we don't treat it as a final message to react to.
+      // Optionally, we could delete the placeholder here, but let's leave it for now.
+      logger.debug('Finalizing message with no text content, placeholder was likely used.');
+      // Capture the placeholder's ts/channel just in case, though it shouldn't be used for reactions
+      finalTs = this.inProgressMessage.ts;
+      finalChannel = this.inProgressMessage.channel;
     }
+
     this.resetMessageState();
-    return finalMessageText;
+    return { text: finalMessageText, ts: finalTs, channel: finalChannel };
   }
 
   /**
    * Updates the in-progress message with the current response text.
    *
-   * @throws {Error} If no in-progress message is found.
+   * @throws {Error} If no in-progress message is found or update fails.
    */
   private async updateMessage(): Promise<void> {
     if (!this.inProgressMessage) {
