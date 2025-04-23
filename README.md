@@ -10,28 +10,20 @@ AI-powered member connections for Slack, helping community members find and conn
 ### Prerequisites
 
 - Node.js
+- Docker (for local Postgres db with PGVector extension)
 - pnpm
-- Slack Bot Token
-- Slack App Token (for Socket Mode)
-- PostgreSQL Database URL with PGVector extension
-- OpenRouter API Key
+- .env file with correct environment variables
 
 ### Setup
 
 1. Clone the repository
 2. Install dependencies:
-   ```bash
-   pnpm install
-   ```
-3. Create a `.env` file with:
-   ```
-   SLACK_BOT_TOKEN=your_slack_bot_token
-   SLACK_APP_TOKEN=your_slack_app_token
-   DB_URL=your_database_url
-   OPENROUTER_API_KEY=your_openrouter_api_key
-   APP_URL=https://github.com/9Zero-Climate/member-connections-ai
-   PORT=8080  # Optional, defaults to 8080
-   ```
+
+```bash
+pnpm install
+```
+
+3. Create a `.env` file with. See `config.ts` for required environment variables
 
 ### Running the Bot Server
 
@@ -50,7 +42,7 @@ The bot server provides:
 - Health check endpoint at http://localhost:8080
 - Socket Mode for secure communication with Slack
 
-### Manual Slack Sync
+### Manual Sync
 
 To manually sync messages from a Slack channel:
 
@@ -58,6 +50,32 @@ To manually sync messages from a Slack channel:
 # Sync recent messages from a channel
 pnpm sync introductions
 ```
+
+### Local database
+To set up a local version of the supabase database:
+
+Start local supabase:
+
+```bash
+pnpm supabase start
+```
+
+Run migrations:
+
+```bash
+npx tsx src/scripts/setup_test_db.ts
+```
+
+Optionally, run the various sync scripts to sync production data (skip LinkedIn - that's expensive)
+
+```bash
+pnpm sync:officernd
+pnpm sync:notion
+pnpm sync:slack introductions
+```
+
+View the dashboard at `http://localhost:54323/`
+
 
 ## Logging
 
@@ -77,8 +95,6 @@ The project includes automated workflows:
   - Uploads coverage reports to Codecov
   - Requires `DB_URL` secret
 
-- **Slack Sync**: Runs daily at midnight Pacific time to sync messages from configured Slack channels
+- **Sync All**: Runs daily at midnight Pacific time to sync data from external sources (OfficeRnD, Notion, LinkedIn, Slack)
   - Can be manually triggered from the Actions tab
-  - Supports custom channel selection for manual runs
-  - Requires `SLACK_BOT_TOKEN` and `DB_URL` secrets
-
+  - Requires various environment variables, see `config.ts`
