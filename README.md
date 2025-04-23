@@ -23,7 +23,7 @@ AI-powered member connections for Slack, helping community members find and conn
 pnpm install
 ```
 
-3. Create a `.env` file with. See `config.ts` for required environment variables
+3. Create a `.env` file. See `config.ts` for required environment variables
 
 ### Running the Bot Server
 
