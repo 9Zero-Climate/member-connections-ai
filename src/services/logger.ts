@@ -1,5 +1,5 @@
-import * as dotenv from 'dotenv';
 import type { Logger as BoltLogger, LogLevel } from '@slack/bolt';
+import * as dotenv from 'dotenv';
 import pino, { type Logger } from 'pino';
 
 dotenv.config();

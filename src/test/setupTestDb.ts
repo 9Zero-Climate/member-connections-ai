@@ -1,8 +1,8 @@
 import { Client } from 'pg';
 
-import * as dotenv from 'dotenv';
 import fs from 'node:fs';
 import * as path from 'node:path';
+import * as dotenv from 'dotenv';
 
 // Load environment variables
 dotenv.config();
