@@ -614,6 +614,7 @@ describe('database', () => {
           testNotionData.notionPageId,
           testNotionData.locationTags,
           testNotionData.notionPageUrl,
+          testNotionData.linkedinUrl,
           testMemberId,
         ]);
 
@@ -671,6 +672,7 @@ describe('database', () => {
           minimalNotionData.notionPageId,
           minimalNotionData.locationTags,
           minimalNotionData.notionPageUrl,
+          minimalNotionData.linkedinUrl,
           testMemberId,
         ]);
 
