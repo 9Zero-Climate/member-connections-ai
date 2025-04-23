@@ -2,9 +2,9 @@ name: Tests
 
 on:
   push:
-    branches: [ production, staging ]
+    branches: [production, staging]
   pull_request:
-    branches: [ production, staging ]
+    branches: [production, staging]
 
 jobs:
   test:
@@ -28,16 +28,16 @@ jobs:
     env:
       NODE_ENV: test
       DB_URL: postgresql://test:test@localhost:5432/testdb
-      OFFICERND_CLIENT_ID: 'not_a_real_id'
-      OFFICERND_CLIENT_SECRET: 'not_a_real_secret'
-      OFFICERND_ORG_SLUG: 'not_a_real_slug'
-      PROXYCURL_API_KEY: 'test-key'
-      SLACK_BOT_TOKEN: 'not_a_real_bot_token'
-      SLACK_APP_TOKEN: 'not_a_real_app_token'
-      OPENAI_API_KEY: 'not_a_real_openai_api_key'
-      OPENROUTER_API_KEY: 'not_a_real_openrouter_api_key'
-      NOTION_API_KEY: 'not_a_real_notion_api_key'
-      NOTION_MEMBERS_DATABASE_ID: 'not_a_real_notion_members_database_id'
+      OFFICERND_CLIENT_ID: "not_a_real_id"
+      OFFICERND_CLIENT_SECRET: "not_a_real_secret"
+      OFFICERND_ORG_SLUG: "not_a_real_slug"
+      PROXYCURL_API_KEY: "test-key"
+      SLACK_BOT_TOKEN: "not_a_real_bot_token"
+      SLACK_APP_TOKEN: "not_a_real_app_token"
+      OPENAI_API_KEY: "not_a_real_openai_api_key"
+      OPENROUTER_API_KEY: "not_a_real_openrouter_api_key"
+      NOTION_API_KEY: "not_a_real_notion_api_key"
+      NOTION_MEMBERS_DATABASE_ID: "not_a_real_notion_members_database_id"
 
     steps:
       - uses: actions/checkout@v4
@@ -52,13 +52,13 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: 'pnpm'
+          cache: "pnpm"
 
       - name: Install dependencies
         run: pnpm install
 
-      - name: Setup test database
-        run: node src/scripts/setup_test_db.js
+      - name: Setup test database (run migrations)
+        run: npx tsx src/test/setupTestDb.ts
 
       - name: Type check
         run: pnpm typecheck

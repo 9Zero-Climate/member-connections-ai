@@ -1,12 +1,18 @@
-const { Client } = require('pg');
-const { config } = require('dotenv');
-const fs = require('node:fs');
-const path = require('node:path');
+import { Client } from 'pg';
+
+import * as dotenv from 'dotenv';
+import fs from 'node:fs';
+import * as path from 'node:path';
 
 // Load environment variables
-config();
+dotenv.config();
 
-async function setupTestDb() {
+export async function runMigrations() {
+  if (process.env.NODE_ENV === 'production' || process.env.DB_URL?.includes('supabase.com')) {
+    console.error(`Don't run this in production! Exiting`);
+    process.exit(1);
+  }
+
   const client = new Client({
     connectionString: process.env.DB_URL,
   });
@@ -14,10 +20,6 @@ async function setupTestDb() {
   try {
     await client.connect();
     console.log('Connected to test database');
-
-    // Create the pgvector extension
-    await client.query('CREATE EXTENSION IF NOT EXISTS vector;');
-    console.log('pgvector extension created successfully');
 
     // Get all migration files
     const migrationsDir = path.join(__dirname, '..', 'migrations');
@@ -42,4 +44,4 @@ async function setupTestDb() {
   }
 }
 
-setupTestDb();
+runMigrations();
