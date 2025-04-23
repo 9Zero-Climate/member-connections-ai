@@ -1,4 +1,3 @@
-import { Command } from 'commander';
 import { ConfigContext, validateConfig } from '../../config';
 import { type Document, closeDbConnection, getDocBySource, insertOrUpdateDoc } from '../../services/database';
 import { logger } from '../../services/logger';

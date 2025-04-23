@@ -1,4 +1,3 @@
-import { Command } from 'commander';
 import { ConfigContext, validateConfig } from '../../config';
 import { bulkUpsertMembers, closeDbConnection } from '../../services/database';
 import { logger } from '../../services/logger';
