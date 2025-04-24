@@ -1,14 +1,11 @@
 import { PostgreSqlContainer } from '@testcontainers/postgresql';
-import { Client } from 'pg';
 import type { StartedTestContainer } from 'testcontainers';
 import { migrateAll } from '../scripts/migrate';
-import { setClient, unsetClient } from '../services/database';
 
 let testDbContainer: StartedTestContainer;
-let testDbClient: Client;
 
-export const setupTestDb = async () => {
-  console.log('Global test setup: creating test db container and client');
+export const setupTestDb = async (): Promise<string> => {
+  console.log('Global test setup: creating test db container');
 
   testDbContainer = await new PostgreSqlContainer('pgvector/pgvector:pg16').withExposedPorts(5432).start();
 
@@ -18,16 +15,11 @@ export const setupTestDb = async () => {
 
   await migrateAll(connectionString);
 
-  testDbClient = new Client({ connectionString });
-  await testDbClient.connect();
-
-  setClient(testDbClient);
+  return connectionString;
 };
 
 export const teardownTestDb = async () => {
-  console.log('Global test teardown: stopping test db container and client');
+  console.log('Global test teardown: stopping test db container');
 
-  unsetClient();
-  await testDbClient.end();
   await testDbContainer.stop();
 };

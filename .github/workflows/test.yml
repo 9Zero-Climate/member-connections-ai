@@ -10,24 +10,9 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
-    services:
-      postgres:
-        image: ankane/pgvector:latest
-        env:
-          POSTGRES_USER: test
-          POSTGRES_PASSWORD: test
-          POSTGRES_DB: testdb
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
     env:
       NODE_ENV: test
-      DB_URL: postgresql://test:test@localhost:5432/testdb
+      DB_URL: "not_a_real_db_url"
       OFFICERND_CLIENT_ID: "not_a_real_id"
       OFFICERND_CLIENT_SECRET: "not_a_real_secret"
       OFFICERND_ORG_SLUG: "not_a_real_slug"
@@ -60,11 +45,8 @@ jobs:
       - name: Type check
         run: pnpm typecheck
 
-      - name: Run tests (unit)
-        run: pnpm test:unit
-
-      - name: Run tests (integration)
-        run: pnpm test:integration
+      - name: Run tests
+        run: pnpm test
 
       - name: Run linting
         run: pnpm lint

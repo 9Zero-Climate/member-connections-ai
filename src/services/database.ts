@@ -61,24 +61,15 @@ export type QueryParams = (string | number | boolean | string[] | Record<string,
 
 let globalClient: Client | undefined;
 
-// For testing
-function setClient(client: Client): void {
-  globalClient = client;
-}
-
-function unsetClient(): void {
-  globalClient = undefined;
-}
-
 async function getOrCreateClient(): Promise<Client> {
   if (globalClient) return globalClient;
 
-  if (process.env.NODE_ENV === 'test') {
-    throw new Error(`Don't try connecting to real db in tests! This global client should be set by test setup`);
+  if (process.env.NODE_ENV === 'test' && process.env.DB_URL?.includes('supabase.com')) {
+    throw new Error(`Don't try connecting to real db in tests! Test setup should set DB_URL to point to test db`);
   }
 
   try {
-    logger.info('Opening new global database connection');
+    logger.info(`Opening new global database connection to: ${config.dbUrl}`);
     globalClient = new Client({ connectionString: config.dbUrl });
     await globalClient.connect();
   } catch (error) {
@@ -94,6 +85,7 @@ async function closeDbConnection(): Promise<void> {
     logger.error("Trying to close global database connection but it doesn't exist");
   } else {
     await globalClient.end();
+    globalClient = undefined;
     logger.info('Global database connection closed.');
   }
 }
@@ -705,8 +697,6 @@ async function updateMembersFromNotion(notionMembers: NotionMemberData[]): Promi
 
 export {
   getOrCreateClient,
-  setClient,
-  unsetClient,
   insertOrUpdateDoc,
   getDocBySource,
   deleteDoc,

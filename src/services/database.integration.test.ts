@@ -6,8 +6,6 @@ import {
   getDocBySource,
   getOrCreateClient,
   insertOrUpdateDoc,
-  setClient,
-  unsetClient,
   updateMembersFromNotion,
 } from './database';
 
@@ -35,12 +33,7 @@ describe('Database Integration Tests', () => {
   let testDbClient: Client;
 
   beforeAll(async () => {
-    await setupTestDb();
     testDbClient = await getOrCreateClient();
-  });
-
-  afterAll(async () => {
-    await teardownTestDb();
   });
 
   describe('insertOrUpdateDoc', () => {
