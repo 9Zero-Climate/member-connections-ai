@@ -14,6 +14,8 @@
     "sync": "tsx src/scripts/sync/cli.ts",
     "check": "tsx src/scripts/check/cli.ts",
     "test": "jest",
+    "test:unit": "jest --testMatch '**/*.test.ts' '!**/*.integration.test.ts'",
+    "test:integration": "jest --testMatch '**/*.integration.test.ts'",
     "test:watch": "jest --watch",
     "typecheck": "tsc --noEmit"
   },
