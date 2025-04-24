@@ -1,5 +1,6 @@
 import type { Client } from 'pg';
-import { setupTestDb, teardownTestDb } from '../test/setupTestDb';
+import { mockEmbeddingsService } from './mocks';
+
 import {
   deleteDoc,
   findSimilar,
@@ -8,6 +9,8 @@ import {
   insertOrUpdateDoc,
   updateMembersFromNotion,
 } from './database';
+
+jest.mock('./embedding', () => mockEmbeddingsService);
 
 const VECTOR_DIMENSION = 1536;
 const generateMockEmbedding = (seed = 0): number[] => {
@@ -34,6 +37,7 @@ describe('Database Integration Tests', () => {
 
   beforeAll(async () => {
     testDbClient = await getOrCreateClient();
+    mockEmbeddingsService.generateEmbeddings.mockImplementation(() => [generateMockEmbedding()]);
   });
 
   describe('insertOrUpdateDoc', () => {
