@@ -1,3 +1,5 @@
+import type { Client } from 'pg';
+import { setupTestDb, teardownTestDb } from '../test/setupTestDb';
 import {
   deleteDoc,
   findSimilar,
@@ -8,8 +10,6 @@ import {
   unsetClient,
   updateMembersFromNotion,
 } from './database';
-import { setupTestDb, teardownTestDb } from '../test/setupTestDb';
-import type { Client } from 'pg';
 
 const VECTOR_DIMENSION = 1536;
 const generateMockEmbedding = (seed = 0): number[] => {

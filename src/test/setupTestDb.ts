@@ -1,6 +1,6 @@
-import type { StartedTestContainer } from 'testcontainers';
 import { PostgreSqlContainer } from '@testcontainers/postgresql';
 import { Client } from 'pg';
+import type { StartedTestContainer } from 'testcontainers';
 import { migrateAll } from '../scripts/migrate';
 import { setClient, unsetClient } from '../services/database';
 
