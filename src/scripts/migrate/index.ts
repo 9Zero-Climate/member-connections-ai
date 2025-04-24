@@ -1,8 +1,12 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import * as dotenv from 'dotenv';
 import { Client } from 'pg';
-import { ConfigContext, createValidConfig } from '../config';
-import { logger } from '../services/logger';
+import { ConfigContext, createValidConfig } from '../../config';
+import { logger } from '../../services/logger';
+
+// Load environment variables
+dotenv.config();
 
 /**
  * Run a single SQL migration file
@@ -49,7 +53,7 @@ export async function migrate(filePath: string): Promise<void> {
   logger.info('Migration complete');
 }
 
-export async function migrateAll(connectionString: string) {
+export async function migrateAll(connectionString?: string) {
   console.log('Running all migrations');
 
   if (process.env.NODE_ENV === 'production' || process.env.DB_URL?.includes('supabase.com')) {
@@ -57,13 +61,13 @@ export async function migrateAll(connectionString: string) {
     process.exit(1);
   }
 
-  const client = new Client({ connectionString: connectionString });
+  const client = new Client({ connectionString: connectionString || process.env.DB_URL });
 
   try {
     await client.connect();
 
     // Get all migration files
-    const migrationsDir = path.join(__dirname, '..', 'migrations');
+    const migrationsDir = path.join(__dirname, '..', '..', 'migrations');
     const migrationFiles = fs
       .readdirSync(migrationsDir)
       .filter((file) => file.endsWith('.sql'))
