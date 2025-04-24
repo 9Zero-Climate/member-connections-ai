@@ -136,7 +136,7 @@ describe('Database Integration Tests', () => {
     });
 
     it('should find similar documents', async () => {
-      const result = await findSimilar(generateMockEmbedding(), { limit: 2 });
+      const result = await findSimilar(generateMockEmbedding(1), { limit: 2 });
       expect(result).toHaveLength(2);
       expect(result[0].source_unique_id).toEqual(testDoc.source_unique_id);
       expect(result[1].source_unique_id).toEqual(testDoc2.source_unique_id);
