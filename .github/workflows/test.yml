@@ -57,9 +57,6 @@ jobs:
       - name: Install dependencies
         run: pnpm install
 
-      - name: Setup test database (run migrations)
-        run: npx tsx src/test/setupTestDb.ts
-
       - name: Type check
         run: pnpm typecheck
 

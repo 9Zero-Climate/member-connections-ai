@@ -9,7 +9,7 @@ export interface Document {
   source_type: string;
   source_unique_id: string;
   content: string;
-  embedding: number[] | null;
+  embedding?: number[] | null;
   metadata?: Record<string, unknown>;
   created_at?: Date;
   updated_at?: Date;
@@ -59,40 +59,43 @@ export interface FeedbackVote {
 
 export type QueryParams = (string | number | boolean | string[] | Record<string, unknown> | null)[];
 
-let client: Client | TestClient;
+let globalClient: Client | undefined;
 
-function getClient(): Client | TestClient {
-  if (client) return client;
-
-  if (process.env.NODE_ENV === 'test') {
-    // Use a mock client in test environment
-    client = {
-      query: jest.fn().mockImplementation((_query: string, _params?: QueryParams) => Promise.resolve({ rows: [] })),
-      connect: jest.fn().mockImplementation(() => Promise.resolve()),
-      end: jest.fn().mockImplementation(() => Promise.resolve()),
-    };
-  } else {
-    // Use a real client in other environments
-    client = new Client({
-      connectionString: config.dbUrl, // Use config here
-    });
-    // Connect to the database
-    client.connect().catch((err) => {
-      logger.error('Failed to connect to database:', err);
-      throw err;
-    });
-
-    logger.info('Global database connection opened.');
-  }
-  return client;
+// For testing
+function setClient(client: Client): void {
+  globalClient = client;
 }
 
-// Initialize client
-client = getClient();
+function unsetClient(): void {
+  globalClient = undefined;
+}
+
+async function getOrCreateClient(): Promise<Client> {
+  if (globalClient) return globalClient;
+
+  if (process.env.NODE_ENV === 'test') {
+    throw new Error(`Don't try connecting to real db in tests! This global client should be set by test setup`);
+  }
+
+  try {
+    logger.info('Opening new global database connection');
+    globalClient = new Client({ connectionString: config.dbUrl });
+    await globalClient.connect();
+  } catch (error) {
+    logger.error('Failed to connect to database:', error);
+    throw error;
+  }
+
+  return globalClient;
+}
 
 async function closeDbConnection(): Promise<void> {
-  await client.end();
-  logger.info('Global database connection closed.');
+  if (globalClient === undefined) {
+    logger.error("Trying to close global database connection but it doesn't exist");
+  } else {
+    await globalClient.end();
+    logger.info('Global database connection closed.');
+  }
 }
 
 /**
@@ -149,6 +152,8 @@ function formatForComparison(embedding: number[] | string | null): string | null
  * @returns The inserted/updated document
  */
 async function insertOrUpdateDoc(doc: Document): Promise<Document> {
+  const client = await await getOrCreateClient();
+
   try {
     // Generate embeddings if not provided
     const embedding = doc.embedding ?? (await generateEmbeddings([doc.content]))[0];
@@ -183,6 +188,8 @@ async function insertOrUpdateDoc(doc: Document): Promise<Document> {
  * @returns The document or null if not found
  */
 async function getDocBySource(sourceUniqueId: string): Promise<Document | null> {
+  const client = await getOrCreateClient();
+
   try {
     const result = await client.query('SELECT * FROM rag_docs WHERE source_unique_id = $1', [sourceUniqueId]);
     if (!result.rows[0]) return null;
@@ -203,6 +210,8 @@ async function getDocBySource(sourceUniqueId: string): Promise<Document | null> 
  * @returns True if deleted, false if not found
  */
 async function deleteDoc(sourceUniqueId: string): Promise<boolean> {
+  const client = await getOrCreateClient();
+
   try {
     const result = await client.query('DELETE FROM rag_docs WHERE source_unique_id = $1 RETURNING *', [sourceUniqueId]);
     return result.rows.length > 0;
@@ -219,6 +228,8 @@ async function deleteDoc(sourceUniqueId: string): Promise<boolean> {
  * @returns Similar documents with similarity scores and member context
  */
 async function findSimilar(embedding: number[], options: SearchOptions = {}): Promise<Document[]> {
+  const client = await getOrCreateClient();
+
   try {
     const embeddingVector = formatForComparison(embedding);
     const limit = options.limit || 5;
@@ -304,11 +315,6 @@ async function findSimilar(embedding: number[], options: SearchOptions = {}): Pr
   }
 }
 
-// For testing
-function setTestClient(testClient: TestClient): void {
-  client = testClient;
-}
-
 /**
  * Bulk insert or update members
  * @param members - Array of members to insert/update
@@ -316,6 +322,7 @@ function setTestClient(testClient: TestClient): void {
  */
 async function bulkUpsertMembers(members: Partial<Member>[]): Promise<Member[]> {
   logger.info('Upserting basic member info into database...');
+  const client = await getOrCreateClient();
 
   if (members.length === 0) return [];
 
@@ -351,6 +358,8 @@ async function bulkUpsertMembers(members: Partial<Member>[]): Promise<Member[]> 
  * @param typePrefix - e.g., 'linkedin_' or 'notion_'
  */
 async function deleteTypedDocumentsForMember(officerndMemberId: string, typePrefix: string): Promise<void> {
+  const client = await getOrCreateClient();
+
   try {
     const pattern = `${typePrefix}%`; // e.g., notion_%
     // Attempt to extract member ID from metadata first, then fallback to source_unique_id parsing
@@ -396,6 +405,7 @@ export interface MemberWithLinkedInUpdateMetadata {
  */
 async function getMembersWithLastLinkedInUpdates(): Promise<MemberWithLinkedInUpdateMetadata[]> {
   logger.info('Fetching Members with last LinkedIn update metadata...');
+  const client = await getOrCreateClient();
 
   try {
     const result = await client.query(`
@@ -439,6 +449,8 @@ async function getMembersWithLastLinkedInUpdates(): Promise<MemberWithLinkedInUp
  * @returns Array of documents with their content and metadata
  */
 async function getLinkedInDocuments(linkedinUrl: string): Promise<Document[]> {
+  const client = await getOrCreateClient();
+
   try {
     // Query the view to get enriched metadata
     const result = await client.query(
@@ -470,6 +482,8 @@ async function getLinkedInDocuments(linkedinUrl: string): Promise<Document[]> {
  * @returns Array of documents with their content and metadata
  */
 async function getLinkedInDocumentsByName(memberName: string): Promise<DocumentWithMemberContext[]> {
+  const client = await getOrCreateClient();
+
   try {
     const result = await client.query(
       `SELECT 
@@ -513,6 +527,8 @@ async function getLinkedInDocumentsByName(memberName: string): Promise<DocumentW
  * @returns The saved feedback record
  */
 async function saveFeedback(feedback: FeedbackVote): Promise<FeedbackVote> {
+  const client = await getOrCreateClient();
+
   try {
     const result = await client.query(
       `INSERT INTO feedback (message_channel_id, message_ts, submitted_by_user_id, reaction, reasoning, environment)
@@ -536,6 +552,8 @@ async function saveFeedback(feedback: FeedbackVote): Promise<FeedbackVote> {
 }
 
 async function updateMemberWithNotionData(officerndMemberId: string, notionData: NotionMemberData): Promise<void> {
+  const client = await getOrCreateClient();
+
   await client.query(
     `
     UPDATE members
@@ -623,6 +641,7 @@ async function upsertNotionDataForMember(officerndMemberId: string, notionData: 
  */
 async function updateMembersFromNotion(notionMembers: NotionMemberData[]): Promise<void> {
   logger.info('Updating members in database with Notion data...');
+  const client = await getOrCreateClient();
 
   // Fetch existing members from DB for matching
   const dbResult = await client.query('SELECT officernd_id, name, notion_page_id FROM members');
@@ -685,6 +704,9 @@ async function updateMembersFromNotion(notionMembers: NotionMemberData[]): Promi
 }
 
 export {
+  getOrCreateClient,
+  setClient,
+  unsetClient,
   insertOrUpdateDoc,
   getDocBySource,
   deleteDoc,
@@ -694,7 +716,6 @@ export {
   bulkUpsertMembers,
   deleteLinkedInDocuments,
   deleteNotionDocuments,
-  setTestClient,
   getLinkedInDocuments,
   getLinkedInDocumentsByName,
   saveFeedback,
