@@ -57,7 +57,7 @@ export async function migrateAll(connectionString?: string) {
   console.log('Running all migrations');
 
   if (process.env.NODE_ENV === 'production' || process.env.DB_URL?.includes('supabase.com')) {
-    console.error(`Don't run this in production! Exiting`);
+    console.error(`Detected production NODE_ENV or supabase DB_URL. Don't run this in production! Exiting`);
     process.exit(1);
   }
 
