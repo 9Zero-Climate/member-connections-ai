@@ -1,47 +1,25 @@
-import { Client } from 'pg';
+import { PostgreSqlContainer } from '@testcontainers/postgresql';
+import type { StartedTestContainer } from 'testcontainers';
+import { migrateAll } from '../scripts/migrate';
 
-import fs from 'node:fs';
-import * as path from 'node:path';
-import * as dotenv from 'dotenv';
+let testDbContainer: StartedTestContainer;
 
-// Load environment variables
-dotenv.config();
+export const setupTestDb = async (): Promise<string> => {
+  console.log('Global test setup: creating test db container');
 
-export async function runMigrations() {
-  if (process.env.NODE_ENV === 'production' || process.env.DB_URL?.includes('supabase.com')) {
-    console.error(`Don't run this in production! Exiting`);
-    process.exit(1);
-  }
+  testDbContainer = await new PostgreSqlContainer('pgvector/pgvector:pg16').withExposedPorts(5432).start();
 
-  const client = new Client({
-    connectionString: process.env.DB_URL,
-  });
+  // There's no documentation on using test:test as user:password for the postres testcontainer,
+  // but postgres throws an error if password is not provided, and blindly trying test:test worked
+  const connectionString = `postgres://test:test@${testDbContainer.getHost()}:${testDbContainer.getMappedPort(5432)}`;
 
-  try {
-    await client.connect();
-    console.log('Connected to test database');
+  await migrateAll(connectionString);
 
-    // Get all migration files
-    const migrationsDir = path.join(__dirname, '..', 'migrations');
-    const migrationFiles = fs
-      .readdirSync(migrationsDir)
-      .filter((file) => file.endsWith('.sql'))
-      .sort(); // Ensure migrations run in order
+  return connectionString;
+};
 
-    // Run each migration
-    for (const file of migrationFiles) {
-      console.log(`Running migration: ${file}`);
-      const migration = fs.readFileSync(path.join(migrationsDir, file), 'utf8');
-      await client.query(migration);
-    }
+export const teardownTestDb = async () => {
+  console.log('Global test teardown: stopping test db container');
 
-    console.log('All migrations completed successfully');
-  } catch (error) {
-    console.error('Error setting up test database:', error);
-    process.exit(1);
-  } finally {
-    await client.end();
-  }
-}
-
-runMigrations();
+  await testDbContainer.stop();
+};

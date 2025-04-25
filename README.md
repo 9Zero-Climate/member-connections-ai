@@ -63,19 +63,18 @@ pnpm supabase start
 Run migrations:
 
 ```bash
-npx tsx src/scripts/setup_test_db.ts
+pnpm migrate:all
 ```
 
 Optionally, run the various sync scripts to sync production data (skip LinkedIn - that's expensive)
 
 ```bash
-pnpm sync:officernd
-pnpm sync:notion
-pnpm sync:slack introductions
+pnpm sync officernd
+pnpm sync notion
+pnpm sync slack introductions
 ```
 
 View the dashboard at `http://localhost:54323/`
-
 
 ## Logging
 

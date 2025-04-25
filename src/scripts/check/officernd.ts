@@ -1,7 +1,7 @@
-import { logger } from '../services/logger';
-import { getAllMembers } from '../services/officernd';
+import { logger } from '../../services/logger';
+import { getAllMembers } from '../../services/officernd';
 
-async function testOfficeRnDConnection() {
+export async function checkOfficeRnDConnection() {
   logger.info('Attempting to connect to OfficeRnD and fetch members...');
   try {
     const members = await getAllMembers();
@@ -26,5 +26,3 @@ async function testOfficeRnDConnection() {
     process.exitCode = 1; // Indicate failure
   }
 }
-
-void testOfficeRnDConnection();
