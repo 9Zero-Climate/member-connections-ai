@@ -53,15 +53,16 @@ export async function migrate(filePath: string): Promise<void> {
   logger.info('Migration complete');
 }
 
-export async function migrateAll(connectionString?: string) {
+export async function migrateAll() {
   console.log('Running all migrations');
+  const config = createValidConfig(process.env, ConfigContext.Migrate);
 
   if (process.env.NODE_ENV === 'production' || process.env.DB_URL?.includes('supabase.com')) {
     console.error(`Detected production NODE_ENV or supabase DB_URL. Don't run this in production! Exiting`);
     process.exit(1);
   }
 
-  const client = new Client({ connectionString: connectionString || process.env.DB_URL });
+  const client = new Client({ connectionString: config.dbUrl });
 
   try {
     await client.connect();

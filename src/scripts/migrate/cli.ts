@@ -14,7 +14,6 @@ program
   //
   .command('all')
   .description('Run all migration files')
-  .argument('[connectionString]', '(optional) db connection string. Defaults to DB_URL environment variable')
   .action(migrateAll);
 
 program.parse();
