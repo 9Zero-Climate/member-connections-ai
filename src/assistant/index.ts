@@ -9,6 +9,7 @@ import type {
 } from 'openai/resources/chat';
 import type { Config } from '../config';
 import { logger } from '../services/logger';
+import { handleAppMention } from './eventHandlers/appMentionHandler';
 import { FEEDBACK_CANCEL_BUTTON_ACTION_ID } from './eventHandlers/feedbackCancelHandler';
 import { handleFeedbackCancel } from './eventHandlers/feedbackCancelHandler';
 import {
@@ -45,6 +46,7 @@ export const registerAssistantAndHandlers = (app: App, config: Config, client: W
   app.assistant(assistant);
 
   app.event('reaction_added', initiateFeedbackFlowFromReactionEvent);
+  app.event('app_mention', (args) => handleAppMention(openRouter, client, args));
   app.action(FEEDBACK_ADD_REASON_BUTTON_ACTION_ID, handleFeedbackAddReasonAction);
   app.action(FEEDBACK_CANCEL_BUTTON_ACTION_ID, handleFeedbackCancel);
   app.view(FEEDBACK_MODAL_ID, handleFeedbackViewSubmission);

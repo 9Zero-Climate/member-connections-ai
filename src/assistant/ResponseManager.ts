@@ -6,6 +6,7 @@ import { logger } from '../services/logger';
 export interface UpdateMessageParams {
   client: WebClient;
   say: SayFn;
+  channelOrThreadTs: string;
 }
 
 /**
@@ -43,7 +44,7 @@ export default class ResponseManager {
 
     this.inProgressMessage = await this.params.say({
       text: placeholder,
-      // parse: 'full',
+      thread_ts: this.params.channelOrThreadTs,
     });
     // Don't set the placeholder as the current response text, because it will be replaced with the actual response
     this.currentResponseText = '';
