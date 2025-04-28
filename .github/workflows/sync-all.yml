@@ -90,4 +90,5 @@ jobs:
             investing \
             sea-requests-for-support \
             sea-events \
+            sea-ag \
             | npx pino-pretty
