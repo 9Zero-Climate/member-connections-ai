@@ -559,19 +559,12 @@ async function updateMemberWithNotionData(officerndMemberId: string, notionData:
     UPDATE members
     SET 
       notion_page_id = $1, 
-      location_tags = $2, 
-      notion_page_url = $3, 
-      linkedin_url = COALESCE($4, linkedin_url), -- Don't overwrite with null
+      notion_page_url = $2, 
+      linkedin_url = COALESCE($3, linkedin_url), -- Don't overwrite with null
       updated_at = CURRENT_TIMESTAMP
-    WHERE officernd_id = $5
+    WHERE officernd_id = $4
     `,
-    [
-      notionData.notionPageId,
-      notionData.locationTags.length > 0 ? notionData.locationTags : null,
-      notionData.notionPageUrl,
-      notionData.linkedinUrl,
-      officerndMemberId,
-    ],
+    [notionData.notionPageId, notionData.notionPageUrl, notionData.linkedinUrl, officerndMemberId],
   );
 }
 
