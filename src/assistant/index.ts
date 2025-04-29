@@ -1,12 +1,6 @@
 import { type App, Assistant } from '@slack/bolt';
 import type { WebClient } from '@slack/web-api';
 import { OpenAI } from 'openai';
-import type {
-  ChatCompletionAssistantMessageParam,
-  ChatCompletionSystemMessageParam,
-  ChatCompletionToolMessageParam,
-  ChatCompletionUserMessageParam,
-} from 'openai/resources/chat';
 import type { Config } from '../config';
 import { logger } from '../services/logger';
 import { handleAppMention } from './eventHandlers/appMentionHandler';
@@ -21,12 +15,6 @@ import {
 import initiateFeedbackFlowFromReactionEvent from './eventHandlers/initiateFeedbackFlowFromReactionEvent';
 import threadStartedHandler from './eventHandlers/threadStartedHandler';
 import { handleUserMessage } from './eventHandlers/userMessageHandler';
-
-export type ChatMessage =
-  | ChatCompletionSystemMessageParam
-  | ChatCompletionUserMessageParam
-  | ChatCompletionAssistantMessageParam
-  | ChatCompletionToolMessageParam;
 
 export const registerAssistantAndHandlers = (app: App, config: Config, client: WebClient): void => {
   const openRouter = new OpenAI({

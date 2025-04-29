@@ -38,6 +38,7 @@ describe('ResponseManager', () => {
     responseManager = new ResponseManager({
       client: mockClient as unknown as WebClient,
       say: mockSay,
+      channelOrThreadTs: testTs,
     });
 
     // Default successful mock response for say()
@@ -64,7 +65,7 @@ describe('ResponseManager', () => {
   describe('startNewMessageWithPlaceholder', () => {
     it('should call say with the placeholder and store message details', async () => {
       await responseManager.startNewMessageWithPlaceholder(placeholderText);
-      expect(mockSay).toHaveBeenCalledWith({ text: placeholderText });
+      expect(mockSay).toHaveBeenCalledWith({ text: placeholderText, thread_ts: '1678886400.000001' });
       expect(mockSay).toHaveBeenCalledTimes(1);
       expect(mockClient.chat.update).not.toHaveBeenCalled();
     });

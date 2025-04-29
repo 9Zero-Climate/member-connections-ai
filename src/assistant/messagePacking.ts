@@ -3,7 +3,7 @@
 import type { MessageMetadata } from '@slack/web-api/dist';
 import type { FluffyMetadata, MessageElement } from '@slack/web-api/dist/types/response/ConversationsHistoryResponse';
 import type { ChatCompletionMessageToolCall } from 'openai/resources/chat/completions';
-import type { ChatMessage } from '.';
+import type { ChatMessage } from './types';
 
 type MessageMetadataWithToolCalls = MessageMetadata & {
   event_payload: {
@@ -34,6 +34,7 @@ export const unpackToolCallSlackMessage = (slackMessage: MessageElement): ChatMe
       // This message simulates when the assistant made the tool calls
       {
         role: 'assistant',
+        content: null,
         tool_calls: toolCallsUnpacked,
       },
       // This message simulates when the tool calls were completed and sent back to the assistant
@@ -81,12 +82,25 @@ export const packToolCallInfoIntoSlackMessageMetadata = (
  * @param slackMessage - The Slack message to convert.
  * @returns The LLM chat messages.
  */
-export const convertSlackMessageToLLMMessages = (slackMessage: MessageElement): ChatMessage[] => {
-  const role = slackMessage.bot_id ? 'assistant' : 'user';
-  const normalMessages = [{ role, content: slackMessage.text } as ChatMessage];
-  const toolCallsMessages = unpackToolCallSlackMessage(slackMessage);
-  return [...normalMessages, ...toolCallsMessages];
-};
+export function convertSlackMessageToLLMMessages(message: MessageElement): ChatMessage[] {
+  if (!message.text) {
+    return [];
+  }
+
+  const messages: ChatMessage[] = [];
+  if (message.bot_id) {
+    messages.push({ role: 'assistant', content: message.text });
+    if (message.metadata?.event_type === 'llm_tool_calls') {
+      const toolCallMessages = unpackToolCallSlackMessage(message);
+      if (toolCallMessages.length > 0) {
+        messages.push(...toolCallMessages);
+      }
+    }
+  } else {
+    messages.push({ role: 'user', content: message.text });
+  }
+  return messages;
+}
 
 /**
  * Convert Slack message history into a format suitable for using as LLM chat history.
@@ -94,11 +108,21 @@ export const convertSlackMessageToLLMMessages = (slackMessage: MessageElement): 
  * @param userSlackMessageTs - The timestamp of the user's message.
  * @returns The LLM chat history.
  */
-export const convertSlackHistoryToLLMHistory = (
-  slackHistory: MessageElement[],
-  userSlackMessageTs: string,
-): ChatMessage[] => {
-  return slackHistory
-    .filter((m) => m?.ts !== userSlackMessageTs && typeof m?.text === 'string')
-    .flatMap(convertSlackMessageToLLMMessages);
-};
+export function convertSlackHistoryToLLMHistory(
+  messages: MessageElement[],
+  triggeringMessageTs: string,
+): ChatMessage[] {
+  const history: ChatMessage[] = [];
+  for (const message of messages) {
+    if (message.ts === triggeringMessageTs) {
+      break;
+    }
+    if (!message.text) {
+      continue;
+    }
+
+    const llmMessages = convertSlackMessageToLLMMessages(message);
+    history.push(...llmMessages);
+  }
+  return history;
+}

@@ -1,7 +1,9 @@
-import type { MessageElement } from '@slack/web-api/dist/types/response/ConversationsHistoryResponse';
+import type { MessageMetadata } from '@slack/web-api/dist';
+import type { FluffyMetadata, MessageElement } from '@slack/web-api/dist/types/response/ConversationsHistoryResponse';
 import type { ChatCompletionMessageToolCall } from 'openai/resources/chat/completions';
 import {
   convertSlackHistoryToLLMHistory,
+  convertSlackMessageToLLMMessages,
   getPlaceholderToolCallResponses,
   packToolCallInfoIntoSlackMessageMetadata,
   unpackToolCallSlackMessage,

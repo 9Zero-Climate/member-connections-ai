@@ -1,7 +1,8 @@
 import type { AssistantUserMessageMiddlewareArgs } from '@slack/bolt/dist/Assistant';
 import type { WebClient } from '@slack/web-api';
 import type { OpenAI } from 'openai';
-import { type SlackMessage, handleIncomingMessage } from './messageProcessingUtils';
+import { handleIncomingMessage } from '../llmConversation';
+import type { SlackMessage } from '../llmHistoryConversion';
 
 /**
  * Handles a user message from Slack by calling the central message processing orchestrator.
