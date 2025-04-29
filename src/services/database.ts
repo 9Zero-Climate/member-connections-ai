@@ -34,6 +34,11 @@ export interface TestClient {
   end: jest.Mock;
 }
 
+export enum MemberLocation {
+  SEATTLE = 'Seattle',
+  SAN_FRANCISCO = 'San Francisco',
+}
+
 export interface Member {
   officernd_id: string;
   name: string;
@@ -41,6 +46,7 @@ export interface Member {
   linkedin_url: string | null;
   notion_page_id: string | null;
   notion_page_url: string | null;
+  location: MemberLocation | null;
   location_tags: string[] | null;
   created_at?: Date;
   updated_at?: Date;
@@ -320,13 +326,14 @@ async function bulkUpsertMembers(members: Partial<Member>[]): Promise<Member[]> 
 
   try {
     const result = await client.query(
-      `INSERT INTO members (officernd_id, name, slack_id, linkedin_url)
-       SELECT unnest($1::text[]), unnest($2::text[]), unnest($3::text[]), unnest($4::text[])
+      `INSERT INTO members (officernd_id, name, slack_id, linkedin_url, location)
+       SELECT unnest($1::text[]), unnest($2::text[]), unnest($3::text[]), unnest($4::text[]), unnest($5::text[])
        ON CONFLICT (officernd_id)
        DO UPDATE SET
          name = EXCLUDED.name,
          slack_id = EXCLUDED.slack_id,
          linkedin_url = EXCLUDED.linkedin_url,
+         location = EXCLUDED.location,
          updated_at = CURRENT_TIMESTAMP
        RETURNING *`,
       [
@@ -334,6 +341,7 @@ async function bulkUpsertMembers(members: Partial<Member>[]): Promise<Member[]> 
         members.map((m) => m.name),
         members.map((m) => m.slack_id),
         members.map((m) => m.linkedin_url),
+        members.map((m) => m.location),
       ],
     );
     logger.info(`Upserted ${members.length} members into the database.`);

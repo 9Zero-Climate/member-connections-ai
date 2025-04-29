@@ -2,6 +2,8 @@ import type { Client } from 'pg';
 import { mockEmbeddingsService } from './mocks';
 
 import {
+  MemberLocation,
+  bulkUpsertMembers,
   deleteDoc,
   findSimilar,
   getDocBySource,
@@ -256,6 +258,60 @@ describe('Database Integration Tests', () => {
       // Verify no changes were made to the members table
       const result = await testDbClient.query('SELECT * FROM members WHERE notion_page_id = $1', ['page-3']);
       expect(result?.rows).toHaveLength(0);
+    });
+  });
+
+  describe('bulkUpsertMembers', () => {
+    beforeEach(async () => {
+      // Clear members table
+      await testDbClient.query('DELETE FROM members');
+      // Insert test members
+      await testDbClient.query(
+        `INSERT INTO members (officernd_id, name)
+           VALUES
+           ('member-1', 'Alice Smith'),
+           ('member-2', 'Bob Jones'),
+           ('member-3', 'Charlie Brown')`,
+      );
+    });
+
+    it('inserts new members', async () => {
+      const membersToInsert = [
+        {
+          officernd_id: 'member-4',
+          name: 'Donald Duck',
+          slack_id: 'U123',
+          linkedin_url: 'https://linkedin.com/in/johndoe',
+          location: MemberLocation.SAN_FRANCISCO,
+        },
+        {
+          officernd_id: 'member-5',
+          name: 'Eve',
+          slack_id: 'U456',
+          linkedin_url: null,
+          location: null,
+        },
+      ];
+      await bulkUpsertMembers(membersToInsert);
+
+      const insertedMembers = await testDbClient.query('SELECT * FROM members');
+
+      expect(insertedMembers?.rows.length).toBe(5);
+    });
+
+    it('updates existing member', async () => {
+      const memberWithUpdates = {
+        officernd_id: 'member-1',
+        name: 'Alice Smith',
+        slack_id: 'U456',
+        linkedin_url: 'https://linkedin.com/in/janesmith',
+      };
+      await bulkUpsertMembers([memberWithUpdates]);
+
+      const updatedMember = await testDbClient.query('SELECT * FROM members WHERE officernd_id = $1', ['member-1']);
+
+      expect(updatedMember?.rows.length).toBe(1);
+      expect(updatedMember?.rows[0]).toMatchObject(memberWithUpdates);
     });
   });
 });
