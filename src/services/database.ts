@@ -47,7 +47,6 @@ export interface Member {
   notion_page_id: string | null;
   notion_page_url: string | null;
   location: MemberLocation | null;
-  location_tags: string[] | null;
   created_at?: Date;
   updated_at?: Date;
 }
