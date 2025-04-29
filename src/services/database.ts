@@ -18,7 +18,7 @@ export interface Document {
 export interface DocumentWithMemberContext extends Document {
   member_name: string | null;
   member_slack_id: string | null;
-  member_location_tags: string[] | null;
+  member_location: MemberLocation | null;
   member_linkedin_url: string | null;
   member_notion_page_url: string | null;
 }
@@ -246,7 +246,7 @@ async function findSimilar(embedding: number[], options: SearchOptions = {}): Pr
         updated_at,
         member_name,
         member_slack_id,
-        member_location_tags,
+        member_location,
         member_linkedin_url,
         member_notion_page_url,
         1 - (embedding <=> $1) as similarity
@@ -262,7 +262,7 @@ async function findSimilar(embedding: number[], options: SearchOptions = {}): Pr
         row: Document & {
           member_name: string | null;
           member_slack_id: string | null;
-          member_location_tags: string[] | null;
+          member_location: MemberLocation | null;
           member_linkedin_url: string | null;
           member_notion_page_url: string | null;
         },
@@ -277,7 +277,7 @@ async function findSimilar(embedding: number[], options: SearchOptions = {}): Pr
           updated_at,
           member_name,
           member_slack_id,
-          member_location_tags,
+          member_location,
           member_linkedin_url,
           member_notion_page_url,
           embedding: rawEmbedding,
@@ -300,7 +300,7 @@ async function findSimilar(embedding: number[], options: SearchOptions = {}): Pr
             ...metadata,
             member_name,
             member_slack_id,
-            member_location_tags,
+            member_location,
             member_linkedin_url,
             member_notion_page_url,
           },
@@ -467,7 +467,7 @@ async function getLinkedInDocuments(linkedinUrl: string): Promise<Document[]> {
         ...row.metadata,
         member_name: row.member_name,
         member_slack_id: row.member_slack_id,
-        member_location_tags: row.member_location_tags,
+        member_location: row.member_location,
       },
     }));
   } catch (error) {
@@ -494,7 +494,7 @@ async function getLinkedInDocumentsByName(memberName: string): Promise<DocumentW
         updated_at,
         metadata,
         member_name,
-        member_location_tags,
+        member_location,
         member_notion_page_url,
         member_officernd_id,
         member_slack_id
@@ -510,7 +510,7 @@ async function getLinkedInDocumentsByName(memberName: string): Promise<DocumentW
         ...row.metadata,
         member_name: row.member_name, // Already present via metadata key, but good to be explicit
         member_slack_id: row.member_slack_id,
-        member_location_tags: row.member_location_tags,
+        member_location: row.member_location,
         member_notion_page_url: row.member_notion_page_url,
         member_linkedin_url: row.member_linkedin_url,
       },
