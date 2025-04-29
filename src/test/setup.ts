@@ -3,11 +3,11 @@ import dotenv from 'dotenv';
 // Load environment variables from .env file
 dotenv.config();
 
-// Add any global test setup here
-global.beforeAll(() => {
-  // Add any setup that needs to run before all tests
-});
+global.beforeAll(() => {});
 
 global.afterAll(() => {
-  // Add any cleanup that needs to run after all tests
+  // Wait to import this until the last minute so that it can't get in the way of import ordering for
+  // mocking modules. And then use requireActual to bypass jest module mocking
+  const { closeDbConnection } = jest.requireActual('../services/database');
+  closeDbConnection();
 });

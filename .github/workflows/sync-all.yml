@@ -44,7 +44,7 @@ jobs:
           OFFICERND_ORG_SLUG: ${{ secrets.OFFICERND_ORG_SLUG }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
-        run: pnpm sync:officernd | npx pino-pretty
+        run: pnpm sync officernd | npx pino-pretty
 
       - name: Sync Notion
         env:
@@ -53,7 +53,7 @@ jobs:
           NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
           NOTION_MEMBERS_DATABASE_ID: ${{ secrets.NOTION_MEMBERS_DATABASE_ID }}
 
-        run: pnpm sync:notion | npx pino-pretty
+        run: pnpm sync notion | npx pino-pretty
 
       - name: Sync LinkedIn
         env:
@@ -62,7 +62,7 @@ jobs:
           PROXYCURL_API_KEY: ${{ secrets.PROXYCURL_API_KEY }}
 
         run: |
-          pnpm sync:linkedin \
+          pnpm sync linkedin \
             --max-updates=${{ github.event.inputs.linkedin-max-updates || 100 }} \
             --allowed-age-days=${{ github.event.inputs.linkedin-allowed-age-days || 7 }} \
             | npx pino-pretty
@@ -76,7 +76,7 @@ jobs:
         run: |
           echo "Running sync for all configured channels"
           # Add more channels as needed
-          pnpm sync:slack \
+          pnpm sync slack \
             introductions \
             general \
             member-news \
@@ -90,4 +90,5 @@ jobs:
             investing \
             sea-requests-for-support \
             sea-events \
+            sea-ag \
             | npx pino-pretty

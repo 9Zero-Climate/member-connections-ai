@@ -50,7 +50,6 @@ export interface NotionMemberData {
   notionPageUrl: string;
   name: string | null;
   linkedinUrl: string | null;
-  locationTags: string[];
   expertiseTags: string[];
   hiring: boolean;
   lookingForWork: boolean;
@@ -89,7 +88,6 @@ export const parseMemberPage = (page: PageObjectResponse): NotionMemberData | nu
   }
 
   const linkedinUrl = memberProperties.LinkedIn.url;
-  const locationTags = memberProperties.Location.multi_select.map(getTagName);
   const sectorTags = memberProperties.Sectors.multi_select.map(getTagName);
   const subSectorTags = [getPlainTextFromRichText(memberProperties['Sub-Sector'].rich_text)]; // Treat rich text as a single tag
   const hobbyTags = memberProperties['Hobbies/Interests'].multi_select.map(getTagName);
@@ -112,7 +110,6 @@ export const parseMemberPage = (page: PageObjectResponse): NotionMemberData | nu
     notionPageUrl: page.public_url || '',
     name,
     linkedinUrl,
-    locationTags,
     expertiseTags,
     hiring,
     lookingForWork,

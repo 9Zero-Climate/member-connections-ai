@@ -1,5 +1,5 @@
 import { config } from 'dotenv';
-import { getAllMembers } from './officernd';
+import { getAllMembers, getMemberLocation } from './officernd';
 
 // Load environment variables
 config();
@@ -39,6 +39,7 @@ describe('OfficeRnD Service', () => {
           {
             _id: '1',
             name: 'John Doe',
+            office: '6685ac246c4b7640a1887a7c',
             properties: {
               slack_id: 'U123',
               LinkedInViaAdmin: 'https://linkedin.com/in/johndoe',
@@ -74,6 +75,7 @@ describe('OfficeRnD Service', () => {
       name: 'John Doe',
       slack_id: 'U123',
       linkedin_url: 'https://linkedin.com/in/johndoe',
+      location: 'San Francisco',
     });
 
     // Check second member (missing linkedin)
@@ -82,6 +84,23 @@ describe('OfficeRnD Service', () => {
       name: 'Jane Smith',
       slack_id: 'U456',
       linkedin_url: null,
+      location: null,
     });
+  });
+});
+
+describe('getMemberLocation', () => {
+  it('should return correct location given office uuid', () => {
+    const location = getMemberLocation('6685ac246c4b7640a1887a7c');
+    expect(location).toEqual('San Francisco');
+  });
+
+  it.each(['', undefined, null])('returns null if no office uuid', (missingOffice) => {
+    const location = getMemberLocation(missingOffice);
+    expect(location).toBeNull();
+  });
+
+  it('throws error if no hardcoded location for given office uuid', () => {
+    expect(() => getMemberLocation('unknown office uuid')).toThrow(/unknown office uuid/);
   });
 });

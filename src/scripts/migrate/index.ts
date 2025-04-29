@@ -1,9 +1,12 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { Command } from 'commander';
+import * as dotenv from 'dotenv';
 import { Client } from 'pg';
-import { ConfigContext, createValidConfig } from '../config';
-import { logger } from '../services/logger';
+import { ConfigContext, createValidConfig } from '../../config';
+import { logger } from '../../services/logger';
+
+// Load environment variables
+dotenv.config();
 
 /**
  * Run a single SQL migration file
@@ -48,4 +51,41 @@ export async function migrate(filePath: string): Promise<void> {
     }
   }
   logger.info('Migration complete');
+}
+
+export async function migrateAll() {
+  console.log('Running all migrations');
+  const config = createValidConfig(process.env, ConfigContext.Migrate);
+
+  if (process.env.NODE_ENV === 'production' || process.env.DB_URL?.includes('supabase.com')) {
+    console.error(`Detected production NODE_ENV or supabase DB_URL. Don't run this in production! Exiting`);
+    process.exit(1);
+  }
+
+  const client = new Client({ connectionString: config.dbUrl });
+
+  try {
+    await client.connect();
+
+    // Get all migration files
+    const migrationsDir = path.join(__dirname, '..', '..', 'migrations');
+    const migrationFiles = fs
+      .readdirSync(migrationsDir)
+      .filter((file) => file.endsWith('.sql'))
+      .sort(); // Ensure migrations run in order
+
+    // Run each migration
+    for (const file of migrationFiles) {
+      console.log(`Running migration: ${file}`);
+      const migration = fs.readFileSync(path.join(migrationsDir, file), 'utf8');
+      await client.query(migration);
+    }
+
+    console.log('All migrations completed successfully');
+  } catch (error) {
+    console.error('Error running migrations:', error);
+    process.exit(1);
+  } finally {
+    client.end();
+  }
 }

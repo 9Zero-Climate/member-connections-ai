@@ -1,8 +1,6 @@
-import slackSync from '../services/slack_sync';
+import slackSync from '../../services/slack_sync';
 
-async function testSlackSync() {
-  const channelName = 'general'; // Replace with a channel name you want to test
-
+export async function checkSlackConnection(channelName: string) {
   try {
     console.log(`Testing Slack sync for channel: ${channelName}`);
 
@@ -33,5 +31,3 @@ async function testSlackSync() {
     console.error('Error testing Slack sync:', error);
   }
 }
-
-void testSlackSync();

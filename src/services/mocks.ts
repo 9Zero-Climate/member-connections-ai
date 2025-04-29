@@ -1,3 +1,13 @@
+export const mockEmbeddingsService = {
+  generateEmbedding: jest.fn(),
+  generateEmbeddings: jest.fn(),
+  client: {
+    embeddings: {
+      create: jest.fn(),
+    },
+  },
+};
+
 export const mockOfficeRndService = {
   getAllMembers: jest.fn(),
 };

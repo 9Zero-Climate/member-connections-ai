@@ -9,7 +9,7 @@ export interface Document {
   source_type: string;
   source_unique_id: string;
   content: string;
-  embedding: number[] | null;
+  embedding?: number[] | null;
   metadata?: Record<string, unknown>;
   created_at?: Date;
   updated_at?: Date;
@@ -18,7 +18,7 @@ export interface Document {
 export interface DocumentWithMemberContext extends Document {
   member_name: string | null;
   member_slack_id: string | null;
-  member_location_tags: string[] | null;
+  member_location: MemberLocation | null;
   member_linkedin_url: string | null;
   member_notion_page_url: string | null;
 }
@@ -34,6 +34,11 @@ export interface TestClient {
   end: jest.Mock;
 }
 
+export enum MemberLocation {
+  SEATTLE = 'Seattle',
+  SAN_FRANCISCO = 'San Francisco',
+}
+
 export interface Member {
   officernd_id: string;
   name: string;
@@ -41,7 +46,7 @@ export interface Member {
   linkedin_url: string | null;
   notion_page_id: string | null;
   notion_page_url: string | null;
-  location_tags: string[] | null;
+  location: MemberLocation | null;
   created_at?: Date;
   updated_at?: Date;
 }
@@ -59,40 +64,35 @@ export interface FeedbackVote {
 
 export type QueryParams = (string | number | boolean | string[] | Record<string, unknown> | null)[];
 
-let client: Client | TestClient;
+let globalClient: Client | undefined;
 
-function getClient(): Client | TestClient {
-  if (client) return client;
+async function getOrCreateClient(): Promise<Client> {
+  if (globalClient) return globalClient;
 
-  if (process.env.NODE_ENV === 'test') {
-    // Use a mock client in test environment
-    client = {
-      query: jest.fn().mockImplementation((_query: string, _params?: QueryParams) => Promise.resolve({ rows: [] })),
-      connect: jest.fn().mockImplementation(() => Promise.resolve()),
-      end: jest.fn().mockImplementation(() => Promise.resolve()),
-    };
-  } else {
-    // Use a real client in other environments
-    client = new Client({
-      connectionString: config.dbUrl, // Use config here
-    });
-    // Connect to the database
-    client.connect().catch((err) => {
-      logger.error('Failed to connect to database:', err);
-      throw err;
-    });
-
-    logger.info('Global database connection opened.');
+  if (process.env.NODE_ENV === 'test' && process.env.DB_URL?.includes('supabase.com')) {
+    throw new Error(`Don't try connecting to real db in tests! Test setup should set DB_URL to point to test db`);
   }
-  return client;
+
+  try {
+    logger.info(`Opening new global database connection to: ${config.dbUrl}`);
+    globalClient = new Client({ connectionString: config.dbUrl });
+    await globalClient.connect();
+  } catch (error) {
+    logger.error('Failed to connect to database:', error);
+    throw error;
+  }
+
+  return globalClient;
 }
 
-// Initialize client
-client = getClient();
-
 async function closeDbConnection(): Promise<void> {
-  await client.end();
-  logger.info('Global database connection closed.');
+  if (globalClient === undefined) {
+    logger.error("Trying to close global database connection but it doesn't exist");
+  } else {
+    await globalClient.end();
+    globalClient = undefined;
+    logger.info('Global database connection closed.');
+  }
 }
 
 /**
@@ -149,6 +149,8 @@ function formatForComparison(embedding: number[] | string | null): string | null
  * @returns The inserted/updated document
  */
 async function insertOrUpdateDoc(doc: Document): Promise<Document> {
+  const client = await await getOrCreateClient();
+
   try {
     // Generate embeddings if not provided
     const embedding = doc.embedding ?? (await generateEmbeddings([doc.content]))[0];
@@ -183,6 +185,8 @@ async function insertOrUpdateDoc(doc: Document): Promise<Document> {
  * @returns The document or null if not found
  */
 async function getDocBySource(sourceUniqueId: string): Promise<Document | null> {
+  const client = await getOrCreateClient();
+
   try {
     const result = await client.query('SELECT * FROM rag_docs WHERE source_unique_id = $1', [sourceUniqueId]);
     if (!result.rows[0]) return null;
@@ -203,6 +207,8 @@ async function getDocBySource(sourceUniqueId: string): Promise<Document | null> 
  * @returns True if deleted, false if not found
  */
 async function deleteDoc(sourceUniqueId: string): Promise<boolean> {
+  const client = await getOrCreateClient();
+
   try {
     const result = await client.query('DELETE FROM rag_docs WHERE source_unique_id = $1 RETURNING *', [sourceUniqueId]);
     return result.rows.length > 0;
@@ -219,6 +225,8 @@ async function deleteDoc(sourceUniqueId: string): Promise<boolean> {
  * @returns Similar documents with similarity scores and member context
  */
 async function findSimilar(embedding: number[], options: SearchOptions = {}): Promise<Document[]> {
+  const client = await getOrCreateClient();
+
   try {
     const embeddingVector = formatForComparison(embedding);
     const limit = options.limit || 5;
@@ -237,7 +245,7 @@ async function findSimilar(embedding: number[], options: SearchOptions = {}): Pr
         updated_at,
         member_name,
         member_slack_id,
-        member_location_tags,
+        member_location,
         member_linkedin_url,
         member_notion_page_url,
         1 - (embedding <=> $1) as similarity
@@ -253,7 +261,7 @@ async function findSimilar(embedding: number[], options: SearchOptions = {}): Pr
         row: Document & {
           member_name: string | null;
           member_slack_id: string | null;
-          member_location_tags: string[] | null;
+          member_location: MemberLocation | null;
           member_linkedin_url: string | null;
           member_notion_page_url: string | null;
         },
@@ -268,7 +276,7 @@ async function findSimilar(embedding: number[], options: SearchOptions = {}): Pr
           updated_at,
           member_name,
           member_slack_id,
-          member_location_tags,
+          member_location,
           member_linkedin_url,
           member_notion_page_url,
           embedding: rawEmbedding,
@@ -291,7 +299,7 @@ async function findSimilar(embedding: number[], options: SearchOptions = {}): Pr
             ...metadata,
             member_name,
             member_slack_id,
-            member_location_tags,
+            member_location,
             member_linkedin_url,
             member_notion_page_url,
           },
@@ -304,11 +312,6 @@ async function findSimilar(embedding: number[], options: SearchOptions = {}): Pr
   }
 }
 
-// For testing
-function setTestClient(testClient: TestClient): void {
-  client = testClient;
-}
-
 /**
  * Bulk insert or update members
  * @param members - Array of members to insert/update
@@ -316,18 +319,20 @@ function setTestClient(testClient: TestClient): void {
  */
 async function bulkUpsertMembers(members: Partial<Member>[]): Promise<Member[]> {
   logger.info('Upserting basic member info into database...');
+  const client = await getOrCreateClient();
 
   if (members.length === 0) return [];
 
   try {
     const result = await client.query(
-      `INSERT INTO members (officernd_id, name, slack_id, linkedin_url)
-       SELECT unnest($1::text[]), unnest($2::text[]), unnest($3::text[]), unnest($4::text[])
+      `INSERT INTO members (officernd_id, name, slack_id, linkedin_url, location)
+       SELECT unnest($1::text[]), unnest($2::text[]), unnest($3::text[]), unnest($4::text[]), unnest($5::text[])
        ON CONFLICT (officernd_id)
        DO UPDATE SET
          name = EXCLUDED.name,
          slack_id = EXCLUDED.slack_id,
          linkedin_url = EXCLUDED.linkedin_url,
+         location = EXCLUDED.location,
          updated_at = CURRENT_TIMESTAMP
        RETURNING *`,
       [
@@ -335,6 +340,7 @@ async function bulkUpsertMembers(members: Partial<Member>[]): Promise<Member[]> 
         members.map((m) => m.name),
         members.map((m) => m.slack_id),
         members.map((m) => m.linkedin_url),
+        members.map((m) => m.location),
       ],
     );
     logger.info(`Upserted ${members.length} members into the database.`);
@@ -351,6 +357,8 @@ async function bulkUpsertMembers(members: Partial<Member>[]): Promise<Member[]> 
  * @param typePrefix - e.g., 'linkedin_' or 'notion_'
  */
 async function deleteTypedDocumentsForMember(officerndMemberId: string, typePrefix: string): Promise<void> {
+  const client = await getOrCreateClient();
+
   try {
     const pattern = `${typePrefix}%`; // e.g., notion_%
     // Attempt to extract member ID from metadata first, then fallback to source_unique_id parsing
@@ -396,6 +404,7 @@ export interface MemberWithLinkedInUpdateMetadata {
  */
 async function getMembersWithLastLinkedInUpdates(): Promise<MemberWithLinkedInUpdateMetadata[]> {
   logger.info('Fetching Members with last LinkedIn update metadata...');
+  const client = await getOrCreateClient();
 
   try {
     const result = await client.query(`
@@ -439,6 +448,8 @@ async function getMembersWithLastLinkedInUpdates(): Promise<MemberWithLinkedInUp
  * @returns Array of documents with their content and metadata
  */
 async function getLinkedInDocuments(linkedinUrl: string): Promise<Document[]> {
+  const client = await getOrCreateClient();
+
   try {
     // Query the view to get enriched metadata
     const result = await client.query(
@@ -455,7 +466,7 @@ async function getLinkedInDocuments(linkedinUrl: string): Promise<Document[]> {
         ...row.metadata,
         member_name: row.member_name,
         member_slack_id: row.member_slack_id,
-        member_location_tags: row.member_location_tags,
+        member_location: row.member_location,
       },
     }));
   } catch (error) {
@@ -470,6 +481,8 @@ async function getLinkedInDocuments(linkedinUrl: string): Promise<Document[]> {
  * @returns Array of documents with their content and metadata
  */
 async function getLinkedInDocumentsByName(memberName: string): Promise<DocumentWithMemberContext[]> {
+  const client = await getOrCreateClient();
+
   try {
     const result = await client.query(
       `SELECT 
@@ -480,7 +493,7 @@ async function getLinkedInDocumentsByName(memberName: string): Promise<DocumentW
         updated_at,
         metadata,
         member_name,
-        member_location_tags,
+        member_location,
         member_notion_page_url,
         member_officernd_id,
         member_slack_id
@@ -496,7 +509,7 @@ async function getLinkedInDocumentsByName(memberName: string): Promise<DocumentW
         ...row.metadata,
         member_name: row.member_name, // Already present via metadata key, but good to be explicit
         member_slack_id: row.member_slack_id,
-        member_location_tags: row.member_location_tags,
+        member_location: row.member_location,
         member_notion_page_url: row.member_notion_page_url,
         member_linkedin_url: row.member_linkedin_url,
       },
@@ -513,6 +526,8 @@ async function getLinkedInDocumentsByName(memberName: string): Promise<DocumentW
  * @returns The saved feedback record
  */
 async function saveFeedback(feedback: FeedbackVote): Promise<FeedbackVote> {
+  const client = await getOrCreateClient();
+
   try {
     const result = await client.query(
       `INSERT INTO feedback (message_channel_id, message_ts, submitted_by_user_id, reaction, reasoning, environment)
@@ -536,24 +551,19 @@ async function saveFeedback(feedback: FeedbackVote): Promise<FeedbackVote> {
 }
 
 async function updateMemberWithNotionData(officerndMemberId: string, notionData: NotionMemberData): Promise<void> {
+  const client = await getOrCreateClient();
+
   await client.query(
     `
     UPDATE members
     SET 
       notion_page_id = $1, 
-      location_tags = $2, 
-      notion_page_url = $3, 
-      linkedin_url = COALESCE($4, linkedin_url), -- Don't overwrite with null
+      notion_page_url = $2, 
+      linkedin_url = COALESCE($3, linkedin_url), -- Don't overwrite with null
       updated_at = CURRENT_TIMESTAMP
-    WHERE officernd_id = $5
+    WHERE officernd_id = $4
     `,
-    [
-      notionData.notionPageId,
-      notionData.locationTags.length > 0 ? notionData.locationTags : null,
-      notionData.notionPageUrl,
-      notionData.linkedinUrl,
-      officerndMemberId,
-    ],
+    [notionData.notionPageId, notionData.notionPageUrl, notionData.linkedinUrl, officerndMemberId],
   );
 }
 
@@ -623,6 +633,7 @@ async function upsertNotionDataForMember(officerndMemberId: string, notionData: 
  */
 async function updateMembersFromNotion(notionMembers: NotionMemberData[]): Promise<void> {
   logger.info('Updating members in database with Notion data...');
+  const client = await getOrCreateClient();
 
   // Fetch existing members from DB for matching
   const dbResult = await client.query('SELECT officernd_id, name, notion_page_id FROM members');
@@ -685,6 +696,7 @@ async function updateMembersFromNotion(notionMembers: NotionMemberData[]): Promi
 }
 
 export {
+  getOrCreateClient,
   insertOrUpdateDoc,
   getDocBySource,
   deleteDoc,
@@ -694,7 +706,6 @@ export {
   bulkUpsertMembers,
   deleteLinkedInDocuments,
   deleteNotionDocuments,
-  setTestClient,
   getLinkedInDocuments,
   getLinkedInDocumentsByName,
   saveFeedback,
