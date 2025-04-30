@@ -382,11 +382,6 @@ async function deleteTypedDocumentsForMember(officerndMemberId: string, typePref
   }
 }
 
-// Specific deletion functions for clarity
-async function deleteLinkedInDocuments(officerndMemberId: string): Promise<void> {
-  return deleteTypedDocumentsForMember(officerndMemberId, 'linkedin_');
-}
-
 async function deleteNotionDocuments(officerndMemberId: string): Promise<void> {
   return deleteTypedDocumentsForMember(officerndMemberId, 'notion_');
 }
@@ -710,7 +705,7 @@ export {
   closeDbConnection,
   getMembersWithLastLinkedInUpdates,
   bulkUpsertMembers,
-  deleteLinkedInDocuments,
+  deleteTypedDocumentsForMember,
   deleteNotionDocuments,
   getLinkedInDocuments,
   getLinkedInDocumentsByName,

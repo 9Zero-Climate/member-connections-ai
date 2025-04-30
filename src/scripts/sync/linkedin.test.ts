@@ -80,7 +80,7 @@ describe('syncLinkedIn', () => {
 
     // Expect each of these two be called once per member
     expect(mockProxycurlService.getLinkedInProfile).toHaveBeenCalledTimes(10);
-    expect(mockDatabaseService.deleteLinkedInDocuments).toHaveBeenCalledTimes(10);
+    expect(mockDatabaseService.deleteTypedDocumentsForMember).toHaveBeenCalledTimes(10);
   });
 
   it('respects default maxUpdates', async () => {

@@ -2,7 +2,7 @@ import { ConfigContext, validateConfig } from '../../config';
 import {
   type MemberWithLinkedInUpdateMetadata,
   closeDbConnection,
-  deleteLinkedInDocuments,
+  deleteTypedDocumentsForMember,
   getMembersWithLastLinkedInUpdates,
   insertOrUpdateDoc,
 } from '../../services/database';
@@ -147,6 +147,12 @@ export function getMembersToUpdate(
   return membersToUpdate;
 }
 
+const LINKEDIN_SOURCE_TYPE_PREFIX = 'linkedin_';
+
+async function deleteLinkedInDocuments(officerndMemberId: string): Promise<void> {
+  return deleteTypedDocumentsForMember(officerndMemberId, LINKEDIN_SOURCE_TYPE_PREFIX);
+}
+
 /**
  * Create LinkedIn documents for a member
  * @param officerndMemberId - The OfficeRnD member ID
@@ -170,7 +176,7 @@ export async function createLinkedInDocuments(
     if (profile.headline) {
       const headlineId = `officernd_member_${officerndMemberId}:headline`;
       await insertOrUpdateDoc({
-        source_type: 'linkedin_headline',
+        source_type: `${LINKEDIN_SOURCE_TYPE_PREFIX}headline`,
         source_unique_id: headlineId,
         content: profile.headline,
         metadata: baseMetadata,
@@ -182,7 +188,7 @@ export async function createLinkedInDocuments(
     if (profile.summary) {
       const summaryId = `officernd_member_${officerndMemberId}:summary`;
       await insertOrUpdateDoc({
-        source_type: 'linkedin_summary',
+        source_type: `${LINKEDIN_SOURCE_TYPE_PREFIX}summary`,
         source_unique_id: summaryId,
         content: profile.summary,
         metadata: baseMetadata,
@@ -213,7 +219,7 @@ export async function createLinkedInDocuments(
       };
 
       await insertOrUpdateDoc({
-        source_type: 'linkedin_experience',
+        source_type: `${LINKEDIN_SOURCE_TYPE_PREFIX}experience`,
         source_unique_id: docId,
         content,
         metadata: docMetadata,
@@ -239,7 +245,7 @@ export async function createLinkedInDocuments(
       };
 
       await insertOrUpdateDoc({
-        source_type: 'linkedin_education',
+        source_type: `${LINKEDIN_SOURCE_TYPE_PREFIX}education`,
         source_unique_id: docId,
         content,
         metadata: docMetadata,
@@ -257,7 +263,7 @@ export async function createLinkedInDocuments(
       };
 
       await insertOrUpdateDoc({
-        source_type: 'linkedin_skills',
+        source_type: `${LINKEDIN_SOURCE_TYPE_PREFIX}skills`,
         source_unique_id: skillsId,
         content,
         metadata: docMetadata,
@@ -271,7 +277,7 @@ export async function createLinkedInDocuments(
       const languagesId = `officernd_member_${officerndMemberId}:languages`;
 
       await insertOrUpdateDoc({
-        source_type: 'linkedin_languages',
+        source_type: `${LINKEDIN_SOURCE_TYPE_PREFIX}languages`,
         source_unique_id: languagesId,
         content,
         metadata: baseMetadata,

@@ -22,7 +22,7 @@ export const mockDatabaseService = {
   updateMembersFromNotion: jest.fn(),
   getMembersWithLastLinkedInUpdates: jest.fn(),
   getDocBySource: jest.fn(),
-  deleteLinkedInDocuments: jest.fn(),
+  deleteTypedDocumentsForMember: jest.fn(),
   insertOrUpdateDoc: jest.fn(),
 };
 
