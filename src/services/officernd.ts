@@ -17,9 +17,10 @@ type OfficeRnDRawMemberData = {
   _id: string;
   name: string;
   office: string; // uuid
+  linkedin?: string | null; // Undocumented property, set by member in the member portal alongside other social links
   properties: {
     slack_id?: string;
-    LinkedInViaAdmin?: string;
+    LinkedInViaAdmin?: string; // Custom property, intention is for 9Zero staff to be able to set if member hasn't set their own linkedin
     [key: string]: string | undefined; // Allow other string properties
   };
 };
@@ -107,8 +108,8 @@ export async function getAllMembers(): Promise<OfficeRnDMember[]> {
       officernd_id: member._id,
       name: member.name,
       location: getMemberLocation(member.office),
-      slack_id: member.properties?.slack_id || null,
-      linkedin_url: member.properties?.LinkedInViaAdmin || null,
+      slack_id: member.properties.slack_id || null,
+      linkedin_url: getMemberLinkedin(member),
     };
   });
 
@@ -116,6 +117,14 @@ export async function getAllMembers(): Promise<OfficeRnDMember[]> {
 
   return members;
 }
+
+export const getMemberLinkedin = (member: OfficeRnDRawMemberData): string | null => {
+  return (
+    member.linkedin || // Prefer the member-set first-class OfficeRnD attribute
+    member.properties.LinkedInViaAdmin || // Fall back to the custom property that 9Zero staff can set
+    null
+  );
+};
 
 // Hardcoding for now to save the extra fetch
 const LOCATION_FROM_OFFICE_UUID: Record<string, MemberLocation> = {

@@ -1,5 +1,5 @@
 import { config } from 'dotenv';
-import { getAllMembers, getMemberLocation } from './officernd';
+import { getAllMembers, getMemberLinkedin, getMemberLocation } from './officernd';
 
 // Load environment variables
 config();
@@ -95,12 +95,49 @@ describe('getMemberLocation', () => {
     expect(location).toEqual('San Francisco');
   });
 
-  it.each(['', undefined, null])('returns null if no office uuid', (missingOffice) => {
+  it.each(['', undefined, null])('returns null if no office uuid (office=%s)', (missingOffice) => {
     const location = getMemberLocation(missingOffice);
     expect(location).toBeNull();
   });
 
   it('throws error if no hardcoded location for given office uuid', () => {
     expect(() => getMemberLocation('unknown office uuid')).toThrow(/unknown office uuid/);
+  });
+});
+
+describe('getMemberLinkedin', () => {
+  const mockMember = {
+    _id: '1',
+    name: 'John Doe',
+    office: '6685ac246c4b7640a1887a7c',
+    linkedin: 'https://linkedin.com/in/johndoe',
+    properties: {
+      LinkedInViaAdmin: 'https://linkedin.com/in/thejohndoe',
+    },
+  };
+
+  it('should return member.linkedin if present', () => {
+    const linkedinUrl = getMemberLinkedin(mockMember);
+    expect(linkedinUrl).toEqual('https://linkedin.com/in/johndoe');
+  });
+
+  it.each(['', undefined, null])(
+    'should fall back to member.properties.LinkedInViaAdmin if member.linkedin missing (linkedin=%s)',
+    (missingMemberLinkedin) => {
+      const linkedinUrl = getMemberLinkedin({
+        ...mockMember,
+        linkedin: missingMemberLinkedin,
+      });
+      expect(linkedinUrl).toEqual('https://linkedin.com/in/thejohndoe');
+    },
+  );
+
+  it('should return null if neither', () => {
+    const linkedinUrl = getMemberLinkedin({
+      ...mockMember,
+      linkedin: undefined,
+      properties: {},
+    });
+    expect(linkedinUrl).toBeNull();
   });
 });
