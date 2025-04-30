@@ -9,7 +9,7 @@ export const mockEmbeddingsService = {
 };
 
 export const mockOfficeRndService = {
-  getAllMembers: jest.fn(),
+  getAllOfficeRnDMembersData: jest.fn(),
 };
 
 export const mockNotionService = {
@@ -22,11 +22,12 @@ export const mockDatabaseService = {
   updateMembersFromNotion: jest.fn(),
   getMembersWithLastLinkedInUpdates: jest.fn(),
   getDocBySource: jest.fn(),
+  deleteTypedDocumentsForMember: jest.fn(),
+  insertOrUpdateDoc: jest.fn(),
 };
 
 export const mockProxycurlService = {
   getLinkedInProfile: jest.fn(),
-  createLinkedInDocuments: jest.fn(),
 };
 
 export const mockSlackService = {

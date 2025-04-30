@@ -1,9 +1,11 @@
-import { config } from 'dotenv';
 import { mockDatabaseService, mockLoggerService, mockProxycurlService } from '../../services/mocks'; // These have to be imported before the libraries they are going to mock are imported
-import { LinkedInSyncOptions, getMembersToUpdate, getValidSyncOptions, syncLinkedIn } from './linkedin';
-
-// Load environment variables
-config();
+import {
+  createLinkedInDocuments,
+  getMembersToUpdate,
+  getValidSyncOptions,
+  needsLinkedInUpdate,
+  syncLinkedIn,
+} from './linkedin';
 
 jest.mock('../../services/proxycurl', () => mockProxycurlService);
 jest.mock('../../services/database', () => mockDatabaseService);
@@ -78,7 +80,7 @@ describe('syncLinkedIn', () => {
 
     // Expect each of these two be called once per member
     expect(mockProxycurlService.getLinkedInProfile).toHaveBeenCalledTimes(10);
-    expect(mockProxycurlService.createLinkedInDocuments).toHaveBeenCalledTimes(10);
+    expect(mockDatabaseService.deleteTypedDocumentsForMember).toHaveBeenCalledTimes(10);
   });
 
   it('respects default maxUpdates', async () => {
@@ -210,5 +212,226 @@ describe('getMembersToUpdate', () => {
 
     // Should respect custom maxUpdates limit
     expect(result).toHaveLength(10);
+  });
+});
+
+describe('createLinkedInDocuments', () => {
+  const mockProfile = {
+    headline: 'Software Engineer',
+    summary: 'Experienced developer',
+    experiences: [
+      {
+        title: 'Software Engineer',
+        company: '9Zero',
+        description: 'Led development',
+        starts_at: {
+          day: 1,
+          month: 1,
+          year: 2020,
+        },
+        ends_at: {
+          day: 31,
+          month: 12,
+          year: 2024,
+        },
+        location: 'San Francisco',
+      },
+    ],
+    education: [
+      {
+        school: 'Stanford',
+        degree_name: 'BS',
+        field_of_study: 'Computer Science',
+        starts_at: {
+          day: 1,
+          month: 9,
+          year: 2016,
+        },
+        ends_at: {
+          day: 30,
+          month: 6,
+          year: 2020,
+        },
+        description: 'Focus on AI',
+      },
+    ],
+    skills: ['Python', 'TypeScript'],
+    languages: ['English'],
+  };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('should create all document types', async () => {
+    await createLinkedInDocuments('123', 'John Doe', 'https://linkedin.com/in/johndoe', mockProfile);
+
+    // Verify document creation
+    expect(mockDatabaseService.insertOrUpdateDoc).toHaveBeenCalledTimes(6); // headline, summary, experience, education, skills, languages
+
+    // Verify headline document
+    expect(mockDatabaseService.insertOrUpdateDoc).toHaveBeenCalledWith(
+      expect.objectContaining({
+        source_type: 'linkedin_headline',
+        source_unique_id: 'officernd_member_123:headline',
+        content: 'Software Engineer',
+        embedding: null,
+        metadata: expect.objectContaining({
+          member_name: 'John Doe',
+          linkedin_url: 'https://linkedin.com/in/johndoe',
+        }),
+      }),
+    );
+
+    // Verify experience document
+    expect(mockDatabaseService.insertOrUpdateDoc).toHaveBeenCalledWith(
+      expect.objectContaining({
+        source_type: 'linkedin_experience',
+        source_unique_id: expect.stringContaining('officernd_member_123:experience_9zero-2020-01-01-2024-12-31'),
+        content: expect.stringContaining('Software Engineer at 9Zero'),
+        embedding: null,
+        metadata: expect.objectContaining({
+          member_name: 'John Doe',
+          linkedin_url: 'https://linkedin.com/in/johndoe',
+          title: 'Software Engineer',
+          company: '9Zero',
+          date_range: '2020-01-01 - 2024-12-31',
+          location: 'San Francisco',
+        }),
+      }),
+    );
+
+    // Verify education document
+    expect(mockDatabaseService.insertOrUpdateDoc).toHaveBeenCalledWith(
+      expect.objectContaining({
+        source_type: 'linkedin_education',
+        source_unique_id: expect.stringContaining('officernd_member_123:education_stanford-2016-09-01-2020-06-30'),
+        content: expect.stringContaining('Stanford'),
+        embedding: null,
+        metadata: expect.objectContaining({
+          member_name: 'John Doe',
+          linkedin_url: 'https://linkedin.com/in/johndoe',
+          school: 'Stanford',
+          degree_name: 'BS',
+          field_of_study: 'Computer Science',
+          date_range: '2016-09-01 - 2020-06-30',
+        }),
+      }),
+    );
+  });
+
+  it('should handle missing optional fields', async () => {
+    const profileWithMissingFields = {
+      ...mockProfile,
+      headline: null,
+      summary: null,
+      experiences: [],
+      education: [],
+      skills: [],
+      languages: [],
+    };
+
+    await createLinkedInDocuments('123', 'John Doe', 'https://linkedin.com/in/johndoe', profileWithMissingFields);
+
+    // Verify no documents were created
+    expect(mockDatabaseService.insertOrUpdateDoc).not.toHaveBeenCalled();
+  });
+
+  it('should handle experiences with missing fields', async () => {
+    const profileWithMissingExperienceFields = {
+      ...mockProfile,
+      experiences: [
+        {
+          title: null,
+          company: '9Zero',
+          description: null,
+          starts_at: null,
+          ends_at: null,
+          location: null,
+        },
+      ],
+    };
+
+    await createLinkedInDocuments(
+      '123',
+      'John Doe',
+      'https://linkedin.com/in/johndoe',
+      profileWithMissingExperienceFields,
+    );
+
+    // Verify experience document was created with null fields
+    expect(mockDatabaseService.insertOrUpdateDoc).toHaveBeenCalledWith(
+      expect.objectContaining({
+        source_type: 'linkedin_experience',
+        source_unique_id: expect.stringContaining('officernd_member_123:experience_9zero-9zero'),
+        content: '9Zero',
+        metadata: expect.objectContaining({
+          title: null,
+          company: '9Zero',
+          date_range: null,
+          location: null,
+        }),
+      }),
+    );
+  });
+
+  it('should handle education with missing fields', async () => {
+    const profileWithMissingEducationFields = {
+      ...mockProfile,
+      education: [
+        {
+          school: 'Stanford',
+          degree_name: null,
+          field_of_study: null,
+          starts_at: null,
+          ends_at: null,
+          description: null,
+        },
+      ],
+    };
+
+    await createLinkedInDocuments(
+      '123',
+      'John Doe',
+      'https://linkedin.com/in/johndoe',
+      profileWithMissingEducationFields,
+    );
+
+    // Verify education document was created with null fields
+    expect(mockDatabaseService.insertOrUpdateDoc).toHaveBeenCalledWith(
+      expect.objectContaining({
+        source_type: 'linkedin_education',
+        source_unique_id: expect.stringContaining('officernd_member_123:education_stanford-unknown'),
+        content: 'Stanford',
+        metadata: expect.objectContaining({
+          school: 'Stanford',
+          degree_name: null,
+          field_of_study: null,
+          date_range: null,
+        }),
+      }),
+    );
+  });
+});
+
+describe('needsLinkedInUpdate', () => {
+  it('should return true if lastUpdate is null', () => {
+    expect(needsLinkedInUpdate(null)).toBe(true);
+  });
+
+  it('should return true if profile is older than maxAge', () => {
+    const oldUpdate = Date.now() - 91 * 24 * 60 * 60 * 1000; // 91 days ago
+    expect(needsLinkedInUpdate(oldUpdate)).toBe(true);
+  });
+
+  it('should return false if profile is newer than maxAge', () => {
+    const recentUpdate = Date.now() - 89 * 24 * 60 * 60 * 1000; // 89 days ago
+    expect(needsLinkedInUpdate(recentUpdate)).toBe(false);
+  });
+
+  it('should respect custom maxAge parameter', () => {
+    const update = Date.now() - 31 * 24 * 60 * 60 * 1000; // 31 days ago
+    expect(needsLinkedInUpdate(update, 30 * 24 * 60 * 60 * 1000)).toBe(true);
+    expect(needsLinkedInUpdate(update, 32 * 24 * 60 * 60 * 1000)).toBe(false);
   });
 });
