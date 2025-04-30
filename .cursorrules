@@ -1,0 +1,42 @@
+This is a typescript project. For prior rules specific to Python, ignore them or apply them with the appropriate modifications.
+
+Before saying you're "done" with anything, run `pnpm test && pnpm lint && pnpm typecheck` to verify, and fix any issues. Use `pnpm test` or `pnpm test [file]` for testing as you go in a tighter loop.
+For lint issues, first line of defense is `pnpm lint --fix` to fix automatically.
+
+Communication style:
+- Do not apologize for making mistakes. We all do it sometimes.
+
+Coding Conventions:
+- Strongly prefer map() and named functions over for loops. This increases readability and testability
+- Don't aggressively catch errors if you're just going to rethrow them. Prefer to handle errors once at a higher level but do ensure that stacktraces are preserved so we don't lose information.
+- In cases of unexpected external errors (eg. Slack API failure), don't catch the error - let the app crash so that developers will be notified and can make the appropriate fix.
+
+Naming conventions:
+- When creating tests in Jest, don't use the word "should" in test names. For example, use "it('throws on condition X')" instead of "it('should throw on condition X')".
+- Aim to write functions such that docstrings are unnecessary, but use docstrings as needed when naming is not enough.
+- When writing docstrings, use imperative language: ```
+  /**
+   * Remove the user from the database
+   * [...]
+   */
+  ```
+  not
+  ```
+  /**
+   * This function should remove the user from the database
+   * [...]
+   */
+  ```
+  or
+  ```
+  /**
+   * Removes the user from the database
+   * [...]
+   */
+  ```
+
+Commenting conventions:
+- Limit comments to those describing code that is not self evident.
+- Do not use comments that describe why you are changing something - comments like "// Now this does X" or "// Moved X here" belong in the chat thread but not in the code.
+- If you feel the need to leave a comment describing what a code block does, consider refactoring the section into a named function to make the code more self-documenting.
+
