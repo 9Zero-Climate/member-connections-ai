@@ -190,11 +190,12 @@ describe('Database Integration Tests', () => {
       await testDbClient.query('DELETE FROM members');
       // Insert test members
       await testDbClient.query(
-        `INSERT INTO members (officernd_id, name, notion_page_id) 
+        `INSERT INTO members (officernd_id, name, notion_page_id, linkedin_url) 
            VALUES 
-           ('member-1', 'Alice Smith', null),
-           ('member-2', 'Bob Jones', 'old-page-id'),
-           ('member-3', 'Charlie Brown', null)`,
+           ('member-1', 'Alice Smith', null, null),
+           ('member-2', 'Bob Jones', 'old-page-id', null),
+           ('member-3', 'Charlie Brown', null, 'https://linkedin.com/charlie')
+        `,
       );
     });
 
@@ -203,22 +204,24 @@ describe('Database Integration Tests', () => {
 
       // Verify Alice was matched by name and updated
       const aliceResult = await testDbClient.query(
-        'SELECT notion_page_id, notion_page_url FROM members WHERE name = $1',
+        'SELECT notion_page_id, notion_page_url, linkedin_url FROM members WHERE name = $1',
         ['Alice Smith'],
       );
       expect(aliceResult?.rows[0]).toMatchObject({
         notion_page_id: 'page-1',
         notion_page_url: 'https://notion.so/page-1',
+        linkedin_url: 'https://linkedin.com/alice',
       });
 
       // Verify Bob was matched and updated
       const bobResult = await testDbClient.query(
-        'SELECT notion_page_id, notion_page_url FROM members WHERE name = $1',
+        'SELECT notion_page_id, notion_page_url, linkedin_url FROM members WHERE name = $1',
         ['Bob Jones'],
       );
       expect(bobResult?.rows[0]).toMatchObject({
         notion_page_id: 'page-2',
         notion_page_url: 'https://notion.so/page-2',
+        linkedin_url: 'https://linkedin.com/bob',
       });
 
       // Verify Charlie was not updated
@@ -228,6 +231,32 @@ describe('Database Integration Tests', () => {
       );
       expect(charlieResult?.rows[0].notion_page_id).toBeNull();
       expect(charlieResult?.rows[0].notion_page_url).toBeNull();
+    });
+
+    it('should not overwrite existing linkedin_url', async () => {
+      await updateMembersFromNotion([
+        {
+          notionPageId: 'page-3',
+          notionPageUrl: 'https://notion.so/page-3',
+          name: 'Charlie Brown',
+          linkedinUrl: 'https://linkedin.com/thewrongcharlie',
+          expertiseTags: [],
+          hiring: false,
+          lookingForWork: false,
+        },
+      ]);
+
+      // Verify Charlie was not updated
+      const charlieResult = await testDbClient.query(
+        'SELECT notion_page_id, notion_page_url, linkedin_url FROM members WHERE name = $1',
+        ['Charlie Brown'],
+      );
+
+      expect(charlieResult?.rows[0]).toMatchObject({
+        notion_page_id: 'page-3',
+        notion_page_url: 'https://notion.so/page-3',
+        linkedin_url: 'https://linkedin.com/charlie',
+      });
     });
 
     it('should handle empty notion members array', async () => {

@@ -553,13 +553,18 @@ async function saveFeedback(feedback: FeedbackVote): Promise<FeedbackVote> {
 async function updateMemberWithNotionData(officerndMemberId: string, notionData: NotionMemberData): Promise<void> {
   const client = await getOrCreateClient();
 
+  // Note: This query is intentionally *not* overwriting an existing linkedin_url
+  // This is a bit of a hack to cover for the temporary period while we are switching from getting
+  // linkedin_url from Notion to getting it from ORND. Until ORND is populated with linkedin urls,
+  // we still want to populated it from Notion. However, we don't want the Notion version to overwrite
+  // anything synced from ORND. This has the downside that we also won't get updates from Notion
   await client.query(
     `
     UPDATE members
     SET 
       notion_page_id = $1, 
       notion_page_url = $2, 
-      linkedin_url = COALESCE($3, linkedin_url), -- Don't overwrite with null
+      linkedin_url = COALESCE(linkedin_url, $3), -- Don't overwrite existing linkedin_url unless its null
       updated_at = CURRENT_TIMESTAMP
     WHERE officernd_id = $4
     `,
