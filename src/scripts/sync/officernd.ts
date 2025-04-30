@@ -84,7 +84,7 @@ export async function createOfficeRnDDocuments(memberData: OfficeRnDMemberData):
       source_type: sourceTypeBlurb,
       source_unique_id: `officernd_member_${id}:${sourceTypeBlurb}`,
       content: `Talk to me about: ${blurb}`,
-      metadata: { ...baseMetadata, tags: blurb },
+      metadata: baseMetadata,
     });
   }
 }
