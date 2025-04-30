@@ -20,7 +20,7 @@ type OfficeRnDRawMemberData = {
   linkedin?: string | null; // Undocumented property, set by member in the member portal alongside other social links
   properties: {
     slack_id?: string;
-    LinkedInViaAdmin?: string; // Custom propery, intention is for 9Zero staff to be able to set if member hasn't set their own linkedin
+    LinkedInViaAdmin?: string; // Custom property, intention is for 9Zero staff to be able to set if member hasn't set their own linkedin
     [key: string]: string | undefined; // Allow other string properties
   };
 };

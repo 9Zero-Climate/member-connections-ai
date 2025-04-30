@@ -233,6 +233,7 @@ describe('Database Integration Tests', () => {
       expect(charlieResult?.rows[0].notion_page_url).toBeNull();
     });
 
+    // Ticket to remove Notion sync entirely: https://github.com/9Zero-Climate/member-connections-ai/issues/91
     it('should not overwrite existing linkedin_url', async () => {
       await updateMembersFromNotion([
         {
