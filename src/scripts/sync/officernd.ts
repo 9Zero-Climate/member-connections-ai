@@ -53,13 +53,6 @@ async function deleteOfficeRnDDocuments(officerndMemberId: string): Promise<void
   return deleteTypedDocumentsForMember(officerndMemberId, OFFICERND_SOURCE_TYPE_PREFIX);
 }
 
-/**
- * Create OfficeRnD RAG documents for a member
- * @param officerndMemberId - The OfficeRnD member ID
- * @param memberName - The member's name
- * @param linkedinUrl - The member's LinkedIn URL
- * @param profile - The LinkedIn profile data
- */
 export async function createOfficeRnDDocuments(memberData: OfficeRnDMemberData): Promise<void> {
   const { id, name, sector, subsector, currentRole, type, blurb } = memberData;
 
