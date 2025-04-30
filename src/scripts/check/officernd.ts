@@ -1,10 +1,10 @@
 import { logger } from '../../services/logger';
-import { getAllMembers } from '../../services/officernd';
+import { getAllOfficeRnDMembersData } from '../../services/officernd';
 
 export async function checkOfficeRnDConnection() {
   logger.info('Attempting to connect to OfficeRnD and fetch members...');
   try {
-    const members = await getAllMembers();
+    const members = await getAllOfficeRnDMembersData();
 
     if (members && members.length > 0) {
       const sampleSize = Math.min(members.length, 5);

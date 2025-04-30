@@ -5,18 +5,20 @@ jest.mock('../../services/officernd', () => mockOfficeRndService);
 jest.mock('../../services/database', () => mockDatabaseService);
 jest.mock('../../services/logger', () => mockLoggerService);
 
-const mockMembers = [
+const mockMembersData = [
   {
-    officernd_id: '1',
+    id: '1',
     name: 'John Doe',
-    slack_id: 'U123',
-    linkedin_url: 'https://linkedin.com/in/johndoe',
+    slackId: 'U123',
+    linkedinUrl: 'https://linkedin.com/in/johndoe',
+    location: 'Seattle',
   },
   {
-    officernd_id: '2',
+    id: '2',
     name: 'Jane Smith',
-    slack_id: 'U456',
-    linkedin_url: 'https://linkedin.com/in/janesmith',
+    slackId: 'U456',
+    linkedinUrl: 'https://linkedin.com/in/janesmith',
+    location: 'San Francisco',
   },
 ];
 
@@ -47,17 +49,34 @@ describe('syncOfficeRnD', () => {
   });
 
   it('syncs members successfully', async () => {
-    mockOfficeRndService.getAllMembers.mockResolvedValue(mockMembers);
+    mockOfficeRndService.getAllOfficeRnDMembersData.mockResolvedValue(mockMembersData);
 
     await syncOfficeRnD();
 
-    expect(mockOfficeRndService.getAllMembers).toHaveBeenCalledTimes(1);
+    expect(mockOfficeRndService.getAllOfficeRnDMembersData).toHaveBeenCalledTimes(1);
     expect(mockDatabaseService.bulkUpsertMembers).toHaveBeenCalledTimes(1);
-    expect(mockDatabaseService.bulkUpsertMembers).toHaveBeenCalledWith(mockMembers);
+
+    const expectedMembers = [
+      {
+        officernd_id: '1',
+        name: 'John Doe',
+        slack_id: 'U123',
+        linkedin_url: 'https://linkedin.com/in/johndoe',
+        location: 'Seattle',
+      },
+      {
+        officernd_id: '2',
+        name: 'Jane Smith',
+        slack_id: 'U456',
+        linkedin_url: 'https://linkedin.com/in/janesmith',
+        location: 'San Francisco',
+      },
+    ];
+    expect(mockDatabaseService.bulkUpsertMembers).toHaveBeenCalledWith(expectedMembers);
   });
 
   it('throws on OfficeRnD API errors', async () => {
-    mockOfficeRndService.getAllMembers.mockRejectedValueOnce(new Error('API Error'));
+    mockOfficeRndService.getAllOfficeRnDMembersData.mockRejectedValueOnce(new Error('API Error'));
 
     await expect(syncOfficeRnD()).rejects.toThrow('API Error');
   });
@@ -69,7 +88,7 @@ describe('syncOfficeRnD', () => {
   });
 
   it('closes db connection even after error', async () => {
-    mockOfficeRndService.getAllMembers.mockRejectedValueOnce(new Error());
+    mockOfficeRndService.getAllOfficeRnDMembersData.mockRejectedValueOnce(new Error());
 
     await expect(syncOfficeRnD()).rejects.toThrow();
 

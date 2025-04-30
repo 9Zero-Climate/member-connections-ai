@@ -1,4 +1,4 @@
-import { getAllMembers, getMemberLinkedin, getMemberLocation } from './officernd';
+import { getAllOfficeRnDMembersData, getMemberLinkedin, getMemberLocation } from './officernd';
 
 const mockFetch = jest.fn();
 global.fetch = mockFetch as jest.Mock;
@@ -59,26 +59,26 @@ describe('OfficeRnD Service', () => {
       ),
     );
 
-    const members = await getAllMembers();
+    const members = await getAllOfficeRnDMembersData();
     expect(mockFetch).toHaveBeenCalledTimes(2); // Token + Members
     expect(Array.isArray(members)).toBe(true);
     expect(members).toHaveLength(2);
 
     // Check first member
-    expect(members[0]).toEqual({
-      officernd_id: '1',
+    expect(members[0]).toMatchObject({
+      id: '1',
       name: 'John Doe',
-      slack_id: 'U123',
-      linkedin_url: 'https://linkedin.com/in/johndoe',
+      slackId: 'U123',
+      linkedinUrl: 'https://linkedin.com/in/johndoe',
       location: 'San Francisco',
     });
 
     // Check second member (missing linkedin)
-    expect(members[1]).toEqual({
-      officernd_id: '2',
+    expect(members[1]).toMatchObject({
+      id: '2',
       name: 'Jane Smith',
-      slack_id: 'U456',
-      linkedin_url: null,
+      slackId: 'U456',
+      linkedinUrl: null,
       location: null,
     });
   });

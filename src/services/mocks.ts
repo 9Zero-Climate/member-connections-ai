@@ -9,7 +9,7 @@ export const mockEmbeddingsService = {
 };
 
 export const mockOfficeRndService = {
-  getAllMembers: jest.fn(),
+  getAllOfficeRnDMembersData: jest.fn(),
 };
 
 export const mockNotionService = {

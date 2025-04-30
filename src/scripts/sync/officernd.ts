@@ -1,7 +1,7 @@
 import { ConfigContext, validateConfig } from '../../config';
 import { bulkUpsertMembers, closeDbConnection } from '../../services/database';
 import { logger } from '../../services/logger';
-import { getAllMembers } from '../../services/officernd';
+import { OfficeRnDMemberData, getAllOfficeRnDMembersData } from '../../services/officernd';
 
 /**
  * Sync data from OfficeRnD
@@ -14,8 +14,17 @@ export async function syncOfficeRnD(): Promise<void> {
   validateConfig(process.env, ConfigContext.SyncOfficeRnD);
 
   try {
-    const officeRndMembers = await getAllMembers();
-    await bulkUpsertMembers(officeRndMembers);
+    const officeRndMembersData = await getAllOfficeRnDMembersData();
+    const members = officeRndMembersData.map(({ id, name, slackId, linkedinUrl, location }) => {
+      return {
+        name,
+        officernd_id: id,
+        slack_id: slackId,
+        linkedin_url: linkedinUrl,
+        location,
+      };
+    });
+    await bulkUpsertMembers(members);
   } finally {
     await closeDbConnection();
   }
