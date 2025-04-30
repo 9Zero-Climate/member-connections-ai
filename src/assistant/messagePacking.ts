@@ -92,9 +92,7 @@ export function convertSlackMessageToLLMMessages(message: MessageElement): ChatM
     const messages: ChatMessage[] = [{ role: 'assistant', content: message.text }];
     if (message.metadata?.event_type === 'llm_tool_calls') {
       const toolCallMessages = unpackToolCallSlackMessage(message);
-      if (toolCallMessages.length > 0) {
-        messages.push(...toolCallMessages);
-      }
+      messages.push(...toolCallMessages);
     }
     return messages;
   }
@@ -112,17 +110,7 @@ export function convertSlackHistoryToLLMHistory(
   messages: MessageElement[],
   triggeringMessageTs: string,
 ): ChatMessage[] {
-  const history: ChatMessage[] = [];
-  for (const message of messages) {
-    if (message.ts === triggeringMessageTs) {
-      break;
-    }
-    if (!message.text) {
-      continue;
-    }
-
-    const llmMessages = convertSlackMessageToLLMMessages(message);
-    history.push(...llmMessages);
-  }
-  return history;
+  return messages
+    .filter((message) => message.text && message.ts !== triggeringMessageTs)
+    .flatMap(convertSlackMessageToLLMMessages);
 }
