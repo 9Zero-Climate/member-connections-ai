@@ -1,10 +1,5 @@
-import { config } from 'dotenv';
 import { getAllMembers, getMemberLinkedin, getMemberLocation } from './officernd';
 
-// Load environment variables
-config();
-
-// Mock fetch
 const mockFetch = jest.fn();
 global.fetch = mockFetch as jest.Mock;
 

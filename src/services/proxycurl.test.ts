@@ -1,11 +1,5 @@
-import { config } from 'dotenv';
-
 import { getLinkedInProfile } from './proxycurl';
 
-// Load environment variables
-config();
-
-// Mock fetch
 const mockFetch = jest.fn();
 global.fetch = mockFetch as jest.Mock;
 

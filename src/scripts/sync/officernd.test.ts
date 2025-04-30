@@ -1,15 +1,9 @@
-// Mock dependencies
-
-import { config } from 'dotenv';
 import { mockDatabaseService, mockLoggerService, mockOfficeRndService } from '../../services/mocks'; // These have to be imported before the libraries they are going to mock are imported
 import { syncOfficeRnD } from './officernd';
 
 jest.mock('../../services/officernd', () => mockOfficeRndService);
 jest.mock('../../services/database', () => mockDatabaseService);
 jest.mock('../../services/logger', () => mockLoggerService);
-
-// Load environment variables
-config();
 
 const mockMembers = [
   {
