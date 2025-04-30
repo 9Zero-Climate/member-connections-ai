@@ -1,7 +1,7 @@
 import type { ChatCompletionUserMessageParam } from 'openai/resources/chat';
 import type { ChatCompletionMessageToolCall } from 'openai/resources/chat';
 import { logger } from '../services/logger';
-import { DEFAULT_SYSTEM_CONTENT } from './constants';
+import { DEFAULT_SYSTEM_CONTENT } from './prompts';
 import type { UserInfo } from './slackInteraction';
 import type { ChatMessage } from './types';
 

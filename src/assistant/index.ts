@@ -13,6 +13,7 @@ import {
   handleFeedbackViewSubmission,
 } from './eventHandlers/feedbackHandler';
 import initiateFeedbackFlowFromReactionEvent from './eventHandlers/initiateFeedbackFlowFromReactionEvent';
+import { handleGenericMessage } from './eventHandlers/messageHandler';
 import threadStartedHandler from './eventHandlers/threadStartedHandler';
 import { handleUserMessage } from './eventHandlers/userMessageHandler';
 
@@ -35,6 +36,7 @@ export const registerAssistantAndHandlers = (app: App, config: Config, client: W
 
   app.event('reaction_added', initiateFeedbackFlowFromReactionEvent);
   app.event('app_mention', (args) => handleAppMention(openRouter, client, args));
+  app.message((args) => handleGenericMessage(openRouter, client, args));
   app.action(FEEDBACK_ADD_REASON_BUTTON_ACTION_ID, handleFeedbackAddReasonAction);
   app.action(FEEDBACK_CANCEL_BUTTON_ACTION_ID, handleFeedbackCancel);
   app.view(FEEDBACK_MODAL_ID, handleFeedbackViewSubmission);

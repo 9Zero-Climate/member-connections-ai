@@ -108,7 +108,7 @@ export function convertSlackMessageToLLMMessages(message: MessageElement): ChatM
  */
 export function convertSlackHistoryToLLMHistory(
   messages: MessageElement[],
-  triggeringMessageTs: string,
+  triggeringMessageTs?: string,
 ): ChatMessage[] {
   return messages
     .filter((message) => message.text && message.ts !== triggeringMessageTs)
