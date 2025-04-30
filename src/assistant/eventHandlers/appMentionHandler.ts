@@ -22,7 +22,7 @@ export const handleAppMention = async (
   await handleIncomingMessage({
     llmClient,
     client,
-    slackMessage: slackMessage,
-    say: say,
+    slackMessage,
+    say,
   });
 };
