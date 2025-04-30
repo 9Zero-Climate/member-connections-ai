@@ -77,6 +77,7 @@ export const packToolCallInfoIntoSlackMessageMetadata = (
 
 /**
  * Convert a Slack message into a list of LLM chat messages.
+ * Prepends user messages with their Slack ID for multi-user context.
  * When Slack messages contain tool call metadata, they may result in multiple LLM chat messages.
  *
  * @param slackMessage - The Slack message to convert.
@@ -87,19 +88,18 @@ export function convertSlackMessageToLLMMessages(message: MessageElement): ChatM
     return [];
   }
 
-  const messages: ChatMessage[] = [];
   if (message.bot_id) {
-    messages.push({ role: 'assistant', content: message.text });
+    const messages: ChatMessage[] = [{ role: 'assistant', content: message.text }];
     if (message.metadata?.event_type === 'llm_tool_calls') {
       const toolCallMessages = unpackToolCallSlackMessage(message);
       if (toolCallMessages.length > 0) {
         messages.push(...toolCallMessages);
       }
     }
-  } else {
-    messages.push({ role: 'user', content: message.text });
+    return messages;
   }
-  return messages;
+  // User message: Prepend content with user ID
+  return [{ role: 'user', content: `<@${message.user}>: ${message.text}` }];
 }
 
 /**

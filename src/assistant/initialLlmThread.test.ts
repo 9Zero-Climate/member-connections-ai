@@ -1,5 +1,5 @@
 import { DEFAULT_SYSTEM_CONTENT } from './constants';
-import { buildInitialLlmThread } from './llmHistoryConversion';
+import { buildInitialLlmThread } from './initialLlmThread';
 import type { ChatMessage } from './types';
 
 describe('llmHistoryConversion', () => {

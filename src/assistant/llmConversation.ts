@@ -7,7 +7,7 @@ import { logger } from '../services/logger';
 import { type ToolCall, getToolCallShortDescription, toolImplementations, tools } from '../services/tools';
 import ResponseManager from './ResponseManager';
 import executeToolCalls from './executeToolCalls';
-import { type SlackMessage, buildInitialLlmThread } from './llmHistoryConversion';
+import { type SlackMessage, buildInitialLlmThread } from './initialLlmThread';
 import { convertSlackHistoryToLLMHistory, packToolCallInfoIntoSlackMessageMetadata } from './messagePacking';
 import { addFeedbackHintReactions } from './slackInteraction';
 import { fetchSlackThread } from './slackInteraction';

@@ -131,6 +131,7 @@ describe('messagePacking', () => {
           type: 'message',
           text: 'User message 1',
           ts: '1234.5678',
+          user: 'U123',
         },
         {
           type: 'message',
@@ -142,12 +143,13 @@ describe('messagePacking', () => {
           type: 'message',
           text: 'User message 2',
           ts: '1234.5680',
+          user: 'U123',
         },
       ];
 
       const result = convertSlackHistoryToLLMHistory(slackHistory, '1234.5680');
       expect(result).toHaveLength(2);
-      expect(result[0]).toEqual({ role: 'user', content: 'User message 1' });
+      expect(result[0]).toEqual({ role: 'user', content: '<@U123>: User message 1' });
       expect(result[1]).toEqual({ role: 'assistant', content: 'Bot message' });
     });
 
@@ -206,13 +208,14 @@ describe('messagePacking', () => {
         {
           type: 'message',
           text: 'Valid message',
+          user: 'U123',
           ts: '1234.5679',
         },
       ];
 
       const result = convertSlackHistoryToLLMHistory(slackHistory, '1234.5680');
       expect(result).toHaveLength(1);
-      expect(result[0].content).toBe('Valid message');
+      expect(result[0].content).toBe('<@U123>: Valid message');
     });
   });
 });

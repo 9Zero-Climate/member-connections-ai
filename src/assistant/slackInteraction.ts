@@ -34,23 +34,20 @@ export const fetchSlackThread = async (
   return slackThread.messages;
 };
 
-/**
- * Fetch information about a Slack user.
- */
 export const fetchUserInfo = async (client: WebClient, userId: string): Promise<UserInfo> => {
-  const userRes = await client.users.info({ user: userId });
-  if (userRes.ok && userRes.user) {
-    const user = userRes.user;
-    const userProfile = user.profile;
-    return {
-      slack_ID: `<@${userId}>`,
-      preferred_name: userProfile?.display_name || userProfile?.real_name_normalized,
-      real_name: userProfile?.real_name,
-      time_zone: user.tz,
-      time_zone_offset: user.tz_offset,
-    };
+  const userResponse = await client.users.info({ user: userId });
+  if (!userResponse.ok || !userResponse.user) {
+    throw new Error(`Failed to fetch user info for ${userId}: ${userResponse.error || 'Unknown error'}`);
   }
-  throw new Error(`Failed to fetch user info for ${userId}: ${userRes.error || 'Unknown error'}`);
+  const user = userResponse.user;
+  const userProfile = user.profile;
+  return {
+    slack_ID: `<@${userId}>`,
+    preferred_name: userProfile?.display_name || userProfile?.real_name_normalized,
+    real_name: userProfile?.real_name,
+    time_zone: user.tz,
+    time_zone_offset: user.tz_offset,
+  };
 };
 
 /**
@@ -64,14 +61,11 @@ export const addFeedbackHintReactions = async (client: WebClient, channel: strin
   ]);
 };
 
-/**
- * Get the Bot User ID, fetching it via auth.test if necessary.
- */
 export const getBotUserId = async (client: WebClient): Promise<string> => {
   const authTest = await client.auth.test();
-  if (authTest.ok && authTest.bot_id) {
-    logger.info({ botUserId: authTest.bot_id }, 'Fetched bot user ID via auth.test');
-    return authTest.bot_id;
+  if (!authTest.ok || !authTest.bot_id) {
+    throw new Error('Could not fetch bot user ID via auth.test');
   }
-  throw new Error('Could not fetch bot user ID via auth.test');
+  logger.info({ botUserId: authTest.bot_id }, 'Fetched bot user ID via auth.test');
+  return authTest.bot_id;
 };

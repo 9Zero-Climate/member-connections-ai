@@ -7,8 +7,8 @@ import { config } from '../config';
 import { logger } from '../services/logger';
 import ResponseManager from './ResponseManager';
 import executeToolCalls from './executeToolCalls';
+import type { SlackMessage } from './initialLlmThread';
 import { handleIncomingMessage, runLlmConversation } from './llmConversation';
-import type { SlackMessage } from './llmHistoryConversion';
 import type { ChatMessage } from './types';
 
 // --- Mock Implementations ---
@@ -69,14 +69,7 @@ describe('llmConversation', () => {
   let mockSay: SayFn;
 
   beforeEach(() => {
-    // Reset mocks before each test
     jest.clearAllMocks();
-    mockReplies.mockClear();
-    mockInfo.mockClear();
-    mockAuthTest.mockClear();
-    mockReactionsAdd.mockClear();
-    mockReactionsRemove.mockClear();
-    mockPostMessage.mockClear();
 
     // Instantiate the clients using the mocked constructors
     mockClientInstance = {
