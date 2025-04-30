@@ -25,12 +25,11 @@ type OfficeRnDRawMemberData = {
     slack_id?: string;
     // Set/controlled by 9Zero admin
     LinkedInViaAdmin?: string; // Intention is for 9Zero staff to be able to set if member hasn't set their own linkedin
-    Sector?: string;
+    Sector?: string[];
     Subsector?: string;
     Blurb?: string; // "Talk to me about"
-    Type?: string; // e.g. Startup, Investor, Ecosystem Services, Nonprofit, Corporation, etc..
+    Type?: string[]; // e.g. Startup, Investor, Ecosystem Services, Nonprofit, Corporation, etc..
     CurrentRole?: string;
-    [key: string]: string | undefined; // Allow other string properties
   };
 };
 
@@ -40,10 +39,10 @@ export type OfficeRnDMemberData = {
   slackId: string | null;
   linkedinUrl: string | null;
   location: MemberLocation | null;
-  sector?: string;
+  sector?: string[];
   subsector?: string;
   blurb?: string;
-  type?: string;
+  type?: string[];
   currentRole?: string;
 };
 
