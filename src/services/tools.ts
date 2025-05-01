@@ -1,5 +1,5 @@
 import { XMLBuilder } from 'fast-xml-parser';
-import { findSimilar, getLinkedInDocuments, getLinkedInDocumentsByName } from './database';
+import { findSimilar, getLinkedInDocumentsByName } from './database';
 import type { Document } from './database';
 import { generateEmbedding } from './embedding';
 

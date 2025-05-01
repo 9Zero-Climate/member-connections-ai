@@ -1,6 +1,6 @@
 import qs from 'qs';
 import { config } from '../config';
-import { type Member, MemberLocation } from './database';
+import { MemberLocation } from './database';
 import { logger } from './logger';
 
 const OFFICERND_API_URL = 'https://app.officernd.com/api/v1';

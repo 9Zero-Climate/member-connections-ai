@@ -1,4 +1,3 @@
-import { getPackedSettings } from 'node:http2';
 import { Client } from 'pg';
 import { config } from '../config'; // Import unified config
 import { generateEmbeddings } from './embedding';
