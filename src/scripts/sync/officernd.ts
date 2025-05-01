@@ -6,6 +6,7 @@ import {
   insertOrUpdateDoc,
 } from '../../services/database';
 import { logger } from '../../services/logger';
+import { normalizeLinkedInUrl } from '../../services/linkedin';
 import { type OfficeRnDMemberData, getAllOfficeRnDMembersData } from '../../services/officernd';
 
 /**
@@ -29,7 +30,7 @@ export async function syncOfficeRnD(): Promise<void> {
         name,
         officernd_id: id,
         slack_id: slackId,
-        linkedin_url: linkedinUrl,
+        linkedin_url: linkedinUrl ? normalizeLinkedInUrl(linkedinUrl) : null,
         location,
       };
     });

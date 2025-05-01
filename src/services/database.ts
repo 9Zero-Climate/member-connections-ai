@@ -4,6 +4,7 @@ import { generateEmbeddings } from './embedding';
 import { logger } from './logger';
 import type { NotionMemberData } from './notion';
 import { DEFAULT_LINKEDIN_PROFLE_ALLOWED_AGE_DAYS } from '../scripts/sync/linkedin_constants';
+import { normalizeLinkedInUrl } from './linkedin';
 
 export interface Document {
   source_type: string;
@@ -470,12 +471,12 @@ async function getLinkedInDocuments(linkedinUrl: string): Promise<Document[]> {
   }
 }
 
-/* Normalize any leading http:// and trailing slashes and prepare for a LIKE or ILIKE query
- * This way we can query for the URL without worrying about the format
- */
-const foolproofUrlForQuery = (url: string) => {
-  const strippedUrl = url.replace(/^https?:\/\//, '').replace(/\/*$/, '');
-  return `%${strippedUrl}%`;
+const tryNormalizeLinkedInUrl = (url: string) => {
+  try {
+    return normalizeLinkedInUrl(url);
+  } catch (error) {
+    return null;
+  }
 };
 
 /**
@@ -487,6 +488,10 @@ async function getLinkedInDocumentsByMemberIdentifier(
   memberIdentifier: string,
 ): Promise<DocumentWithMemberContext[] | string> {
   const client = await getOrCreateClient();
+  const normalizedLinkedInUrl = tryNormalizeLinkedInUrl(memberIdentifier);
+  // Don't try to query for a linkedin URL if we're not able to normalize it
+  const linkedinQueryClause = normalizedLinkedInUrl ? 'OR member_linkedin_url = $2' : '';
+  const linkedinQueryParams = normalizedLinkedInUrl ? [normalizedLinkedInUrl] : [];
 
   try {
     const result = await client.query(
@@ -509,9 +514,9 @@ async function getLinkedInDocumentsByMemberIdentifier(
          member_name = $1
          OR member_slack_id = $1
          OR member_officernd_id = $1
-         OR member_linkedin_url ILIKE $2
+         ${linkedinQueryClause}
        )`,
-      [memberIdentifier, foolproofUrlForQuery(memberIdentifier)],
+      [memberIdentifier, ...linkedinQueryParams],
     );
     if (result.rows.length === 0) {
       return `No synced LinkedIn profile found for the given identifier. New profiles are synced daily for new members in OfficeRnD, and existing members are updated every ${DEFAULT_LINKEDIN_PROFLE_ALLOWED_AGE_DAYS} days.`;
@@ -573,7 +578,12 @@ async function updateMemberWithNotionData(officerndMemberId: string, notionData:
       updated_at = CURRENT_TIMESTAMP
     WHERE officernd_id = $4
     `,
-    [notionData.notionPageId, notionData.notionPageUrl, notionData.linkedinUrl, officerndMemberId],
+    [
+      notionData.notionPageId,
+      notionData.notionPageUrl,
+      notionData.linkedinUrl ? normalizeLinkedInUrl(notionData.linkedinUrl) : null,
+      officerndMemberId,
+    ],
   );
 }
 

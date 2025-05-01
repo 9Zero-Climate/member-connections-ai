@@ -111,7 +111,7 @@ export const runLlmConversation = async (
       channel: slackChannel,
       thread_ts: triggeringMessageTs, // Reply within the thread started by the trigger message
       text: `_${toolCallDescriptions}..._`,
-      parse: 'full',
+      // parse: 'full',
       metadata: packToolCallInfoIntoSlackMessageMetadata(validToolCalls),
     });
 
