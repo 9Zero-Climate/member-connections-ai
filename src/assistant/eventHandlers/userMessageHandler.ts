@@ -5,7 +5,8 @@ import type { SlackMessage } from '../initialLlmThread';
 import { handleIncomingMessage } from '../llmConversation';
 
 /**
- * Handles a user message from Slack by calling the central message processing orchestrator.
+ * Handles a user message in a slack Assistant DM thread
+ * by calling the central message processing orchestrator.
  */
 export const handleUserMessage = async (
   llmClient: OpenAI,
@@ -20,5 +21,8 @@ export const handleUserMessage = async (
     client,
     slackMessage: slackMessage as SlackMessage,
     say,
+    // In the case of an Assistant DM thread, the "channel" is just the first message of all the threads
+    // so it doesn't make sense to include channel context
+    includeChannelContext: false,
   });
 };

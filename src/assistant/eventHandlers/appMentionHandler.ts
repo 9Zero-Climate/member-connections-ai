@@ -24,5 +24,7 @@ export const handleAppMention = async (
     client,
     slackMessage,
     say,
+    // Since we are likely being mentioned in a channel, we should include channel context
+    includeChannelContext: true,
   });
 };

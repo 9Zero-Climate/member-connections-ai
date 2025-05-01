@@ -9,8 +9,8 @@ import ResponseManager from './ResponseManager';
 import executeToolCalls from './executeToolCalls';
 import { type SlackMessage, buildInitialLlmThread } from './initialLlmThread';
 import { convertSlackHistoryToLLMHistory, packToolCallInfoIntoSlackMessageMetadata } from './messagePacking';
-import { addFeedbackHintReactions } from './slackInteraction';
-import { fetchSlackThread } from './slackInteraction';
+import { addFeedbackHintReactions, fetchSlackThreadAndChannelContext } from './slackInteraction';
+import { fetchSlackThreadMessages } from './slackInteraction';
 import { getBotUserId } from './slackInteraction';
 import { fetchUserInfo } from './slackInteraction';
 import type { ChatMessage } from './types';
@@ -134,12 +134,19 @@ export interface HandleIncomingMessageArgs {
   client: WebClient;
   slackMessage: SlackMessage;
   say: SayFn;
+  includeChannelContext: boolean;
 }
 
 /**
  * Orchestrates the handling of an incoming Slack message (user message or app mention).
  */
-export const handleIncomingMessage = async ({ llmClient, client, slackMessage, say }: HandleIncomingMessageArgs) => {
+export const handleIncomingMessage = async ({
+  llmClient,
+  client,
+  slackMessage,
+  say,
+  includeChannelContext,
+}: HandleIncomingMessageArgs) => {
   const { channel: slackChannel, thread_ts, text, ts: triggeringMessageTs, user: userId, subtype } = slackMessage;
 
   // Always use the triggering message's ts to start/continue a thread
@@ -165,8 +172,17 @@ export const handleIncomingMessage = async ({ llmClient, client, slackMessage, s
   });
 
   try {
-    const rawSlackMessages = await fetchSlackThread(client, slackChannel, thread_ts);
+    if (!includeChannelContext && !thread_ts) {
+      throw new Error(
+        `Either thread_ts must be provided (was ${thread_ts}) or includeChannelContext must be true (was ${includeChannelContext}). Otherwise where would we get context from?`,
+      );
+    }
+    const rawSlackMessages =
+      includeChannelContext || !thread_ts // !thread_ts here is a hack to satistfy the type checker
+        ? await fetchSlackThreadAndChannelContext(client, slackChannel, thread_ts || triggeringMessageTs)
+        : await fetchSlackThreadMessages(client, slackChannel, thread_ts);
     const slackMessages = rawSlackMessages as SlackMessage[];
+    logger.debug({ slackMessages }, 'Slack messages fetched');
 
     if (!userId) {
       throw new Error('handleIncomingMessage called without a userId for an expected user interaction event.');
