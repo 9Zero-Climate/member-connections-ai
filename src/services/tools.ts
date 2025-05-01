@@ -96,7 +96,8 @@ export const tools = [
           },
           limit: {
             type: 'number',
-            description: 'Maximum number of results to return',
+            description:
+              'Maximum number of results to return. Use 20 as a minimum and then hand-sort through the results.',
             default: DEFAULT_DOCUMENT_LIMIT,
           },
         },
