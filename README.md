@@ -1,7 +1,13 @@
 # Member Connections AI (Friendly name: "Fabric")
 
+__Fabric__ is an AI-powered member connections bot for [9Zero Climate](https://9zero.com/) Slack workspace, helping community members find and connect with each other.
 
-AI-powered member connections for Slack, helping community members find and connect with each other.
+<div align="center">
+<img src="./src/images/fabric%20prod%20logo.png" alt="Fabric logo" width="200"/>
+<img src="./src/images/fabric%20preview%20logo.png" alt="Fabric logo" width="200"/>
+
+*Fabric production and preview avatars*
+</div>
 
 ## Tools & Integrations
 
