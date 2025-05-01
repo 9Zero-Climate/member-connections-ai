@@ -63,7 +63,6 @@ export const shouldRespondToMessage = async (
   return ConditionalResponse.RESPOND_IF_DIRECTED_AT_US;
 };
 
-/* Return true if we have already responded to this thread, and the message is a follow-up directed at us. */
 export const wePreviouslyParticipatedInThread = (
   threadContents: ConversationsRepliesResponse,
   botId: string,
@@ -162,18 +161,18 @@ export const handleGenericMessage = async (
 
   const responseCondition = await shouldRespondToMessage(slackMessage, client);
   if (
-    responseCondition === ConditionalResponse.IGNORE ||
+    responseCondition === ConditionalResponse.RESPOND ||
     (responseCondition === ConditionalResponse.RESPOND_IF_DIRECTED_AT_US &&
-      !(await isDirectedAtUs(slackMessage as ThreadMessage, client, llmClient))) // Type assertion applied here
+      (await isDirectedAtUs(slackMessage as ThreadMessage, client, llmClient)))
   ) {
-    logger.info({ responseCondition }, 'Condition not met, ignoring message.');
-    return;
+    await handleIncomingMessage({
+      llmClient,
+      client,
+      slackMessage: slackMessage as SlackMessage,
+      say,
+      includeChannelContext: true,
+    });
+  } else {
+    logger.info({ responseCondition }, 'Response condition not met, ignoring message.');
   }
-  await handleIncomingMessage({
-    llmClient,
-    client,
-    slackMessage: slackMessage as SlackMessage,
-    say,
-    includeChannelContext: true,
-  });
 };
