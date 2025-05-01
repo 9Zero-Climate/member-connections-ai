@@ -13,6 +13,7 @@ import {
   updateMembersFromNotion,
   getLinkedInDocumentsByMemberIdentifier,
 } from './database';
+import { normalizeLinkedInUrl } from './linkedin';
 
 jest.mock('./embedding', () => mockEmbeddingsService);
 
@@ -171,7 +172,7 @@ describe('Database Integration Tests', () => {
         notionPageId: 'page-1',
         notionPageUrl: 'https://notion.so/page-1',
         name: 'Alice Smith',
-        linkedinUrl: 'https://linkedin.com/alice',
+        linkedinUrl: 'https://linkedin.com/in/alice',
         expertiseTags: ['Product', 'Design'],
         hiring: true,
         lookingForWork: false,
@@ -180,7 +181,7 @@ describe('Database Integration Tests', () => {
         notionPageId: 'page-2',
         notionPageUrl: 'https://notion.so/page-2',
         name: 'Bob Jones',
-        linkedinUrl: 'https://linkedin.com/bob',
+        linkedinUrl: 'https://linkedin.com/in/bob',
         expertiseTags: ['Engineering', 'AI'],
         hiring: false,
         lookingForWork: true,
@@ -196,7 +197,7 @@ describe('Database Integration Tests', () => {
            VALUES 
            ('member-1', 'Alice Smith', null, null),
            ('member-2', 'Bob Jones', 'old-page-id', null),
-           ('member-3', 'Charlie Brown', null, 'https://linkedin.com/charlie')
+           ('member-3', 'Charlie Brown', null, 'https://linkedin.com/in/charlie')
         `,
       );
     });
@@ -212,7 +213,7 @@ describe('Database Integration Tests', () => {
       expect(aliceResult?.rows[0]).toMatchObject({
         notion_page_id: 'page-1',
         notion_page_url: 'https://notion.so/page-1',
-        linkedin_url: 'https://linkedin.com/alice',
+        linkedin_url: 'https://linkedin.com/in/alice',
       });
 
       // Verify Bob was matched and updated
@@ -223,7 +224,7 @@ describe('Database Integration Tests', () => {
       expect(bobResult?.rows[0]).toMatchObject({
         notion_page_id: 'page-2',
         notion_page_url: 'https://notion.so/page-2',
-        linkedin_url: 'https://linkedin.com/bob',
+        linkedin_url: 'https://linkedin.com/in/bob',
       });
 
       // Verify Charlie was not updated
@@ -242,7 +243,7 @@ describe('Database Integration Tests', () => {
           notionPageId: 'page-3',
           notionPageUrl: 'https://notion.so/page-3',
           name: 'Charlie Brown',
-          linkedinUrl: 'https://linkedin.com/thewrongcharlie',
+          linkedinUrl: 'https://linkedin.com/in/thewrongcharlie',
           expertiseTags: [],
           hiring: false,
           lookingForWork: false,
@@ -258,7 +259,7 @@ describe('Database Integration Tests', () => {
       expect(charlieResult?.rows[0]).toMatchObject({
         notion_page_id: 'page-3',
         notion_page_url: 'https://notion.so/page-3',
-        linkedin_url: 'https://linkedin.com/charlie',
+        linkedin_url: 'https://linkedin.com/in/charlie',
       });
     });
 
@@ -349,7 +350,7 @@ describe('Database Integration Tests', () => {
       member_officernd_id: 'member-1',
       member_name: 'Alice Smith',
       member_slack_id: 'U123',
-      member_linkedin_url: 'https://linkedin.com/in/alice',
+      member_linkedin_url: normalizeLinkedInUrl('https://linkedin.com/in/alice'),
       member_location: 'Seattle',
     };
 
@@ -361,7 +362,14 @@ describe('Database Integration Tests', () => {
       // Insert test member
       await testDbClient.query(
         `INSERT INTO members (officernd_id, name, slack_id, linkedin_url, location)
-         VALUES ('member-1', 'Alice Smith', 'U123', 'https://linkedin.com/in/alice', 'Seattle')`,
+         VALUES ($1, $2, $3, $4, $5)`,
+        [
+          memberInfo.member_officernd_id,
+          memberInfo.member_name,
+          memberInfo.member_slack_id,
+          memberInfo.member_linkedin_url,
+          memberInfo.member_location,
+        ],
       );
 
       // Insert test LinkedIn documents
