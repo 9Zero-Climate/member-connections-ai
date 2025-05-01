@@ -75,7 +75,7 @@ async function getOrCreateClient(): Promise<Client> {
   }
 
   try {
-    logger.info(`Opening new global database connection to: ${config.dbUrl}`);
+    logger.info('Opening new global database connection');
     globalClient = new Client({ connectionString: config.dbUrl });
     await globalClient.connect();
   } catch (error) {
