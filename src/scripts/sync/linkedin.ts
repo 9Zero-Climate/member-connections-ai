@@ -87,8 +87,8 @@ export const getValidSyncOptions = (syncOptionOverrides?: LinkedInSyncOptionOver
   }
 
   return {
-    maxUpdates: maxUpdates ? maxUpdates : DEFAULT_MAX_UPDATES,
-    allowedAgeDays: allowedAgeDays ? allowedAgeDays : DEFAULT_ALLOWED_AGE_DATES,
+    maxUpdates: maxUpdates != null ? maxUpdates : DEFAULT_MAX_UPDATES,
+    allowedAgeDays: allowedAgeDays != null ? allowedAgeDays : DEFAULT_ALLOWED_AGE_DATES,
   };
 };
 
