@@ -5,8 +5,8 @@ import {
   deleteTypedDocumentsForMember,
   insertOrUpdateDoc,
 } from '../../services/database';
-import { logger } from '../../services/logger';
 import { normalizeLinkedInUrl } from '../../services/linkedin';
+import { logger } from '../../services/logger';
 import { type OfficeRnDMemberData, getAllOfficeRnDMembersData } from '../../services/officernd';
 
 /**

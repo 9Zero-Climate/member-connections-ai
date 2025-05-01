@@ -8,10 +8,10 @@ import {
   deleteDoc,
   findSimilar,
   getDocBySource,
+  getLinkedInDocumentsByMemberIdentifier,
   getOrCreateClient,
   insertOrUpdateDoc,
   updateMembersFromNotion,
-  getLinkedInDocumentsByMemberIdentifier,
 } from './database';
 import { normalizeLinkedInUrl } from './linkedin';
 
