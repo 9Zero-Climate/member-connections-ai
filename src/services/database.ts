@@ -1,10 +1,10 @@
 import { Client } from 'pg';
 import { config } from '../config';
+import { DEFAULT_LINKEDIN_PROFLE_ALLOWED_AGE_DAYS } from '../scripts/sync/linkedin_constants';
 import { generateEmbeddings } from './embedding';
+import { normalizeLinkedInUrl } from './linkedin';
 import { logger } from './logger';
 import type { NotionMemberData } from './notion';
-import { DEFAULT_LINKEDIN_PROFLE_ALLOWED_AGE_DAYS } from '../scripts/sync/linkedin_constants';
-import { normalizeLinkedInUrl } from './linkedin';
 
 export interface Document {
   source_type: string;
