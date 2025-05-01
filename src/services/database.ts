@@ -307,7 +307,7 @@ async function findSimilar(embedding: number[], options: SearchOptions = {}): Pr
       },
     );
   } catch (error) {
-    logger.error('Error finding similar documents:', error);
+    logger.error(error, 'Error finding similar documents:');
     throw error;
   }
 }
@@ -346,7 +346,7 @@ async function bulkUpsertMembers(members: Partial<Member>[]): Promise<Member[]> 
     logger.info(`Upserted ${members.length} members into the database.`);
     return result.rows;
   } catch (error) {
-    logger.error('Error bulk upserting members:', error);
+    logger.error(error, 'Error bulk upserting members');
     throw error;
   }
 }

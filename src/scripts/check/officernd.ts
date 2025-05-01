@@ -5,10 +5,25 @@ export async function checkOfficeRnDConnection() {
   logger.info('Attempting to connect to OfficeRnD and fetch members...');
   try {
     const members = await getAllOfficeRnDMembersData();
+    logger.info(`Successfully fetched ${members.length} members.`);
+
+    const missingLocation = members.filter((member) => member.location == null);
+    const missingLinkedin = members.filter((member) => member.linkedinUrl == null);
+    const missingSlack = members.filter((member) => member.slackId == null);
+
+    logger.info(`Missing location: ${missingLocation.length}`);
+    logger.info(`Missing linkedin: ${missingLinkedin.length}`);
+    logger.info(`Missing slack: ${missingSlack.length}`);
+
+    logger.info(
+      `Members missing linkedin: ${missingLinkedin
+        .map((member) => member.name)
+        .sort()
+        .join(', ')}`,
+    );
 
     if (members && members.length > 0) {
       const sampleSize = Math.min(members.length, 5);
-      logger.info(`Successfully fetched ${members.length} members.`);
       logger.info(`Logging the first ${sampleSize} members received:`);
 
       for (let i = 0; i < sampleSize; i++) {

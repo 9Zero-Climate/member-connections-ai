@@ -134,6 +134,7 @@ describe('getValidSyncOptions', () => {
     ['allowedAgeDays undefined', { maxUpdates: 1, allowedAgeDays: undefined }, { maxUpdates: 1, allowedAgeDays: 7 }],
     ['maxUpdates undefined', { maxUpdates: undefined, allowedAgeDays: 1 }, { maxUpdates: 100, allowedAgeDays: 1 }],
     ['both provided', { maxUpdates: 1, allowedAgeDays: 1 }, { maxUpdates: 1, allowedAgeDays: 1 }],
+    ['respects 0', { maxUpdates: 0, allowedAgeDays: 1 }, { maxUpdates: 0, allowedAgeDays: 1 }],
   ])('falls back to default sync options as appropriate (%s)', (_testName, syncOptionOverrides, expected) => {
     const result = getValidSyncOptions(syncOptionOverrides);
     expect(result).toEqual(expected);
