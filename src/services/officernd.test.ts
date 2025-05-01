@@ -1,10 +1,5 @@
-import { config } from 'dotenv';
-import { getAllMembers, getMemberLocation } from './officernd';
+import { getAllOfficeRnDMembersData, getMemberLinkedin, getMemberLocation } from './officernd';
 
-// Load environment variables
-config();
-
-// Mock fetch
 const mockFetch = jest.fn();
 global.fetch = mockFetch as jest.Mock;
 
@@ -64,26 +59,26 @@ describe('OfficeRnD Service', () => {
       ),
     );
 
-    const members = await getAllMembers();
+    const members = await getAllOfficeRnDMembersData();
     expect(mockFetch).toHaveBeenCalledTimes(2); // Token + Members
     expect(Array.isArray(members)).toBe(true);
     expect(members).toHaveLength(2);
 
     // Check first member
-    expect(members[0]).toEqual({
-      officernd_id: '1',
+    expect(members[0]).toMatchObject({
+      id: '1',
       name: 'John Doe',
-      slack_id: 'U123',
-      linkedin_url: 'https://linkedin.com/in/johndoe',
+      slackId: 'U123',
+      linkedinUrl: 'https://linkedin.com/in/johndoe',
       location: 'San Francisco',
     });
 
     // Check second member (missing linkedin)
-    expect(members[1]).toEqual({
-      officernd_id: '2',
+    expect(members[1]).toMatchObject({
+      id: '2',
       name: 'Jane Smith',
-      slack_id: 'U456',
-      linkedin_url: null,
+      slackId: 'U456',
+      linkedinUrl: null,
       location: null,
     });
   });
@@ -95,12 +90,49 @@ describe('getMemberLocation', () => {
     expect(location).toEqual('San Francisco');
   });
 
-  it.each(['', undefined, null])('returns null if no office uuid', (missingOffice) => {
+  it.each(['', undefined, null])('returns null if no office uuid (office=%s)', (missingOffice) => {
     const location = getMemberLocation(missingOffice);
     expect(location).toBeNull();
   });
 
   it('throws error if no hardcoded location for given office uuid', () => {
     expect(() => getMemberLocation('unknown office uuid')).toThrow(/unknown office uuid/);
+  });
+});
+
+describe('getMemberLinkedin', () => {
+  const mockMember = {
+    _id: '1',
+    name: 'John Doe',
+    office: '6685ac246c4b7640a1887a7c',
+    linkedin: 'https://linkedin.com/in/johndoe',
+    properties: {
+      LinkedInViaAdmin: 'https://linkedin.com/in/thejohndoe',
+    },
+  };
+
+  it('should return member.linkedin if present', () => {
+    const linkedinUrl = getMemberLinkedin(mockMember);
+    expect(linkedinUrl).toEqual('https://linkedin.com/in/johndoe');
+  });
+
+  it.each(['', undefined, null])(
+    'should fall back to member.properties.LinkedInViaAdmin if member.linkedin missing (linkedin=%s)',
+    (missingMemberLinkedin) => {
+      const linkedinUrl = getMemberLinkedin({
+        ...mockMember,
+        linkedin: missingMemberLinkedin,
+      });
+      expect(linkedinUrl).toEqual('https://linkedin.com/in/thejohndoe');
+    },
+  );
+
+  it('should return null if neither', () => {
+    const linkedinUrl = getMemberLinkedin({
+      ...mockMember,
+      linkedin: undefined,
+      properties: {},
+    });
+    expect(linkedinUrl).toBeNull();
   });
 });

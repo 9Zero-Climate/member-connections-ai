@@ -1,7 +1,7 @@
 import dotenv from 'dotenv';
 
-// Load environment variables from .env file
-dotenv.config();
+// Load environment variables from .env.test file
+dotenv.config({ path: '.env.test' });
 
 global.beforeAll(() => {});
 

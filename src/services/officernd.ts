@@ -14,17 +14,37 @@ type OfficeRnDTokenResponse = {
 
 // The shape of data returned directly from OfficeRnD fetch
 type OfficeRnDRawMemberData = {
+  // First-class ORND properties
   _id: string;
   name: string;
   office: string; // uuid
+  linkedin?: string | null; // Undocumented property, set by member in the member portal alongside other social links
+  // Custom properies
   properties: {
+    // Set/controlled by integrations
     slack_id?: string;
-    LinkedInViaAdmin?: string;
-    [key: string]: string | undefined; // Allow other string properties
+    // Set/controlled by 9Zero admin
+    LinkedInViaAdmin?: string; // Intention is for 9Zero staff to be able to set if member hasn't set their own linkedin
+    Sector?: string[];
+    Subsector?: string;
+    Blurb?: string; // "Talk to me about"
+    Type?: string[]; // e.g. Startup, Investor, Ecosystem Services, Nonprofit, Corporation, etc..
+    CurrentRole?: string;
   };
 };
 
-type OfficeRnDMember = Pick<Member, 'officernd_id' | 'name' | 'slack_id' | 'linkedin_url' | 'location'>;
+export type OfficeRnDMemberData = {
+  id: string;
+  name: string;
+  slackId: string | null;
+  linkedinUrl: string | null;
+  location: MemberLocation | null;
+  sector?: string[];
+  subsector?: string;
+  blurb?: string;
+  type?: string[];
+  currentRole?: string;
+};
 
 let accessToken: string | null = null;
 let tokenExpiry: Date | null = null;
@@ -76,10 +96,7 @@ async function getAccessToken(): Promise<string> {
   return accessToken;
 }
 
-/**
- * Get all members from OfficeRnD, returning only the data fetched.
- */
-export async function getAllMembers(): Promise<OfficeRnDMember[]> {
+export async function getAllOfficeRnDMembersData(): Promise<OfficeRnDMemberData[]> {
   logger.info('Fetching members from OfficeRnD...');
 
   if (!OFFICERND_ORG_SLUG) {
@@ -102,13 +119,18 @@ export async function getAllMembers(): Promise<OfficeRnDMember[]> {
 
   const rawMembers = (await response.json()) as OfficeRnDRawMemberData[];
 
-  const members = rawMembers.map((member): OfficeRnDMember => {
+  const members = rawMembers.map((member): OfficeRnDMemberData => {
     return {
-      officernd_id: member._id,
+      id: member._id,
       name: member.name,
       location: getMemberLocation(member.office),
-      slack_id: member.properties?.slack_id || null,
-      linkedin_url: member.properties?.LinkedInViaAdmin || null,
+      slackId: member.properties.slack_id || null,
+      linkedinUrl: getMemberLinkedin(member),
+      sector: member.properties.Sector,
+      subsector: member.properties.Subsector,
+      blurb: member.properties.Blurb,
+      type: member.properties.Type,
+      currentRole: member.properties.CurrentRole,
     };
   });
 
@@ -116,6 +138,14 @@ export async function getAllMembers(): Promise<OfficeRnDMember[]> {
 
   return members;
 }
+
+export const getMemberLinkedin = (member: OfficeRnDRawMemberData): string | null => {
+  return (
+    member.linkedin || // Prefer the member-set first-class OfficeRnD attribute
+    member.properties.LinkedInViaAdmin || // Fall back to the custom property that 9Zero staff can set
+    null
+  );
+};
 
 // Hardcoding for now to save the extra fetch
 const LOCATION_FROM_OFFICE_UUID: Record<string, MemberLocation> = {

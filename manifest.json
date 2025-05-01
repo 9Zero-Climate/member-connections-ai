@@ -36,7 +36,8 @@
         "im:read",
         "users.profile:read",
         "users:read",
-        "reactions:read"
+        "reactions:read",
+        "app_mentions:read"
       ]
     }
   },
@@ -45,9 +46,11 @@
       "bot_events": [
         "assistant_thread_context_changed",
         "assistant_thread_started",
+        "message.channels",
         "message.im",
         "reaction_added",
-        "reaction_removed"
+        "reaction_removed",
+        "app_mention"
       ]
     },
     "interactivity": {
