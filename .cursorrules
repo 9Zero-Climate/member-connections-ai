@@ -44,6 +44,6 @@ Testing conventions:
 - Test files belong alongside code - the naming convention is `myModule.test.ts`.
 - Prefer concise, focused tests to tests that cover multiple cases.
 - Avoid having many, verbose test fixtures. Use helper functions if necessary or a centralized fixture with the spread operator to change the fixture as needed for specific cases.
-- prefer to centralize test logic - if there are several similar tests, use helper functions or declarative test cases that get mapped over with `test.each(testCases, ...)`.
+- prefer to centralize test logic - if there are several similar tests, use helper functions or declarative test cases that get mapped over with `it.each(testCases, ...)`.
 - prefer to use Jest's built-in matchers and assertions over custom logic.
 - avoid mocks when possible. Prefer to factor business logic out into pure functions that can be tested in isolation.

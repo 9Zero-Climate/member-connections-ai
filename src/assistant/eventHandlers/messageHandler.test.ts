@@ -75,8 +75,6 @@ const mockLlmClient = {
   },
 } as unknown as OpenAI;
 
-const mockSay = jest.fn();
-
 // --- Helper Functions ---
 const createMessageEvent = (overrides: Partial<MessageEvent> = {}): MessageEvent => {
   const base = { ...baseMessage };
@@ -169,7 +167,7 @@ describe('messageHandler', () => {
       },
     ];
 
-    test.each(testCases)('$name', async ({ message, expected }) => {
+    it.each(testCases)('$name', async ({ message, expected }) => {
       const result = await shouldRespondToMessage(message, mockWebClient);
       expect(result).toBe(expected);
     });
@@ -225,7 +223,7 @@ describe('messageHandler', () => {
       },
     ];
 
-    test.each(directedAtUsTestCases)('$name', async ({ llmResponse, expected }) => {
+    it.each(directedAtUsTestCases)('$name', async ({ llmResponse, expected }) => {
       (mockLlmClient.chat.completions.create as jest.Mock).mockResolvedValue(llmResponse);
 
       const result = await isDirectedAtUs(threadMessage, mockWebClient, mockLlmClient);
