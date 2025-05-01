@@ -1,8 +1,9 @@
 import { Client } from 'pg';
-import { config } from '../config'; // Import unified config
+import { config } from '../config';
 import { generateEmbeddings } from './embedding';
 import { logger } from './logger';
-import type { NotionMemberData } from './notion'; // Import Notion data type
+import type { NotionMemberData } from './notion';
+import { DEFAULT_LINKEDIN_PROFLE_ALLOWED_AGE_DAYS } from '../scripts/sync/linkedin_constants';
 
 export interface Document {
   source_type: string;
@@ -469,12 +470,22 @@ async function getLinkedInDocuments(linkedinUrl: string): Promise<Document[]> {
   }
 }
 
+/* Normalize any leading http:// and trailing slashes and prepare for a LIKE or ILIKE query
+ * This way we can query for the URL without worrying about the format
+ */
+const foolproofUrlForQuery = (url: string) => {
+  const strippedUrl = url.replace(/^https?:\/\//, '').replace(/\/*$/, '');
+  return `%${strippedUrl}%`;
+};
+
 /**
- * Get all LinkedIn documents for a given member name
- * @param memberName - The member's name
+ * Get all LinkedIn documents for a given member identifier
+ * @param memberIdentifier - The member's fullname, slack ID, linkedin URL, or OfficeRnD ID
  * @returns Array of documents with their content and metadata
  */
-async function getLinkedInDocumentsByName(memberName: string): Promise<DocumentWithMemberContext[]> {
+async function getLinkedInDocumentsByMemberIdentifier(
+  memberIdentifier: string,
+): Promise<DocumentWithMemberContext[] | string> {
   const client = await getOrCreateClient();
 
   try {
@@ -490,24 +501,23 @@ async function getLinkedInDocumentsByName(memberName: string): Promise<DocumentW
         member_location,
         member_notion_page_url,
         member_officernd_id,
-        member_slack_id
+        member_slack_id,
+        member_linkedin_url
        FROM documents_with_member_context -- Use the enriched view
        WHERE source_type LIKE 'linkedin_%'
-       AND metadata->>'member_name' = $1`,
-      [memberName],
+       AND (
+         member_name = $1
+         OR member_slack_id = $1
+         OR member_officernd_id = $1
+         OR member_linkedin_url ILIKE $2
+       )`,
+      [memberIdentifier, foolproofUrlForQuery(memberIdentifier)],
     );
+    if (result.rows.length === 0) {
+      return `No synced LinkedIn profile found for the given identifier. New profiles are synced daily for new members in OfficeRnD, and existing members are updated every ${DEFAULT_LINKEDIN_PROFLE_ALLOWED_AGE_DAYS} days.`;
+    }
     // Map results, ensuring metadata includes view fields
-    return result.rows.map((row: DocumentWithMemberContext) => ({
-      ...row,
-      metadata: {
-        ...row.metadata,
-        member_name: row.member_name, // Already present via metadata key, but good to be explicit
-        member_slack_id: row.member_slack_id,
-        member_location: row.member_location,
-        member_notion_page_url: row.member_notion_page_url,
-        member_linkedin_url: row.member_linkedin_url,
-      },
-    }));
+    return result.rows;
   } catch (error) {
     logger.error('Error fetching LinkedIn documents by Name:', error);
     throw error;
@@ -707,7 +717,7 @@ export {
   deleteTypedDocumentsForMember,
   deleteNotionDocuments,
   getLinkedInDocuments,
-  getLinkedInDocumentsByName,
+  getLinkedInDocumentsByMemberIdentifier,
   saveFeedback,
   upsertNotionDataForMember,
   updateMembersFromNotion,

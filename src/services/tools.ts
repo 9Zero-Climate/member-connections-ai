@@ -1,5 +1,5 @@
 import { XMLBuilder } from 'fast-xml-parser';
-import { findSimilar, getLinkedInDocumentsByName } from './database';
+import { findSimilar, getLinkedInDocumentsByMemberIdentifier } from './database';
 import type { Document } from './database';
 import { generateEmbedding } from './embedding';
 
@@ -14,12 +14,12 @@ export interface SearchToolResult {
 }
 
 export interface LinkedInProfileToolParams {
-  memberName: string;
+  memberIdentifier: string;
 }
 
 export interface LinkedInProfileToolResult {
-  documents: Document[];
-  memberName: string;
+  documents: Document[] | string;
+  memberIdentifier: string;
 }
 
 export interface ToolCall {
@@ -54,11 +54,11 @@ export async function searchDocuments(params: SearchToolParams): Promise<SearchT
  * Fetch LinkedIn profile data for a given member name from the database
  */
 export async function fetchLinkedInProfile(params: LinkedInProfileToolParams): Promise<LinkedInProfileToolResult> {
-  const { memberName } = params;
-  const documents = await getLinkedInDocumentsByName(memberName);
+  const { memberIdentifier } = params;
+  const documents = await getLinkedInDocumentsByMemberIdentifier(memberIdentifier);
   return {
     documents,
-    memberName,
+    memberIdentifier,
   };
 }
 
@@ -113,16 +113,21 @@ export const tools = [
       parameters: {
         type: 'object',
         properties: {
-          memberName: {
+          memberIdentifier: {
             type: 'string',
-            description: "The member's full name to fetch LinkedIn data for e.g. 'Jason Curtis'",
+            description:
+              "The member's full name, slack ID, or linkedin URL, or OfficeRnD ID to fetch LinkedIn data for e.g. 'Jason Curtis' or 'U07BA4JA3HC' or 'https://linkedin.com/in/jason-curtis/'",
           },
         },
-        required: ['memberName'],
+        required: ['memberIdentifier'],
       },
     },
   },
 ];
+
+const looksLikeSlackId = (identifier: string) => {
+  return /^U[A-Z0-9]+$/.test(identifier);
+};
 
 export const getToolCallShortDescription = (toolCall: ToolCall) => {
   if (toolCall.type !== 'function') {
@@ -135,8 +140,12 @@ export const getToolCallShortDescription = (toolCall: ToolCall) => {
   switch (toolName) {
     case 'searchDocuments':
       return `Semantic search for "${toolArgs.query}"`;
-    case 'fetchLinkedInProfile':
-      return `Fetch LinkedIn profile for ${toolArgs.memberName}`;
+    case 'fetchLinkedInProfile': {
+      const memberIdForDisplay = looksLikeSlackId(toolArgs.memberIdentifier)
+        ? `<@${toolArgs.memberIdentifier}>`
+        : toolArgs.memberIdentifier;
+      return `Fetch LinkedIn profile for ${memberIdForDisplay}`;
+    }
     default:
       throw new Error(`Unhandled tool call: ${toolName}`);
   }

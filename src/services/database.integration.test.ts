@@ -1,6 +1,7 @@
 import type { Client } from 'pg';
 import { mockEmbeddingsService } from './mocks';
 
+import type { DocumentWithMemberContext } from './database';
 import {
   MemberLocation,
   bulkUpsertMembers,
@@ -10,6 +11,7 @@ import {
   getOrCreateClient,
   insertOrUpdateDoc,
   updateMembersFromNotion,
+  getLinkedInDocumentsByMemberIdentifier,
 } from './database';
 
 jest.mock('./embedding', () => mockEmbeddingsService);
@@ -339,6 +341,75 @@ describe('Database Integration Tests', () => {
 
       expect(updatedMember?.rows.length).toBe(1);
       expect(updatedMember?.rows[0]).toMatchObject(memberWithUpdates);
+    });
+  });
+
+  describe('getLinkedInDocumentsByMemberIdentifier', () => {
+    const memberInfo = {
+      member_officernd_id: 'member-1',
+      member_name: 'Alice Smith',
+      member_slack_id: 'U123',
+      member_linkedin_url: 'https://linkedin.com/in/alice',
+      member_location: 'Seattle',
+    };
+
+    beforeEach(async () => {
+      // Clear tables
+      await testDbClient.query('DELETE FROM rag_docs');
+      await testDbClient.query('DELETE FROM members');
+
+      // Insert test member
+      await testDbClient.query(
+        `INSERT INTO members (officernd_id, name, slack_id, linkedin_url, location)
+         VALUES ('member-1', 'Alice Smith', 'U123', 'https://linkedin.com/in/alice', 'Seattle')`,
+      );
+
+      // Insert test LinkedIn documents
+      const linkedInDocs = [
+        {
+          source_type: 'linkedin_experience',
+          source_unique_id: 'member-1:linkedin_experience:1',
+          content: 'Software Engineer at TechCorp',
+          metadata: { officernd_member_id: 'member-1' },
+          embedding: generateMockEmbedding(1),
+        },
+        {
+          source_type: 'linkedin_education',
+          source_unique_id: 'member-1:linkedin_education:1',
+          content: 'Computer Science at University',
+          metadata: { officernd_member_id: 'member-1' },
+          embedding: generateMockEmbedding(2),
+        },
+      ];
+
+      for (const doc of linkedInDocs) {
+        await insertOrUpdateDoc(doc);
+      }
+    });
+
+    it('finds documents by member name', async () => {
+      const docs = await getLinkedInDocumentsByMemberIdentifier('Alice Smith');
+      expect(docs).toHaveLength(2);
+      expect(Array.isArray(docs)).toBe(true);
+      expect(docs[0]).toMatchObject(memberInfo);
+      expect((docs as DocumentWithMemberContext[]).map((d) => d.source_type)).toContain('linkedin_experience');
+      expect((docs as DocumentWithMemberContext[]).map((d) => d.source_type)).toContain('linkedin_education');
+    });
+
+    it.each([
+      ['Slack ID', 'U123'],
+      ['LinkedIn URL', 'https://linkedin.com/in/alice'],
+      ['LinkedIn URL with different protocol and trailing slash', 'http://linkedin.com/in/alice///'],
+      ['OfficeRnD ID', 'member-1'],
+    ])('finds documents by %s', async (identifierType, identifier) => {
+      const docs = await getLinkedInDocumentsByMemberIdentifier(identifier);
+      expect(docs).toHaveLength(2);
+      expect(docs[0]).toMatchObject(memberInfo);
+    });
+
+    it('returns helpful warning string for non-existent member', async () => {
+      const docs = await getLinkedInDocumentsByMemberIdentifier('NonExistentUser');
+      expect(docs).toMatch('New profiles are synced daily');
     });
   });
 });

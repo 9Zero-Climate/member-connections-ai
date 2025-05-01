@@ -8,6 +8,7 @@ import {
 } from '../../services/database';
 import { logger } from '../../services/logger';
 import { type ProxycurlDateObject, type ProxycurlProfile, getLinkedInProfile } from '../../services/proxycurl';
+import { DEFAULT_LINKEDIN_PROFLE_ALLOWED_AGE_DAYS } from './linkedin_constants';
 
 // Constants for time calculations
 const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -25,7 +26,6 @@ type LinkedInSyncOptionOverrides =
     };
 
 const DEFAULT_MAX_UPDATES = 100;
-const DEFAULT_ALLOWED_AGE_DATES = 7;
 
 type MemberWithLinkedInUrl = MemberWithLinkedInUpdateMetadata & { linkedin_url: string };
 
@@ -88,7 +88,7 @@ export const getValidSyncOptions = (syncOptionOverrides?: LinkedInSyncOptionOver
 
   return {
     maxUpdates: maxUpdates != null ? maxUpdates : DEFAULT_MAX_UPDATES,
-    allowedAgeDays: allowedAgeDays != null ? allowedAgeDays : DEFAULT_ALLOWED_AGE_DATES,
+    allowedAgeDays: allowedAgeDays != null ? allowedAgeDays : DEFAULT_LINKEDIN_PROFLE_ALLOWED_AGE_DAYS,
   };
 };
 
@@ -102,7 +102,7 @@ export const getValidSyncOptions = (syncOptionOverrides?: LinkedInSyncOptionOver
 export function getMembersToUpdate(
   members: MemberWithLinkedInUpdateMetadata[],
   maxUpdates = DEFAULT_MAX_UPDATES,
-  allowedAgeDays = DEFAULT_ALLOWED_AGE_DATES,
+  allowedAgeDays = DEFAULT_LINKEDIN_PROFLE_ALLOWED_AGE_DAYS,
 ): MemberWithLinkedInUrl[] {
   const now = Date.now();
   const minimumUpdateAge = allowedAgeDays * MILLISECONDS_PER_DAY;
