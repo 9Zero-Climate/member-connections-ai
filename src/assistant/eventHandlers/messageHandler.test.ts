@@ -1,8 +1,11 @@
+// --- Mocks ---
+import { mockLoggerService } from '../../services/mocks';
+jest.mock('../../services/logger', () => mockLoggerService);
+
 import type { SlackEventMiddlewareArgs } from '@slack/bolt/dist/types/events';
-import type { MessageEvent, WebClient } from '@slack/web-api';
+import type { ConversationsRepliesResponse, MessageEvent, WebClient } from '@slack/web-api';
 import type { OpenAI } from 'openai';
 import * as llmConversation from '../llmConversation';
-import * as messagePacking from '../messagePacking';
 import * as slackInteraction from '../slackInteraction';
 import {
   ConditionalResponse,
@@ -10,18 +13,16 @@ import {
   handleGenericMessage,
   isDirectedAtUs,
   shouldRespondToMessage,
+  wePreviouslyParticipatedInThread,
 } from './messageHandler';
-
-// --- Mocks ---
-jest.mock('../../services/logger', () => ({
-  logger: {
-    info: jest.fn(),
-    error: jest.fn(),
-  },
-}));
 
 jest.mock('../slackInteraction', () => ({
   getBotUserId: jest.fn().mockResolvedValue('U_BOT_ID'),
+  fetchSlackThreadAndChannelContext: jest.fn().mockResolvedValue([
+    { user: 'U123', ts: '123.456', text: 'Initial' },
+    { bot_id: 'U_BOT_ID', ts: '123.457', text: 'Bot reply' },
+    { user: 'U123', ts: '123.459', text: 'is this for the bot?' },
+  ]),
 }));
 
 jest.mock('../messagePacking', () => ({
@@ -62,6 +63,7 @@ const mockWebClient = {
   axios: {},
   conversations: {
     replies: jest.fn(),
+    history: jest.fn(),
   },
 } as unknown as WebClient;
 
@@ -72,8 +74,6 @@ const mockLlmClient = {
     },
   },
 } as unknown as OpenAI;
-
-const mockSay = jest.fn();
 
 // --- Helper Functions ---
 const createMessageEvent = (overrides: Partial<MessageEvent> = {}): MessageEvent => {
@@ -141,6 +141,10 @@ describe('messageHandler', () => {
       ok: true,
       messages: [],
     });
+    (mockWebClient.conversations.history as jest.Mock).mockResolvedValue({
+      ok: true,
+      messages: [],
+    });
     (mockLlmClient.chat.completions.create as jest.Mock).mockResolvedValue(createLlmResponse(true));
   });
 
@@ -163,7 +167,7 @@ describe('messageHandler', () => {
       },
     ];
 
-    test.each(testCases)('$name', async ({ message, expected }) => {
+    it.each(testCases)('$name', async ({ message, expected }) => {
       const result = await shouldRespondToMessage(message, mockWebClient);
       expect(result).toBe(expected);
     });
@@ -205,23 +209,6 @@ describe('messageHandler', () => {
 
   describe('isDirectedAtUs', () => {
     const threadMessage = createThreadMessage({ text: 'is this for the bot?' });
-    const mockThreadReplies = {
-      ok: true,
-      messages: [
-        { user: 'U123', ts: '123.456', text: 'Initial' },
-        { bot_id: 'U_BOT_ID', ts: '123.457', text: 'Bot reply' },
-        { user: 'U123', ts: '123.459', text: 'is this for the bot?' },
-      ],
-    };
-
-    beforeEach(() => {
-      (mockWebClient.conversations.replies as jest.Mock).mockResolvedValue(mockThreadReplies);
-      (messagePacking.convertSlackHistoryToLLMHistory as jest.Mock).mockReturnValue([
-        { role: 'user', content: 'Initial' },
-        { role: 'assistant', content: 'Bot reply' },
-        { role: 'user', content: 'is this for the bot?' },
-      ]);
-    });
 
     const directedAtUsTestCases = [
       {
@@ -236,16 +223,17 @@ describe('messageHandler', () => {
       },
     ];
 
-    test.each(directedAtUsTestCases)('$name', async ({ llmResponse, expected }) => {
+    it.each(directedAtUsTestCases)('$name', async ({ llmResponse, expected }) => {
       (mockLlmClient.chat.completions.create as jest.Mock).mockResolvedValue(llmResponse);
 
       const result = await isDirectedAtUs(threadMessage, mockWebClient, mockLlmClient);
 
       expect(result).toBe(expected);
-      expect(mockWebClient.conversations.replies).toHaveBeenCalledWith({
-        channel: threadMessage.channel,
-        ts: threadMessage.thread_ts,
-      });
+      expect(slackInteraction.fetchSlackThreadAndChannelContext).toHaveBeenCalledWith(
+        mockWebClient,
+        threadMessage.channel,
+        threadMessage.thread_ts,
+      );
     });
   });
 
@@ -315,5 +303,53 @@ describe('messageHandler', () => {
         assertions(spies);
       });
     }
+  });
+
+  describe('wePreviouslyParticipatedInThread', () => {
+    const botId = 'U_BOT_ID';
+
+    it('throws error when thread has no messages', () => {
+      const threadContents = { ok: true } as ConversationsRepliesResponse;
+      expect(() => wePreviouslyParticipatedInThread(threadContents, botId)).toThrow('No messages in thread');
+    });
+
+    it('returns true when bot has previously participated', () => {
+      const threadContents = {
+        ok: true,
+        messages: [
+          { user: 'U123', ts: '123.456', text: 'Initial' },
+          { bot_id: botId, ts: '123.457', text: 'Bot reply' },
+          { user: 'U123', ts: '123.459', text: 'Follow up' },
+        ],
+      } as ConversationsRepliesResponse;
+
+      expect(wePreviouslyParticipatedInThread(threadContents, botId)).toBe(true);
+    });
+
+    it('returns false when bot has not previously participated', () => {
+      const threadContents = {
+        ok: true,
+        messages: [
+          { user: 'U123', ts: '123.456', text: 'Initial' },
+          { user: 'U456', ts: '123.457', text: 'Another user' },
+          { user: 'U123', ts: '123.459', text: 'Follow up' },
+        ],
+      } as ConversationsRepliesResponse;
+
+      expect(wePreviouslyParticipatedInThread(threadContents, botId)).toBe(false);
+    });
+
+    it('returns false when thread only has messages from other bots', () => {
+      const threadContents = {
+        ok: true,
+        messages: [
+          { user: 'U123', ts: '123.456', text: 'Initial' },
+          { bot_id: 'OTHER_BOT', ts: '123.457', text: 'Other bot reply' },
+          { user: 'U123', ts: '123.459', text: 'Follow up' },
+        ],
+      } as ConversationsRepliesResponse;
+
+      expect(wePreviouslyParticipatedInThread(threadContents, botId)).toBe(false);
+    });
   });
 });
