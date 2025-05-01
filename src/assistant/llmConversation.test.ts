@@ -193,6 +193,7 @@ describe('llmConversation', () => {
           ts: 'ts123',
         },
         say,
+        includeChannelContext: false,
       });
 
       expect(mockReactionsAdd).toHaveBeenCalledWith({
@@ -221,6 +222,7 @@ describe('llmConversation', () => {
           ts: 'ts123',
         },
         say,
+        includeChannelContext: false,
       });
 
       expect(say).toHaveBeenCalledWith(

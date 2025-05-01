@@ -7,8 +7,8 @@ import { logger } from '../../services/logger';
 import type { SlackMessage } from '../initialLlmThread';
 import { handleIncomingMessage } from '../llmConversation';
 import { convertSlackHistoryToLLMHistory } from '../messagePacking';
-import { DEFAULT_SYSTEM_CONTENT } from '../prompts';
-import { getBotUserId } from '../slackInteraction';
+import { BASIC_ASSISTANT_DESCRIPTION } from '../prompts';
+import { fetchSlackThreadAndChannelContext, getBotUserId } from '../slackInteraction';
 
 export type ThreadMessage = MessageEvent & { thread_ts: string };
 export enum ConditionalResponse {
@@ -107,21 +107,18 @@ export const isDirectedAtUs = async (
   llmClient: OpenAI,
 ): Promise<boolean> => {
   logger.info({ slackMessage }, 'Using LLM to determine if message is directed at us');
-  const threadContents = await client.conversations.replies({
-    channel: slackMessage.channel,
-    ts: slackMessage.thread_ts,
-  });
-  if (!threadContents.messages) {
+  const threadMessages = await fetchSlackThreadAndChannelContext(client, slackMessage.channel, slackMessage.thread_ts);
+  if (!threadMessages) {
     throw new Error(`No messages in thread for message ts ${slackMessage.ts}`);
   }
-  const llmHistory = convertSlackHistoryToLLMHistory(threadContents.messages, slackMessage.ts);
+  const llmHistory = convertSlackHistoryToLLMHistory(threadMessages, slackMessage.ts);
   const messagesForLlm = [
     {
       role: 'system',
       content: `You are an orchestration agent for an AI assistant.
       Here is a blurb about the assistant:
       <assistant_description>
-      ${DEFAULT_SYSTEM_CONTENT}
+      ${BASIC_ASSISTANT_DESCRIPTION}
       </assistant_description>. Given that role and abilities, and the thread history, analyze the *last* message in the provided history. Based on the conversation context and the content of the last message, determine if it is directed at the assistant or requires the assistant to respond.
       Call the '${toolShouldRespond.function.name}' tool with the result.`,
     },
@@ -177,5 +174,6 @@ export const handleGenericMessage = async (
     client,
     slackMessage: slackMessage as SlackMessage,
     say,
+    includeChannelContext: true,
   });
 };

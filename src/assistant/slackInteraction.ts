@@ -1,5 +1,15 @@
-import type { ConversationsRepliesResponse, WebClient } from '@slack/web-api';
+import type {
+  ConversationsHistoryArguments,
+  ConversationsRepliesArguments,
+  ConversationsRepliesResponse,
+  WebClient,
+} from '@slack/web-api';
+import type { MessageElement } from '@slack/web-api/dist/types/response/ConversationsRepliesResponse';
 import { logger } from '../services/logger';
+
+// The maximum number of messages that can be fetched from Slack in a single API call.
+// Since Slack doesn't return messages in order, we need to fetch as many as we can and sort them ourselves, even if we will truncate later.
+const MAX_FETCHABLE_MESSAGES = 999;
 
 export interface UserInfo {
   slack_ID: string;
@@ -10,28 +20,93 @@ export interface UserInfo {
   source?: string;
 }
 
+const sortSlackMessagesByTimestamp = (messages: MessageElement[] | undefined): MessageElement[] => {
+  if (!messages) {
+    return [];
+  }
+  return messages.sort((a, b) => {
+    if (!a.ts || !b.ts) {
+      return 0;
+    }
+    return Number(a.ts) - Number(b.ts);
+  });
+};
+
 /**
  * Fetch the replies in a Slack thread.
  */
-export const fetchSlackThread = async (
+export const fetchSlackThreadMessages = async (
   client: WebClient,
   channel: string,
-  thread_ts: string | undefined,
-): Promise<ConversationsRepliesResponse['messages']> => {
-  if (!thread_ts) {
-    return [];
-  }
+  thread_ts: string,
+  additional_api_args: Partial<ConversationsRepliesArguments> = {},
+): Promise<MessageElement[]> => {
   const slackThread = await client.conversations.replies({
     channel: channel,
     ts: thread_ts,
     include_all_metadata: true,
+    limit: MAX_FETCHABLE_MESSAGES,
+    ...additional_api_args,
   });
   logger.debug({ slackThread }, 'Slack thread fetched');
 
-  if (!slackThread.ok || !slackThread.messages) {
-    throw new Error(`Failed to fetch thread replies: ${slackThread.error || 'Unknown error'}`);
-  }
-  return slackThread.messages;
+  return sortSlackMessagesByTimestamp(slackThread.messages);
+};
+
+/**
+ * Fetch the messages in a Slack channel
+ * A channel is generally the parent to a thread and does not contain threaded messages unless they were also posted in the channel.
+ */
+export const fetchSlackChannelMessages = async (
+  client: WebClient,
+  channel: string,
+  additional_api_args: Partial<ConversationsHistoryArguments> = {},
+): Promise<MessageElement[]> => {
+  const conversationHistory = await client.conversations.history({
+    channel: channel,
+    include_all_metadata: true,
+    limit: MAX_FETCHABLE_MESSAGES,
+    ...additional_api_args,
+  });
+
+  logger.debug({ conversationHistory }, 'Channel history fetched');
+
+  return sortSlackMessagesByTimestamp(conversationHistory.messages);
+};
+
+// Constants for fetching an appropriate amount of context
+// We fetch up to a day's worth of messages from the channel leading up to the thread.
+const ONE_DAY_IN_S = 24 * 60 * 60;
+const MAX_CHANNEL_MESSAGE_AGE = ONE_DAY_IN_S;
+// Max number of channel messages to fetch
+// Keeping this kind of low since older channel messages are more likely to be irrelevant to the thread.
+const MAX_CHANNEL_MESSAGES = 10;
+// Max number of messages to fetch in total, in cases where we are fetching both thread and channel messages.
+const TOTAL_MESSAGES_LIMIT = 100;
+
+/* Fetch the messages from a slack thread, along with some of the channel context leading up to it.
+ *
+ * You probably don't want to do this in an Assistant DM thread, since in that case the "channel"
+ * consists of the first messages of each Assistant thread, which is pretty meaningless.
+ */
+export const fetchSlackThreadAndChannelContext = async (
+  client: WebClient,
+  channel: string,
+  thread_ts: string,
+): Promise<ConversationsRepliesResponse['messages']> => {
+  const threadMessages = await fetchSlackThreadMessages(client, channel, thread_ts);
+
+  const oneDayAgo = (Number(thread_ts) - MAX_CHANNEL_MESSAGE_AGE).toString();
+  logger.info({ channel, oneDayAgo, thread_ts }, 'Fetching channel messages');
+  const channelMessages = await fetchSlackChannelMessages(client, channel, {
+    oldest: oneDayAgo,
+    latest: thread_ts,
+    inclusive: false, // Exclude the thread message itself: that will be included in the threadMessages
+  });
+  logger.debug({ numChannelMessages: channelMessages.length }, 'Channel messages fetched');
+  const limitedChannelMessages = channelMessages ? channelMessages.slice(-MAX_CHANNEL_MESSAGES) : [];
+
+  return [...limitedChannelMessages, ...(threadMessages || [])].slice(-TOTAL_MESSAGES_LIMIT);
 };
 
 export const fetchUserInfo = async (client: WebClient, userId: string): Promise<UserInfo> => {
