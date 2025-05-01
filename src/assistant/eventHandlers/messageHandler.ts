@@ -141,7 +141,7 @@ export const isDirectedAtUs = async (
   const args = JSON.parse(toolCall.function.arguments);
   const shouldRespond = Boolean(args.assistant_should_respond);
   logger.info(
-    { messagesForLlm, llmResponse: llmResponse.choices[0], shouldRespond },
+    { messagesForLlm: messagesForLlm.length, llmResponse: llmResponse.choices[0], shouldRespond },
     'LLM classified message directionality',
   );
   return shouldRespond;
