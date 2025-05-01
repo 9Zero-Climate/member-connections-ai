@@ -83,14 +83,6 @@ The bot server provides:
 - Health check endpoint at http://localhost:8080
 - Socket Mode for secure communication with Slack
 
-### Manual Sync
-
-To manually sync messages from a Slack channel:
-
-```bash
-# Sync recent messages from a channel
-pnpm sync introductions
-```
 
 ### Local database
 To set up a local version of the supabase database:
@@ -107,12 +99,15 @@ Run migrations:
 pnpm migrate:all
 ```
 
-Optionally, run the various sync scripts to sync production data (skip LinkedIn - that's expensive)
+Optionally, run the various sync scripts to sync production data
 
 ```bash
 pnpm sync officernd
 pnpm sync notion
+# sync #introductions channel
 pnpm sync slack introductions
+# Use this one with care, it costs actual $$ to use Proxycurl
+pnpm sync linkedin
 ```
 
 View the dashboard at `http://localhost:54323/`
@@ -124,17 +119,14 @@ See em at https://telemetry.betterstack.com/team/315967/
 
 Whenever possible, when using the logger, log the relevant user slack ID as "user" in the log object. This facilitates filtering logs in BetterStack.
 
+## Code style & code quality
 
-## GitHub Actions
+A good catch-all command to run before committing is:
 
-The project includes automated workflows:
+```bash
+pnpm test && pnpm lint --fix && pnpm typecheck
+```
 
-- **Tests**: Runs on push and pull requests to main branch
-  - Runs linting checks
-  - Runs all tests
-  - Uploads coverage reports to Codecov
-  - Requires `DB_URL` secret
+Linting is performed with Biome.
 
-- **Sync All**: Runs daily at midnight Pacific time to sync data from external sources (OfficeRnD, Notion, LinkedIn, Slack)
-  - Can be manually triggered from the Actions tab
-  - Requires various environment variables, see `config.ts`
+See [.cursorrules](.cursorrules) for more detailed code style preferences.
