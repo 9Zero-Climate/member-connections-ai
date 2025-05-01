@@ -9,7 +9,7 @@ Communication style:
 Coding Conventions:
 - Strongly prefer map() and named functions over for loops. This increases readability and testability
 - Don't aggressively catch errors if you're just going to rethrow them. Prefer to handle errors once at a higher level but do ensure that stacktraces are preserved so we don't lose information.
-- In cases of unexpected external errors (eg. Slack API failure), don't catch the error - let the app crash so that developers will be notified and can make the appropriate fix.
+- In cases of unexpected external errors (eg. Slack API failure), DON'T catch errors preemptively - let the app crash so that developers will be notified and can make the appropriate fix. We don't want to pollute the codebase with unnecessary try/catch blocks. An exception is when a catch is necessary to avoid a typescript error.
 
 Naming conventions:
 - When creating tests in Jest, don't use the word "should" in test names. For example, use "it('throws on condition X')" instead of "it('should throw on condition X')".
@@ -40,3 +40,10 @@ Commenting conventions:
 - Do not use comments that describe why you are changing something - comments like "// Now this does X" or "// Moved X here" belong in the chat thread but not in the code.
 - If you feel the need to leave a comment describing what a code block does, consider refactoring the section into a named function to make the code more self-documenting.
 
+Testing conventions:
+- Test files belong alongside code - the naming convention is `myModule.test.ts`.
+- Prefer concise, focused tests to tests that cover multiple cases.
+- Avoid having many, verbose test fixtures. Use helper functions if necessary or a centralized fixture with the spread operator to change the fixture as needed for specific cases.
+- prefer to centralize test logic - if there are several similar tests, use helper functions or declarative test cases that get mapped over with `test.each(testCases, ...)`.
+- prefer to use Jest's built-in matchers and assertions over custom logic.
+- avoid mocks when possible. Prefer to factor business logic out into pure functions that can be tested in isolation.
