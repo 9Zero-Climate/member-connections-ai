@@ -1,4 +1,4 @@
-import { normalizeLinkedInUrl } from './linkedin';
+import { normalizeLinkedInUrl, normalizeLinkedinUrlOrNull } from './linkedin';
 
 describe('normalizeLinkedInUrl', () => {
   const testCases = [
@@ -92,5 +92,18 @@ describe('normalizeLinkedInUrl', () => {
 
   it.each(errorCases)('throws an error for invalid URL ($description): "$input" ', ({ input }) => {
     expect(() => normalizeLinkedInUrl(input)).toThrow('Invalid LinkedIn URL format');
+  });
+});
+
+describe('normalizeLinkedinUrlOrNull', () => {
+  it('returns normalized URL for valid input', () => {
+    const validUrlInput = 'https://www.linkedin.com/in/username?param=1';
+    const expectedNormalizedUrl = 'https://linkedin.com/in/username';
+    expect(normalizeLinkedinUrlOrNull(validUrlInput)).toBe(expectedNormalizedUrl);
+  });
+
+  it('returns null for invalid input', () => {
+    const invalidUrlInput = 'not-a-linkedin-url';
+    expect(normalizeLinkedinUrlOrNull(invalidUrlInput)).toBeNull();
   });
 });
