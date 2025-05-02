@@ -2,7 +2,7 @@ import { Client } from 'pg';
 import { config } from '../config';
 import { DEFAULT_LINKEDIN_PROFLE_ALLOWED_AGE_DAYS } from '../scripts/sync/linkedin_constants';
 import { generateEmbeddings } from './embedding';
-import { normalizeLinkedInUrl } from './linkedin';
+import { normalizeLinkedInUrl, normalizeLinkedinUrlOrNull } from './linkedin';
 import { logger } from './logger';
 import type { NotionMemberData } from './notion';
 
@@ -471,25 +471,19 @@ async function getLinkedInDocuments(linkedinUrl: string): Promise<Document[]> {
   }
 }
 
-const tryNormalizeLinkedInUrl = (url: string) => {
-  try {
-    return normalizeLinkedInUrl(url);
-  } catch (error) {
-    return null;
-  }
-};
-
 /**
- * Get all LinkedIn documents for a given member identifier
- * @param memberIdentifier - The member's fullname, slack ID, linkedin URL, or OfficeRnD ID
+ * Get all LinkedIn documents for a given member identifier. LLM-friendly.
+ * @param memberIdentifier - The member's fullname, slackID, linkedin URL, or OfficeRnD ID
  * @returns Array of documents with their content and metadata
  */
 async function getLinkedInDocumentsByMemberIdentifier(
   memberIdentifier: string,
 ): Promise<DocumentWithMemberContext[] | string> {
   const client = await getOrCreateClient();
-  const normalizedLinkedInUrl = tryNormalizeLinkedInUrl(memberIdentifier);
+  // Since this function call is LLM-friendly, we can't assume that the memberIdentifier is normalized if it's a linkedin URL
+  const normalizedLinkedInUrl = normalizeLinkedinUrlOrNull(memberIdentifier);
   // Don't try to query for a linkedin URL if we're not able to normalize it
+  // If we tried to match with a null linkedin URL, it would match everything missing a linkedin URL
   const linkedinQueryClause = normalizedLinkedInUrl ? 'OR member_linkedin_url = $2' : '';
   const linkedinQueryParams = normalizedLinkedInUrl ? [normalizedLinkedInUrl] : [];
 
