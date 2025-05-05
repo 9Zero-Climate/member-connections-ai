@@ -5,16 +5,9 @@ import type { Client } from '@notionhq/client';
 import type {
   PageObjectResponse,
   PartialPageObjectResponse,
-  QueryDatabaseParameters,
   QueryDatabaseResponse,
   TextRichTextItemResponse, // Import for annotations type
 } from '@notionhq/client/build/src/api-endpoints';
-import { mockDeep, mockReset } from 'jest-mock-extended';
-import * as configModule from '../config'; // Import namespace for spying
-import { config } from '../config';
-import { logger } from './logger';
-import type { NotionMemberData } from './notion';
-import { fetchNotionMembers, initNotionClient } from './notion';
 
 // Define a default annotation object to avoid 'as any'
 const defaultAnnotations: TextRichTextItemResponse['annotations'] = {

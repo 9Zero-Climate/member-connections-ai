@@ -1,6 +1,7 @@
 import qs from 'qs';
 import { config } from '../config';
-import { type Member, MemberLocation } from './database';
+import { MemberLocation } from './database';
+import { normalizeLinkedInUrl } from './linkedin';
 import { logger } from './logger';
 
 const OFFICERND_API_URL = 'https://app.officernd.com/api/v1';
@@ -140,11 +141,25 @@ export async function getAllOfficeRnDMembersData(): Promise<OfficeRnDMemberData[
 }
 
 export const getMemberLinkedin = (member: OfficeRnDRawMemberData): string | null => {
-  return (
+  const rawLinkedinUrl =
     member.linkedin || // Prefer the member-set first-class OfficeRnD attribute
-    member.properties.LinkedInViaAdmin || // Fall back to the custom property that 9Zero staff can set
-    null
-  );
+    member.properties.LinkedInViaAdmin; // Fall back to the custom property that 9Zero staff can set
+
+  if (rawLinkedinUrl) {
+    try {
+      return normalizeLinkedInUrl(rawLinkedinUrl);
+    } catch (e) {
+      logger.error(
+        {
+          rawLinkedinUrl,
+          member,
+        },
+        'Error normalizing LinkedIn URL for member. Storing null for now',
+      );
+    }
+  }
+
+  return null;
 };
 
 // Hardcoding for now to save the extra fetch

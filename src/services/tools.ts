@@ -1,5 +1,5 @@
 import { XMLBuilder } from 'fast-xml-parser';
-import { findSimilar, getLinkedInDocuments, getLinkedInDocumentsByName } from './database';
+import { findSimilar, getLinkedInDocumentsByMemberIdentifier } from './database';
 import type { Document } from './database';
 import { generateEmbedding } from './embedding';
 
@@ -14,12 +14,12 @@ export interface SearchToolResult {
 }
 
 export interface LinkedInProfileToolParams {
-  memberName: string;
+  memberIdentifier: string;
 }
 
 export interface LinkedInProfileToolResult {
-  documents: Document[];
-  memberName: string;
+  documents: Document[] | string;
+  memberIdentifier: string;
 }
 
 export interface ToolCall {
@@ -54,11 +54,11 @@ export async function searchDocuments(params: SearchToolParams): Promise<SearchT
  * Fetch LinkedIn profile data for a given member name from the database
  */
 export async function fetchLinkedInProfile(params: LinkedInProfileToolParams): Promise<LinkedInProfileToolResult> {
-  const { memberName } = params;
-  const documents = await getLinkedInDocumentsByName(memberName);
+  const { memberIdentifier } = params;
+  const documents = await getLinkedInDocumentsByMemberIdentifier(memberIdentifier);
   return {
     documents,
-    memberName,
+    memberIdentifier,
   };
 }
 
@@ -85,7 +85,7 @@ export const tools = [
     function: {
       name: 'searchDocuments',
       description:
-        'Search for relevant content (Slack messages, LinkedIn experiences, and data from the Notion members database) using semantic similarity based on the content of results. Tips: Rather than attempting multi-topic searches (e.g., investors AND solar), instead consider multiple specific searches (one for "investors", one for "solar", one for "investors in solar").',
+        'Search for relevant content (Slack messages, LinkedIn experiences, and the members database) using semantic similarity based on the content of results. Tips: Rather than attempting multi-topic searches (e.g., investors AND solar), instead consider multiple specific searches (one for "investors", one for "solar", one for "investors in solar").',
       parameters: {
         type: 'object',
         properties: {
@@ -97,7 +97,7 @@ export const tools = [
           limit: {
             type: 'number',
             description:
-              'Maximum number of results to return. Use 20 as a minimum and then hand-sort through the results.',
+              'Number of results to return. Use 20 as a minimum and then hand-sort through the results. Since this is a "fuzzy" semantiic search, some results may be irrelevant and should be ignored.',
             default: DEFAULT_DOCUMENT_LIMIT,
           },
         },
@@ -109,20 +109,26 @@ export const tools = [
     type: 'function',
     function: {
       name: 'fetchLinkedInProfile',
-      description: 'Fetch LinkedIn profile data for a given member name from the database.',
+      description:
+        "Fetch LinkedIn profile data for a given member from the database. Use this to get a member's full employment history, current position, and public-facing blurb.",
       parameters: {
         type: 'object',
         properties: {
-          memberName: {
+          memberIdentifier: {
             type: 'string',
-            description: "The member's full name to fetch LinkedIn data for e.g. 'Jason Curtis'",
+            description:
+              "The member's full name, slack ID, or linkedin URL, or OfficeRnD ID to fetch LinkedIn data for e.g. 'Jason Curtis' or 'U07BA4JA3HC' or 'https://linkedin.com/in/jason-curtis/'",
           },
         },
-        required: ['memberName'],
+        required: ['memberIdentifier'],
       },
     },
   },
 ];
+
+const looksLikeSlackId = (identifier: string) => {
+  return /^U[A-Z0-9]+$/.test(identifier);
+};
 
 export const getToolCallShortDescription = (toolCall: ToolCall) => {
   if (toolCall.type !== 'function') {
@@ -135,8 +141,12 @@ export const getToolCallShortDescription = (toolCall: ToolCall) => {
   switch (toolName) {
     case 'searchDocuments':
       return `Semantic search for "${toolArgs.query}"`;
-    case 'fetchLinkedInProfile':
-      return `Fetch LinkedIn profile for ${toolArgs.memberName}`;
+    case 'fetchLinkedInProfile': {
+      const memberIdForDisplay = looksLikeSlackId(toolArgs.memberIdentifier)
+        ? `<@${toolArgs.memberIdentifier}>`
+        : toolArgs.memberIdentifier;
+      return `Fetch LinkedIn profile for ${memberIdForDisplay}`;
+    }
     default:
       throw new Error(`Unhandled tool call: ${toolName}`);
   }

@@ -2,12 +2,9 @@ import type { SayFn } from '@slack/bolt';
 import { WebClient } from '@slack/web-api';
 import type { ChatPostMessageResponse } from '@slack/web-api';
 import { OpenAI } from 'openai';
-import type { ChatCompletion, ChatCompletionChunk } from 'openai/resources/chat/completions';
-import { config } from '../config';
-import { logger } from '../services/logger';
+import type { ChatCompletionChunk } from 'openai/resources/chat/completions';
 import ResponseManager from './ResponseManager';
 import executeToolCalls from './executeToolCalls';
-import type { SlackMessage } from './initialLlmThread';
 import { handleIncomingMessage, runLlmConversation } from './llmConversation';
 import type { ChatMessage } from './types';
 

@@ -1,3 +1,7 @@
+import { mockLoggerService } from './mocks';
+jest.mock('./logger', () => mockLoggerService);
+
+import { logger } from './logger';
 import { getAllOfficeRnDMembersData, getMemberLinkedin, getMemberLocation } from './officernd';
 
 const mockFetch = jest.fn();
@@ -6,7 +10,6 @@ global.fetch = mockFetch as jest.Mock;
 describe('OfficeRnD Service', () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    mockFetch.mockReset();
   });
 
   it('should get all members', async () => {
@@ -134,5 +137,22 @@ describe('getMemberLinkedin', () => {
       properties: {},
     });
     expect(linkedinUrl).toBeNull();
+  });
+
+  it('should log an error and return null if linkedin is malformed', () => {
+    const linkedinUrl = getMemberLinkedin({
+      ...mockMember,
+      linkedin: 'invalid-linkedin-url',
+    });
+    expect(linkedinUrl).toBeNull();
+    expect(logger.error).toHaveBeenCalled();
+  });
+
+  it('should normalize linkedin URL if possible', () => {
+    const linkedinUrl = getMemberLinkedin({
+      ...mockMember,
+      linkedin: 'http://www.linkedin.com/in/thejohndoe/',
+    });
+    expect(linkedinUrl).toEqual('https://linkedin.com/in/thejohndoe');
   });
 });
