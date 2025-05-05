@@ -85,7 +85,7 @@ export const tools = [
     function: {
       name: 'searchDocuments',
       description:
-        'Search for relevant content (Slack messages, LinkedIn experiences, and data from the Notion members database) using semantic similarity based on the content of results. Tips: Rather than attempting multi-topic searches (e.g., investors AND solar), instead consider multiple specific searches (one for "investors", one for "solar", one for "investors in solar").',
+        'Search for relevant content (Slack messages, LinkedIn experiences, and the members database) using semantic similarity based on the content of results. Tips: Rather than attempting multi-topic searches (e.g., investors AND solar), instead consider multiple specific searches (one for "investors", one for "solar", one for "investors in solar").',
       parameters: {
         type: 'object',
         properties: {
@@ -97,7 +97,7 @@ export const tools = [
           limit: {
             type: 'number',
             description:
-              'Maximum number of results to return. Use 20 as a minimum and then hand-sort through the results.',
+              'Number of results to return. Use 20 as a minimum and then hand-sort through the results. Since this is a "fuzzy" semantiic search, some results may be irrelevant and should be ignored.',
             default: DEFAULT_DOCUMENT_LIMIT,
           },
         },
@@ -109,7 +109,8 @@ export const tools = [
     type: 'function',
     function: {
       name: 'fetchLinkedInProfile',
-      description: 'Fetch LinkedIn profile data for a given member name from the database.',
+      description:
+        "Fetch LinkedIn profile data for a given member from the database. Use this to get a member's full employment history, current position, and public-facing blurb.",
       parameters: {
         type: 'object',
         properties: {
