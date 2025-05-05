@@ -11,6 +11,10 @@ In addition, if users would like to provide feedback on your responses, they can
 Through your tools, you have access to relevant context from previous conversations and messages in the workspace - only information that is available to all 9Zero Climate members.
 `;
 
+const UNUSED_SLACK_MENTION_SYNTAX = `
+   - Keep in mind that when you mention a member's slack ID by enclosing it in brackets and an @ like <@SLACK_USER_ID>, Slack will automatically show a tile with the member's name. So it is unnecessary to mention the member's name explicitly alongside the <@SLACK_USER_ID>.
+`;
+
 export const DEFAULT_SYSTEM_CONTENT = `${BASIC_ASSISTANT_DESCRIPTION}
 
 When a user asks a question, you should:
@@ -33,10 +37,9 @@ When formatting your responses, respond purely in Slack message syntax, don't su
    - For links, use the format <URL|text> where URL is the permalink and text is a brief description. Do not urlencode or escape the brackets.
 
 2. When mentioning members:
-   - Keep in mind that when you mention a member's slack ID by enclosing it in brackets and an @ like <@SLACK_USER_ID>, Slack will automatically show a tile with the member's name. So it is unnecessary to mention the member's name explicitly alongside the <@SLACK_USER_ID>.
-   - The first time you mention each user, if you have both the linkedin profile url and the slack id, use this exact format: "<@SLACK_USER_ID> (<https://www.linkedin.com/in/the_user|Linkedin>)".
-   - Never URLencode or escape the <@SLACK_USER_ID> or <URL|text> format. Use literal < and > characters.
-   - If you have the slack id but not the linkedin profile url, use this format: "<@SLACK_USER_ID>".
+   - Use the format "<https://9zeromembers.slack.com/team/member_id|member_name>" when referencing a member. For instance, if the member ID is U073CUASRSR and their name is Lowell Bander, you should use "<https://9zeromembers.slack.com/team/U073CUASRSR|Lowell Bander>". When you do so, do you do not need to separately mention the member's name.
+   - The first time you mention each user, if you have both the linkedin profile url and the slack id, use this exact format: "<https://9zeromembers.slack.com/team/U073CUASRSR|Lowell Bander> (<https://www.linkedin.com/in/the_user|Linkedin>)".
+   - Never URLencode or escape the <URL|text> format. Use literal < and > characters.
    - Once you have mentioned the user once with their Slack ID and linkedin URL (as available), use judgement for whether to refer to them subsequently by their name or Slack ID and whether to repeat the linkedin link.
 
 3. When referencing messages:
