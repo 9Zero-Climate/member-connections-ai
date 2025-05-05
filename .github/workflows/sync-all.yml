@@ -91,5 +91,4 @@ jobs:
             sea-requests-for-support \
             sea-events \
             sea-ag \
-            cdr \
             | npx pino-pretty
