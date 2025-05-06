@@ -44,7 +44,7 @@ jobs:
           OFFICERND_ORG_SLUG: ${{ secrets.OFFICERND_ORG_SLUG }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
-        run: pnpm sync officernd | npx pino-pretty
+        run: pnpm sync officernd
 
       - name: Sync Notion
         env:
@@ -53,7 +53,7 @@ jobs:
           NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
           NOTION_MEMBERS_DATABASE_ID: ${{ secrets.NOTION_MEMBERS_DATABASE_ID }}
 
-        run: pnpm sync notion | npx pino-pretty
+        run: pnpm sync notion
 
       - name: Sync LinkedIn
         env:
@@ -64,8 +64,7 @@ jobs:
         run: |
           pnpm sync linkedin \
             --max-updates=${{ github.event.inputs.linkedin-max-updates || 100 }} \
-            --allowed-age-days=${{ github.event.inputs.linkedin-allowed-age-days || 7 }} \
-            | npx pino-pretty
+            --allowed-age-days=${{ github.event.inputs.linkedin-allowed-age-days || 7 }}
 
       - name: Sync Slack (all configured channels)
         env:
@@ -90,5 +89,4 @@ jobs:
             investing \
             sea-requests-for-support \
             sea-events \
-            sea-ag \
-            | npx pino-pretty
+            sea-ag
