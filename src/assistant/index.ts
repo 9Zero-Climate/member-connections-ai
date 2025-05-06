@@ -41,5 +41,5 @@ export const registerAssistantAndHandlers = (app: App, config: Config, client: W
   app.action(FEEDBACK_CANCEL_BUTTON_ACTION_ID, handleFeedbackCancel);
   app.view(FEEDBACK_MODAL_ID, handleFeedbackViewSubmission);
 
-  logger.info('Assistant and feedback/reaction handlers registered.');
+  logger.info('🤖 Assistant and feedback/reaction handlers registered.');
 };
