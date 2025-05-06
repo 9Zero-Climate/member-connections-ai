@@ -57,6 +57,10 @@ export interface Config {
   // Notion configuration
   notionApiKey?: string;
   notionMembersDbId?: string;
+
+  // Logtail (aka BetterStack Telemetry) configuration
+  logtailSourceToken?: string;
+  logtailIngestingHost?: string;
 }
 
 // Define required variables per context
@@ -121,6 +125,8 @@ const CONFIG_KEY_TO_ENV_VAR: Record<keyof Config, string> = {
   chatEditIntervalMs: 'CHAT_EDIT_INTERVAL_MS',
   notionApiKey: 'NOTION_API_KEY',
   notionMembersDbId: 'NOTION_MEMBERS_DATABASE_ID',
+  logtailSourceToken: 'LOGTAIL_SOURCE_TOKEN',
+  logtailIngestingHost: 'LOGTAIL_INGESTING_HOST',
 };
 
 /**
@@ -166,6 +172,8 @@ export function loadConfig(env: NodeJS.ProcessEnv) {
     chatEditIntervalMs: Number.parseInt(env.CHAT_EDIT_INTERVAL_MS || '1000', 10),
     notionApiKey: env.NOTION_API_KEY,
     notionMembersDbId: env.NOTION_MEMBERS_DATABASE_ID,
+    logtailSourceToken: env.LOGTAIL_SOURCE_TOKEN,
+    logtailIngestingHost: env.LOGTAIL_INGESTING_HOST,
   };
 }
 

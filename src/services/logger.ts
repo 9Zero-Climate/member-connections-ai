@@ -2,18 +2,49 @@ import type { Logger as BoltLogger, LogLevel } from '@slack/bolt';
 import * as dotenv from 'dotenv';
 import pino, { type Logger } from 'pino';
 
+// We have to bypass our normal config loading here
+// so that the logger can be used in the config loading process!
 dotenv.config();
+
+const logtailIsConfigured = process.env.LOGTAIL_TOKEN && process.env.LOGTAIL_INGESTING_HOST;
+if (['production', 'staging'].includes(process.env.NODE_ENV || '') && !logtailIsConfigured) {
+  throw new Error(`LOGTAIL_TOKEN and LOGTAIL_INGESTING_HOST must be set for node_env ${process.env.NODE_ENV}`);
+}
+
+const logtailTransportTarget = logtailIsConfigured
+  ? [
+      {
+        target: '@logtail/pino',
+        level: 'debug',
+        options: {
+          sourceToken: process.env.LOGTAIL_TOKEN,
+          options: {
+            endpoint: `https://${process.env.LOGTAIL_INGESTING_HOST}`,
+          },
+        },
+      },
+    ]
+  : [];
+
+// Log prettified output to stdout
+const stdoutTransportTarget = [
+  {
+    target: 'pino-pretty',
+    level: 'debug',
+    options: {
+      // 1 = stdout, 2 = stderr
+      // https://github.com/pinojs/pino/blob/main/docs/transports.md#writing-to-a-custom-transport--stdout
+      destination: 1,
+    },
+  },
+];
 
 // Base Pino logger configuration
 const pinoLogger = pino({
-  level: 'debug',
-  // By default, Pino logs the level as a number. That's nice for ordering, but
-  // annoying for human consumption. Use labels instead.
-  formatters: {
-    level: (label) => {
-      return { level: label };
-    },
+  transport: {
+    targets: [...stdoutTransportTarget, ...logtailTransportTarget],
   },
+  level: 'debug',
   base: {
     app: 'member-connections-ai',
     env: process.env.NODE_ENV || 'production',
@@ -57,8 +88,12 @@ const pinoLogger = pino({
   },
 });
 
-let loggingUncaughtErrors = false;
+if (logtailIsConfigured) {
+  pinoLogger.debug('🐕 Logtail transport configured');
+}
 
+// Ensure that logUncaughtErrors only hooks in once
+let loggingUncaughtErrors = false;
 const logUncaughtErrors = (logger: Logger) => {
   if (loggingUncaughtErrors) return;
   loggingUncaughtErrors = true;

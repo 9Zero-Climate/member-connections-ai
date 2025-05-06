@@ -26,7 +26,7 @@ __Fabric__ is an AI-powered member connections bot for [9Zero Climate](https://9
 
 ### Logging & Monitoring:
 
-[![Badge - BetterStack Logging](https://img.shields.io/badge/BetterStack-logging-blue?logo=betterstack)](https://telemetry.betterstack.com/team/328445/dashboards/426350)
+[![Badge - BetterStack Logging](https://img.shields.io/badge/BetterStack-logging-blue?logo=betterstack)](https://telemetry.betterstack.com/team/315967/tail?s=1300418)
 
 [![Badge - Hex Dashboard](https://img.shields.io/badge/Hex-dashboard-blue?logo=data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiPz4gPHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIGlkPSJMYXllcl8yIiBkYXRhLW5hbWU9IkxheWVyIDIiIHZpZXdCb3g9IjAgMCAxNDUwLjMgNjAwIj48ZGVmcz48c3R5bGU+IC5jbHMtMSB7IGZpbGw6ICM0NzM5ODI7IGZpbGwtcnVsZTogZXZlbm9kZDsgfSA8L3N0eWxlPjwvZGVmcz48ZyBpZD0iTGF5ZXJfMS0yIiBkYXRhLW5hbWU9IkxheWVyIDEiPjxwYXRoIGNsYXNzPSJjbHMtMSIgZD0ibTI1MC4xMSwwdjE5OS40OWgtNTBWMEgwdjYwMGgyMDAuMTF2LTMwMC42OWg1MHYzMDAuNjloMjAwLjE4VjBoLTIwMC4xOFptMjQ5LjksMHY2MDBoNDUwLjI5di0yNTAuMjNoLTIwMC4ydjE0OWgtNTB2LTE5OS40NmgyNTAuMlYwaC00NTAuMjlabTIwMC4wOSwxOTkuNDl2LTk5LjQ5aDUwdjk5LjQ5aC01MFptNTUwLjAyLDBWMGgyMDAuMTh2MTUwbC0xMDAsMTAwLjA5LDEwMCwxMDAuMDl2MjQ5LjgyaC0yMDAuMTh2LTMwMC42OWgtNTB2MzAwLjY5aC0yMDAuMTF2LTI0OS44MmwxMDAuMTEtMTAwLjA5LTEwMC4xMS0xMDAuMDlWMGgyMDAuMTF2MTk5LjQ5aDUwWiI+PC9wYXRoPjwvZz48L3N2Zz4g)](https://app.hex.tech/019618bd-d2e7-700b-8b18-0070d1dad34f/app/01961b99-87dc-7000-a597-1be47c8ebbf5/latest)
 
