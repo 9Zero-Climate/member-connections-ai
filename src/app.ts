@@ -15,8 +15,9 @@ const app = new App({
   logger: boltLogger,
 });
 
-// Create an Express app for health checks
+// Create an Express app for health checks & webhooks
 const expressApp: Express = express();
+expressApp.use(express.json());
 
 // Health check endpoint
 expressApp.get('/', (_req, res) => {
@@ -27,9 +28,26 @@ expressApp.get('/', (_req, res) => {
   });
 });
 
+/* Handle webhooks from OfficeRND
+Expected payload documented at https://developer.officernd.com/docs/webhooks-getting-started#receiving-webhook-notifications
+*/
+expressApp.post('/log-checkin', async (req, res) => {
+  const { body } = req;
+
+  logger.info({ body }, 'log-checkin webhook');
+  res.status(200).send('logged');
+});
+
+expressApp.post('/log-checkout', async (req, res) => {
+  const { body } = req;
+
+  logger.info({ body }, 'log-checkout webhook');
+  res.status(200).send('logged');
+});
+
 // Start the Express server
 expressApp.listen(config.port, () => {
-  logger.info({ port: config.port }, '🩺 Health check server started');
+  logger.info({ port: config.port }, '🩺 HTTP server started');
 });
 
 // Hook the chatbot into the Slack Bolt app
