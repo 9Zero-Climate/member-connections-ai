@@ -1,7 +1,7 @@
-import { ConfigContext, validateConfig } from '../../config';
-import { closeDbConnection, updateMembersFromNotion } from '../../services/database';
-import { logger } from '../../services/logger';
-import { fetchNotionMembers } from '../../services/notion';
+import { ConfigContext, validateConfig } from '../config';
+import { closeDbConnection, updateMembersFromNotion } from '../services/database';
+import { logger } from '../services/logger';
+import { fetchNotionMembers } from '../services/notion';
 
 /**
  * Sync data from Notion

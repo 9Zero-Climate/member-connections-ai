@@ -1,9 +1,9 @@
-import { mockDatabaseService, mockLoggerService, mockNotionService } from '../../services/mocks'; // These have to be imported before the libraries they are going to mock are imported
+import { mockDatabaseService, mockLoggerService, mockNotionService } from '../services/mocks'; // These have to be imported before the libraries they are going to mock are imported
 import { syncNotion } from './notion';
 
-jest.mock('../../services/notion', () => mockNotionService);
-jest.mock('../../services/database', () => mockDatabaseService);
-jest.mock('../../services/logger', () => mockLoggerService);
+jest.mock('../services/notion', () => mockNotionService);
+jest.mock('../services/database', () => mockDatabaseService);
+jest.mock('../services/logger', () => mockLoggerService);
 
 const mockMembers = [
   {

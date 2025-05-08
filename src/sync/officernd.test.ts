@@ -1,10 +1,10 @@
-import { mockDatabaseService, mockLoggerService, mockOfficeRndService } from '../../services/mocks'; // These have to be imported before the libraries they are going to mock are imported
-import type { OfficeRnDMemberData } from '../../services/officernd';
+import { mockDatabaseService, mockLoggerService, mockOfficeRndService } from '../services/mocks'; // These have to be imported before the libraries they are going to mock are imported
+import type { OfficeRnDMemberData } from '../services/officernd';
 import { createOfficeRnDDocuments, syncOfficeRnD } from './officernd';
 
-jest.mock('../../services/officernd', () => mockOfficeRndService);
-jest.mock('../../services/database', () => mockDatabaseService);
-jest.mock('../../services/logger', () => mockLoggerService);
+jest.mock('../services/officernd', () => mockOfficeRndService);
+jest.mock('../services/database', () => mockDatabaseService);
+jest.mock('../services/logger', () => mockLoggerService);
 
 const mockMember1 = {
   id: '1',

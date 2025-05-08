@@ -1,6 +1,6 @@
 import { Client } from 'pg';
 import { config } from '../config';
-import { DEFAULT_LINKEDIN_PROFLE_ALLOWED_AGE_DAYS } from '../scripts/sync/linkedin_constants';
+import { DEFAULT_LINKEDIN_PROFLE_ALLOWED_AGE_DAYS } from '../sync/linkedin_constants';
 import { generateEmbeddings } from './embedding';
 import { normalizeLinkedInUrl, normalizeLinkedinUrlOrNull } from './linkedin';
 import { logger } from './logger';

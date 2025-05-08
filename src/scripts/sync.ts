@@ -1,8 +1,8 @@
 import { Command } from 'commander';
-import { syncLinkedIn } from './linkedin';
-import { syncNotion } from './notion';
-import { syncOfficeRnD } from './officernd';
-import { syncSlackChannels } from './slack';
+import { syncLinkedIn } from '../sync/linkedin';
+import { syncNotion } from '../sync/notion';
+import { syncOfficeRnD } from '../sync/officernd';
+import { syncSlackChannels } from '../sync/slack';
 
 const program = new Command();
 program.name('sync').description('CLI tool for syncing data from external sources');

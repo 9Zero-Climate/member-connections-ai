@@ -1,13 +1,13 @@
-import { ConfigContext, validateConfig } from '../../config';
+import { ConfigContext, validateConfig } from '../config';
 import {
   bulkUpsertMembers,
   closeDbConnection,
   deleteTypedDocumentsForMember,
   insertOrUpdateDoc,
-} from '../../services/database';
-import { normalizeLinkedInUrl } from '../../services/linkedin';
-import { logger } from '../../services/logger';
-import { type OfficeRnDMemberData, getAllOfficeRnDMembersData } from '../../services/officernd';
+} from '../services/database';
+import { normalizeLinkedInUrl } from '../services/linkedin';
+import { logger } from '../services/logger';
+import { type OfficeRnDMemberData, getAllOfficeRnDMembersData } from '../services/officernd';
 
 /**
  * Sync data from OfficeRnD
