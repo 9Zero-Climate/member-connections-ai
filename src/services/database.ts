@@ -321,7 +321,9 @@ async function updateMember(officerndId: string, updates: Partial<Member>): Prom
   // Fetch existing member
   const selectResult = await client.query('SELECT * from members WHERE officernd_id = $1', [officerndId]);
   if (selectResult.rows.length !== 1) {
-    throw new Error(`Expected exactly one member with id: ${officerndId}, found ${selectResult.rows.length} members`);
+    throw new Error(
+      `Failed to update member with id: ${officerndId}. Expected exactly one member, found ${selectResult.rows.length} members`,
+    );
   }
   const memberToUpdate = selectResult.rows[0];
 

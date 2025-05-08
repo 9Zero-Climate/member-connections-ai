@@ -4,6 +4,7 @@ import type { Express } from 'express';
 import { registerAssistantAndHandlers } from './assistant';
 import { config } from './config';
 import { boltLogger, logUncaughtErrors, logger } from './services/logger';
+import { handleCheckinEvent } from './services/officernd';
 
 logUncaughtErrors(logger);
 
@@ -28,21 +29,21 @@ expressApp.get('/', (_req, res) => {
   });
 });
 
-/* Handle webhooks from OfficeRND
+/* Handle checkin webhooks from OfficeRND
 Expected payload documented at https://developer.officernd.com/docs/webhooks-getting-started#receiving-webhook-notifications
 */
-expressApp.post('/log-checkin', async (req, res) => {
+expressApp.post('/sync-officernd-checkin', async (req, res) => {
   const { body } = req;
+  logger.info({ body }, 'Handling sync-checkin webhook');
 
-  logger.info({ body }, 'log-checkin webhook');
-  res.status(200).send('logged');
-});
+  try {
+    await handleCheckinEvent(body);
+  } catch (error) {
+    logger.error(error);
+    res.status(400).send((error as Error).message);
+  }
 
-expressApp.post('/log-checkout', async (req, res) => {
-  const { body } = req;
-
-  logger.info({ body }, 'log-checkout webhook');
-  res.status(200).send('logged');
+  res.status(200).send('Checkin synced');
 });
 
 // Start the Express server

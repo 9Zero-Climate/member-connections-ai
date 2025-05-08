@@ -1,6 +1,6 @@
 import { mockDatabaseService, mockLoggerService, mockOfficeRndService } from '../services/mocks'; // These have to be imported before the libraries they are going to mock are imported
 import type { OfficeRnDMemberData } from '../services/officernd';
-import { createOfficeRnDDocuments, syncOfficeRnD } from './officernd';
+import { createOfficeRnDDocuments, handleCheckinEvent, syncOfficeRnD } from './officernd';
 
 jest.mock('../services/officernd', () => mockOfficeRndService);
 jest.mock('../services/database', () => mockDatabaseService);
@@ -164,5 +164,55 @@ describe('createOfficeRnDDocuments', () => {
         }),
       }),
     );
+  });
+});
+
+describe('handleCheckinEvent', () => {
+  const validCheckin = {
+    member: 'member-id-1',
+    start: '2025-01-01T08:00:00Z',
+    end: null,
+    office: 'office-id-1',
+    createdAt: '2025-01-01T08:00:00Z',
+    createdBy: 'user-id-1',
+  };
+  const validPayload = {
+    event: 'event-id-1',
+    eventType: 'checkin.created',
+    data: {
+      object: validCheckin,
+    },
+    createdAt: '2025-01-01T08:00:00Z',
+  };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockOfficeRndService.getMemberLocation.mockReturnValue('Seattle');
+  });
+
+  it('sets checkin_location to location when checkin.end is null', async () => {
+    await handleCheckinEvent(validPayload);
+
+    expect(mockDatabaseService.updateMember).toHaveBeenCalledWith('member-id-1', { checkin_location: 'Seattle' });
+  });
+
+  it('sets checkin_location to null when checkin.end is not null', async () => {
+    const payloadWithNonNullEnd = {
+      ...validPayload,
+      data: {
+        object: {
+          ...validCheckin,
+          end: '2025-01-01T17:00:00Z',
+        },
+      },
+    };
+    await handleCheckinEvent(payloadWithNonNullEnd);
+
+    expect(mockDatabaseService.updateMember).toHaveBeenCalledWith('member-id-1', { checkin_location: null });
+  });
+
+  it('throws error for unsupported event type', async () => {
+    const payloadWithUnsupportedEventType = { ...validPayload, eventType: 'checkin.removed' };
+    await expect(handleCheckinEvent(payloadWithUnsupportedEventType)).rejects.toThrow(/Unsupported event type/);
   });
 });

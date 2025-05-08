@@ -4,10 +4,16 @@ import {
   closeDbConnection,
   deleteTypedDocumentsForMember,
   insertOrUpdateDoc,
+  updateMember,
 } from '../services/database';
 import { normalizeLinkedInUrl } from '../services/linkedin';
 import { logger } from '../services/logger';
-import { type OfficeRnDMemberData, getAllOfficeRnDMembersData } from '../services/officernd';
+import {
+  type OfficeRnDMemberData,
+  type OfficeRnDRawWebhookPayload,
+  getAllOfficeRnDMembersData,
+  getMemberLocation,
+} from '../services/officernd';
 
 /**
  * Sync data from OfficeRnD
@@ -89,3 +95,26 @@ export async function createOfficeRnDDocuments(memberData: OfficeRnDMemberData):
     });
   }
 }
+
+/**
+ * Handle checkin event webhooks from officernd
+ *
+ * Update the member's checkin_location attribute with:
+ *  - checkin_location=location if they are checked in
+ *  - checkin_location=null if they are checked out
+ */
+export const handleCheckinEvent = async (payload: OfficeRnDRawWebhookPayload) => {
+  if (!['checkin.created', 'checkin.updated'].includes(payload.eventType)) {
+    throw new Error(`Unsupported event type: ${payload.eventType}`);
+  }
+
+  const checkin = payload.data.object;
+
+  // The checkin object has a `start` and `end` date.
+  // When a member checks in: a new checkin object is created, with start=<checkin time> and end=null
+  // When a member checks out: the checkin object is updated with end=<checkout time>
+  // So if end date is null, it indicates the member is currently checked in
+  await updateMember(checkin.member, {
+    checkin_location: checkin.end == null ? getMemberLocation(checkin.office) : null,
+  });
+};
