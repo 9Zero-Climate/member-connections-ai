@@ -19,7 +19,7 @@ export interface Document {
 export interface DocumentWithMemberContext extends Document {
   member_name: string | null;
   member_slack_id: string | null;
-  member_location: MemberLocation | null;
+  member_location: OfficeLocation | null;
   member_linkedin_url: string | null;
   member_notion_page_url: string | null;
 }
@@ -35,7 +35,7 @@ export interface TestClient {
   end: jest.Mock;
 }
 
-export enum MemberLocation {
+export enum OfficeLocation {
   SEATTLE = 'Seattle',
   SAN_FRANCISCO = 'San Francisco',
 }
@@ -47,8 +47,8 @@ export interface Member {
   linkedin_url: string | null;
   notion_page_id: string | null;
   notion_page_url: string | null;
-  location: MemberLocation | null;
-  checkin_location: MemberLocation | null;
+  location: OfficeLocation | null;
+  checkin_location: OfficeLocation | null;
   created_at?: Date;
   updated_at?: Date;
 }
@@ -263,7 +263,7 @@ async function findSimilar(embedding: number[], options: SearchOptions = {}): Pr
         row: Document & {
           member_name: string | null;
           member_slack_id: string | null;
-          member_location: MemberLocation | null;
+          member_location: OfficeLocation | null;
           member_linkedin_url: string | null;
           member_notion_page_url: string | null;
         },

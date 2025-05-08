@@ -10,7 +10,7 @@ export const mockEmbeddingsService = {
 
 export const mockOfficeRndService = {
   getAllOfficeRnDMembersData: jest.fn(),
-  getMemberLocation: jest.fn(),
+  getOfficeLocation: jest.fn(),
 };
 
 export const mockNotionService = {

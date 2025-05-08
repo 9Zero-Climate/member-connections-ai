@@ -3,7 +3,7 @@ import { mockEmbeddingsService } from './mocks';
 
 import type { DocumentWithMemberContext } from './database';
 import {
-  MemberLocation,
+  OfficeLocation,
   bulkUpsertMembers,
   deleteDoc,
   findSimilar,
@@ -187,7 +187,7 @@ describe('Database Integration Tests', () => {
         linkedin_url: null,
         notion_page_id: null,
         notion_page_url: null,
-        location: MemberLocation.SAN_FRANCISCO,
+        location: OfficeLocation.SAN_FRANCISCO,
         checkin_location: null,
       };
       const updatedMember = await updateMember('member-1', updates);
@@ -200,7 +200,7 @@ describe('Database Integration Tests', () => {
         linkedin_url: null,
         notion_page_id: null,
         notion_page_url: null,
-        location: MemberLocation.SAN_FRANCISCO,
+        location: OfficeLocation.SAN_FRANCISCO,
         checkin_location: null,
         created_at: expect.any(Date),
         updated_at: expect.any(Date),
@@ -214,7 +214,7 @@ describe('Database Integration Tests', () => {
       const updatedMember = await testDbClient.query('SELECT * FROM members WHERE officernd_id = $1', ['member-1']);
       expect(updatedMember?.rows[0]).toMatchObject({
         officernd_id: 'member-1',
-        location: MemberLocation.SEATTLE,
+        location: OfficeLocation.SEATTLE,
       });
     });
 
@@ -382,7 +382,7 @@ describe('Database Integration Tests', () => {
           name: 'Donald Duck',
           slack_id: 'U123',
           linkedin_url: 'https://linkedin.com/in/johndoe',
-          location: MemberLocation.SAN_FRANCISCO,
+          location: OfficeLocation.SAN_FRANCISCO,
         },
         {
           officernd_id: 'member-5',

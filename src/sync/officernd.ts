@@ -12,7 +12,7 @@ import {
   type OfficeRnDMemberData,
   type OfficeRnDRawWebhookPayload,
   getAllOfficeRnDMembersData,
-  getMemberLocation,
+  getOfficeLocation,
 } from '../services/officernd';
 
 /**
@@ -115,6 +115,6 @@ export const handleCheckinEvent = async (payload: OfficeRnDRawWebhookPayload) =>
   // When a member checks out: the checkin object is updated with end=<checkout time>
   // So if end date is null, it indicates the member is currently checked in
   await updateMember(checkin.member, {
-    checkin_location: checkin.end == null ? getMemberLocation(checkin.office) : null,
+    checkin_location: checkin.end == null ? getOfficeLocation(checkin.office) : null,
   });
 };

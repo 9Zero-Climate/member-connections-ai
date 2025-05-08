@@ -1,6 +1,6 @@
 import qs from 'qs';
 import { config } from '../config';
-import { MemberLocation } from './database';
+import { OfficeLocation } from './database';
 import { normalizeLinkedInUrl } from './linkedin';
 import { logger } from './logger';
 
@@ -60,7 +60,7 @@ export type OfficeRnDMemberData = {
   name: string;
   slackId: string | null;
   linkedinUrl: string | null;
-  location: MemberLocation | null;
+  location: OfficeLocation | null;
   sector?: string[];
   subsector?: string;
   blurb?: string;
@@ -184,12 +184,12 @@ export const getMemberLinkedin = (member: OfficeRnDRawMemberData): string | null
 };
 
 // Hardcoding for now to save the extra fetch
-const LOCATION_FROM_OFFICE_UUID: Record<string, MemberLocation> = {
-  '6685ac246c4b7640a1887a7c': MemberLocation.SAN_FRANCISCO,
-  '66ba452ec6f7e32d09cfd7d3': MemberLocation.SEATTLE,
+const LOCATION_FROM_OFFICE_UUID: Record<string, OfficeLocation> = {
+  '6685ac246c4b7640a1887a7c': OfficeLocation.SAN_FRANCISCO,
+  '66ba452ec6f7e32d09cfd7d3': OfficeLocation.SEATTLE,
 };
 
-export const getMemberLocation = (office: string | undefined | null): MemberLocation | null => {
+export const getOfficeLocation = (office: string | undefined | null): OfficeLocation | null => {
   if (office == null || office === '') {
     return null;
   }
