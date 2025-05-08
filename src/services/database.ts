@@ -313,6 +313,52 @@ async function findSimilar(embedding: number[], options: SearchOptions = {}): Pr
   }
 }
 
+async function updateMember(officerndId: string, updates: Partial<Member>): Promise<Member> {
+  logger.info(`Updating member with officerndId=${officerndId}...`);
+  const client = await getOrCreateClient();
+
+  // Fetch existing member
+  const selectResult = await client.query('SELECT * from members WHERE officernd_id = $1', [officerndId]);
+  if (selectResult.rows.length !== 1) {
+    throw new Error(`Expected exactly one member with id: ${officerndId}, found ${selectResult.rows.length} members`);
+  }
+  const memberToUpdate = selectResult.rows[0];
+
+  // Merge with fields to update
+  const memberWithUpdates = {
+    ...memberToUpdate,
+    ...updates,
+  };
+
+  // Insert back into db
+  const updateResult = await client.query(
+    `
+      UPDATE members
+      SET
+        name = $2,
+        slack_id = $3,
+        linkedin_url = $4,
+        location = $5,
+        notion_page_id = $6,
+        notion_page_url = $7,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE officernd_id = $1
+      RETURNING *
+    `,
+    [
+      officerndId,
+      memberWithUpdates.name,
+      memberWithUpdates.slack_id,
+      memberWithUpdates.linkedin_url,
+      memberWithUpdates.location,
+      memberWithUpdates.notion_page_id,
+      memberWithUpdates.notion_page_url,
+    ],
+  );
+
+  return updateResult.rows[0];
+}
+
 /**
  * Bulk insert or update members
  * @param members - Array of members to insert/update
@@ -717,6 +763,7 @@ export {
   findSimilar,
   closeDbConnection,
   getMembersWithLastLinkedInUpdates,
+  updateMember,
   bulkUpsertMembers,
   deleteTypedDocumentsForMember,
   deleteNotionDocuments,

@@ -11,6 +11,7 @@ import {
   getLinkedInDocumentsByMemberIdentifier,
   getOrCreateClient,
   insertOrUpdateDoc,
+  updateMember,
   updateMembersFromNotion,
 } from './database';
 import { normalizeLinkedInUrl } from './linkedin';
@@ -163,6 +164,73 @@ describe('Database Integration Tests', () => {
       });
 
       expect(result[0].embedding).toBeDefined();
+    });
+  });
+
+  describe('updateMember', () => {
+    beforeEach(async () => {
+      // Clear members table
+      await testDbClient.query('DELETE FROM members');
+      // Insert test member
+      await testDbClient.query(
+        `INSERT INTO members (officernd_id, name, location) 
+           VALUES 
+           ('member-1', 'Alice Smith', 'Seattle')
+        `,
+      );
+    });
+
+    it('should find and update member', async () => {
+      const updates = {
+        name: 'Alice Smith',
+        slack_id: null,
+        linkedin_url: null,
+        notion_page_id: null,
+        notion_page_url: null,
+        location: MemberLocation.SAN_FRANCISCO,
+      };
+      const updatedMember = await updateMember('member-1', updates);
+
+      // const updatedMember = await testDbClient.query('SELECT * FROM members WHERE officernd_id = $1', ['member-1']);
+      expect(updatedMember).toEqual({
+        officernd_id: 'member-1',
+        name: 'Alice Smith',
+        slack_id: null,
+        linkedin_url: null,
+        notion_page_id: null,
+        notion_page_url: null,
+        location: MemberLocation.SAN_FRANCISCO,
+        created_at: expect.any(Date),
+        updated_at: expect.any(Date),
+      });
+    });
+
+    it('should not overwrite existing attributes with missing attributes', async () => {
+      const updates = {};
+      await updateMember('member-1', updates);
+
+      const updatedMember = await testDbClient.query('SELECT * FROM members WHERE officernd_id = $1', ['member-1']);
+      expect(updatedMember?.rows[0]).toMatchObject({
+        officernd_id: 'member-1',
+        location: MemberLocation.SEATTLE,
+      });
+    });
+
+    it('should overwrite existing attributes with null', async () => {
+      const updates = {
+        location: null,
+      };
+      await updateMember('member-1', updates);
+
+      const updatedMember = await testDbClient.query('SELECT * FROM members WHERE officernd_id = $1', ['member-1']);
+      expect(updatedMember?.rows[0]).toMatchObject({
+        officernd_id: 'member-1',
+        location: null,
+      });
+    });
+
+    it('errors if no matching member', async () => {
+      await expect(updateMember('member-100', {})).rejects.toThrow();
     });
   });
 
