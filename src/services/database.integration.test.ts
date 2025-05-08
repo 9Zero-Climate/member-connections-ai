@@ -192,7 +192,6 @@ describe('Database Integration Tests', () => {
       };
       const updatedMember = await updateMember('member-1', updates);
 
-      // const updatedMember = await testDbClient.query('SELECT * FROM members WHERE officernd_id = $1', ['member-1']);
       expect(updatedMember).toEqual({
         officernd_id: 'member-1',
         name: 'Alice Smith',
@@ -209,10 +208,9 @@ describe('Database Integration Tests', () => {
 
     it('should not overwrite existing attributes with missing attributes', async () => {
       const updates = {};
-      await updateMember('member-1', updates);
+      const updatedMember = await updateMember('member-1', updates);
 
-      const updatedMember = await testDbClient.query('SELECT * FROM members WHERE officernd_id = $1', ['member-1']);
-      expect(updatedMember?.rows[0]).toMatchObject({
+      expect(updatedMember).toMatchObject({
         officernd_id: 'member-1',
         location: OfficeLocation.SEATTLE,
       });
@@ -222,10 +220,9 @@ describe('Database Integration Tests', () => {
       const updates = {
         location: null,
       };
-      await updateMember('member-1', updates);
+      const updatedMember = await updateMember('member-1', updates);
 
-      const updatedMember = await testDbClient.query('SELECT * FROM members WHERE officernd_id = $1', ['member-1']);
-      expect(updatedMember?.rows[0]).toMatchObject({
+      expect(updatedMember).toMatchObject({
         officernd_id: 'member-1',
         location: null,
       });

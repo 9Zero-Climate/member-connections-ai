@@ -145,7 +145,7 @@ export async function getAllOfficeRnDMembersData(): Promise<OfficeRnDMemberData[
     return {
       id: member._id,
       name: member.name,
-      location: getMemberLocation(member.office),
+      location: getOfficeLocation(member.office),
       slackId: member.properties.slack_id || null,
       linkedinUrl: getMemberLinkedin(member),
       sector: member.properties.Sector,
