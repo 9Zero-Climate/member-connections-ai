@@ -4,7 +4,7 @@ import type { Express } from 'express';
 import { registerAssistantAndHandlers } from './assistant';
 import { config } from './config';
 import { boltLogger, logUncaughtErrors, logger } from './services/logger';
-import { handleCheckinEvent } from './services/officernd';
+import { handleCheckinEvent } from './sync/officernd';
 
 logUncaughtErrors(logger);
 
