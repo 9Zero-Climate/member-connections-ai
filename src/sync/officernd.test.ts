@@ -187,7 +187,7 @@ describe('handleCheckinEvent', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    mockOfficeRndService.getMemberLocation.mockReturnValue('Seattle');
+    mockOfficeRndService.getOfficeLocation.mockReturnValue('Seattle');
   });
 
   it('sets checkin_location to location when checkin.end is null', async () => {
@@ -214,5 +214,18 @@ describe('handleCheckinEvent', () => {
   it('throws error for unsupported event type', async () => {
     const payloadWithUnsupportedEventType = { ...validPayload, eventType: 'checkin.removed' };
     await expect(handleCheckinEvent(payloadWithUnsupportedEventType)).rejects.toThrow(/Unsupported event type/);
+  });
+
+  it('throws error for missing office', async () => {
+    const payloadWithNoOffice = {
+      ...validPayload,
+      data: {
+        object: {
+          ...validCheckin,
+          office: undefined,
+        },
+      },
+    };
+    await expect(handleCheckinEvent(payloadWithNoOffice)).rejects.toThrow(/checkin.office missing/);
   });
 });

@@ -39,7 +39,7 @@ type OfficeRnDRawCheckinData = {
   team?: string; // team (aka company) id
   start: string; // start date in ISO string format
   end: string | null; // end date in ISO string format. null means member is currently checked in
-  office: string; // location (aka office) id
+  office?: string; // location (aka office) id
   createdAt: string; // ISO string
   createdBy: string; // string id of user that created the checkin
 };

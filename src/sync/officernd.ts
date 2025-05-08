@@ -110,6 +110,10 @@ export const handleCheckinEvent = async (payload: OfficeRnDRawWebhookPayload) =>
 
   const checkin = payload.data.object;
 
+  if (checkin.office == null) {
+    throw new Error(`checkin.office missing, can't set checkin location`);
+  }
+
   // The checkin object has a `start` and `end` date.
   // When a member checks in: a new checkin object is created, with start=<checkin time> and end=null
   // When a member checks out: the checkin object is updated with end=<checkout time>

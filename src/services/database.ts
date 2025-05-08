@@ -315,7 +315,7 @@ async function findSimilar(embedding: number[], options: SearchOptions = {}): Pr
 }
 
 async function updateMember(officerndId: string, updates: Partial<Member>): Promise<Member> {
-  logger.info(`Updating member with officerndId=${officerndId}...`);
+  logger.info({ updates }, `Updating member with officerndId=${officerndId}...`);
   const client = await getOrCreateClient();
 
   // Fetch existing member
@@ -361,7 +361,11 @@ async function updateMember(officerndId: string, updates: Partial<Member>): Prom
     ],
   );
 
-  return updateResult.rows[0];
+  const updatedMember = updateResult.rows[0];
+
+  logger.info({ updatedMember }, 'Updated');
+
+  return updatedMember;
 }
 
 /**
