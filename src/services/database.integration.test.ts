@@ -188,6 +188,7 @@ describe('Database Integration Tests', () => {
         notion_page_id: null,
         notion_page_url: null,
         location: MemberLocation.SAN_FRANCISCO,
+        checkin_location: null,
       };
       const updatedMember = await updateMember('member-1', updates);
 
@@ -200,6 +201,7 @@ describe('Database Integration Tests', () => {
         notion_page_id: null,
         notion_page_url: null,
         location: MemberLocation.SAN_FRANCISCO,
+        checkin_location: null,
         created_at: expect.any(Date),
         updated_at: expect.any(Date),
       });
