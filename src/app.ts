@@ -32,9 +32,9 @@ expressApp.get('/', (_req, res) => {
 /* Handle checkin webhooks from OfficeRND
 Expected payload documented at https://developer.officernd.com/docs/webhooks-getting-started#receiving-webhook-notifications
 */
-expressApp.post('/sync-officernd-checkin', async (req, res) => {
+expressApp.post('/officernd-webhook', async (req, res) => {
   const { body } = req;
-  logger.info({ body }, 'Handling sync-checkin webhook');
+  logger.info({ body }, 'Handling OfficeRND webhook');
 
   try {
     await handleCheckinEvent(body);
