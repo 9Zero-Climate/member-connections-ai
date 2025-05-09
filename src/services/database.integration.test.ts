@@ -180,7 +180,7 @@ describe('Database Integration Tests', () => {
       );
     });
 
-    it('should find and update member', async () => {
+    it('finds and updates member', async () => {
       const updates = {
         name: 'Alice Smith',
         slack_id: null,
@@ -206,7 +206,7 @@ describe('Database Integration Tests', () => {
       });
     });
 
-    it('should not overwrite existing attributes with missing attributes', async () => {
+    it('does not overwrite existing attributes with missing attributes', async () => {
       const updates = {};
       const updatedMember = await updateMember('member-1', updates);
 
@@ -216,7 +216,7 @@ describe('Database Integration Tests', () => {
       });
     });
 
-    it('should overwrite existing attributes with null', async () => {
+    it('overwrites existing attributes with null', async () => {
       const updates = {
         location: null,
       };
