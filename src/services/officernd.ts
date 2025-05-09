@@ -1,6 +1,6 @@
 import qs from 'qs';
 import { config } from '../config';
-import { MemberLocation } from './database';
+import { OfficeLocation } from './database';
 import { normalizeLinkedInUrl } from './linkedin';
 import { logger } from './logger';
 
@@ -34,12 +34,33 @@ type OfficeRnDRawMemberData = {
   };
 };
 
+type OfficeRnDRawCheckinData = {
+  member: string; // member id
+  team?: string; // team (aka company) id
+  start: string; // start date in ISO string format
+  end: string | null; // end date in ISO string format. null means member is currently checked in
+  office?: string; // location (aka office) id
+  createdAt: string; // ISO string
+  createdBy: string; // string id of user that created the checkin
+};
+
+// See https://developer.officernd.com/docs/webhooks-getting-started#receiving-webhook-notifications
+export type OfficeRnDRawWebhookPayload = {
+  event: string;
+  eventType: string;
+  data: {
+    object: OfficeRnDRawCheckinData; // This could be other ORND entities also, but for now we only use webhooks for checkins
+    previousAttributes?: Partial<OfficeRnDRawCheckinData>;
+  };
+  createdAt: string;
+};
+
 export type OfficeRnDMemberData = {
   id: string;
   name: string;
   slackId: string | null;
   linkedinUrl: string | null;
-  location: MemberLocation | null;
+  location: OfficeLocation | null;
   sector?: string[];
   subsector?: string;
   blurb?: string;
@@ -124,7 +145,7 @@ export async function getAllOfficeRnDMembersData(): Promise<OfficeRnDMemberData[
     return {
       id: member._id,
       name: member.name,
-      location: getMemberLocation(member.office),
+      location: getOfficeLocation(member.office),
       slackId: member.properties.slack_id || null,
       linkedinUrl: getMemberLinkedin(member),
       sector: member.properties.Sector,
@@ -163,12 +184,12 @@ export const getMemberLinkedin = (member: OfficeRnDRawMemberData): string | null
 };
 
 // Hardcoding for now to save the extra fetch
-const LOCATION_FROM_OFFICE_UUID: Record<string, MemberLocation> = {
-  '6685ac246c4b7640a1887a7c': MemberLocation.SAN_FRANCISCO,
-  '66ba452ec6f7e32d09cfd7d3': MemberLocation.SEATTLE,
+const LOCATION_FROM_OFFICE_UUID: Record<string, OfficeLocation> = {
+  '6685ac246c4b7640a1887a7c': OfficeLocation.SAN_FRANCISCO,
+  '66ba452ec6f7e32d09cfd7d3': OfficeLocation.SEATTLE,
 };
 
-export const getMemberLocation = (office: string | undefined | null): MemberLocation | null => {
+export const getOfficeLocation = (office: string | undefined | null): OfficeLocation | null => {
   if (office == null || office === '') {
     return null;
   }
