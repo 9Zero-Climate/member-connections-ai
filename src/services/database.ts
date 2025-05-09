@@ -305,6 +305,7 @@ async function findSimilar(embedding: number[], options: SearchOptions = {}): Pr
             member_name,
             member_slack_id,
             member_location,
+            member_is_checked_in_today: member_checkin_location_today != null,
             member_checkin_location_today,
             member_linkedin_url,
             member_notion_page_url,
