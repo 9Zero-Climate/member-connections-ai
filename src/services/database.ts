@@ -48,7 +48,7 @@ export interface Member {
   notion_page_id: string | null;
   notion_page_url: string | null;
   location: OfficeLocation | null;
-  checkin_location: OfficeLocation | null;
+  checkin_location_today: OfficeLocation | null;
   created_at?: Date;
   updated_at?: Date;
 }
@@ -344,7 +344,7 @@ async function updateMember(officerndId: string, updates: Partial<Member>): Prom
         location = $5,
         notion_page_id = $6,
         notion_page_url = $7,
-        checkin_location = $8,
+        checkin_location_today = $8,
         updated_at = CURRENT_TIMESTAMP
       WHERE officernd_id = $1
       RETURNING *
@@ -357,7 +357,7 @@ async function updateMember(officerndId: string, updates: Partial<Member>): Prom
       memberWithUpdates.location,
       memberWithUpdates.notion_page_id,
       memberWithUpdates.notion_page_url,
-      memberWithUpdates.checkin_location,
+      memberWithUpdates.checkin_location_today,
     ],
   );
 

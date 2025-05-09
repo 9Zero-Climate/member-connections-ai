@@ -190,13 +190,13 @@ describe('handleCheckinEvent', () => {
     mockOfficeRndService.getOfficeLocation.mockReturnValue('Seattle');
   });
 
-  it('sets checkin_location to location when checkin.end is null', async () => {
+  it('sets checkin_location_today to location when checkin.end is null', async () => {
     await handleCheckinEvent(validPayload);
 
-    expect(mockDatabaseService.updateMember).toHaveBeenCalledWith('member-id-1', { checkin_location: 'Seattle' });
+    expect(mockDatabaseService.updateMember).toHaveBeenCalledWith('member-id-1', { checkin_location_today: 'Seattle' });
   });
 
-  it('sets checkin_location to null when checkin.end is not null', async () => {
+  it('sets checkin_location_today to null when checkin.end is not null', async () => {
     const payloadWithNonNullEnd = {
       ...validPayload,
       data: {
@@ -208,7 +208,7 @@ describe('handleCheckinEvent', () => {
     };
     await handleCheckinEvent(payloadWithNonNullEnd);
 
-    expect(mockDatabaseService.updateMember).toHaveBeenCalledWith('member-id-1', { checkin_location: null });
+    expect(mockDatabaseService.updateMember).toHaveBeenCalledWith('member-id-1', { checkin_location_today: null });
   });
 
   it('throws error for unsupported event type', async () => {

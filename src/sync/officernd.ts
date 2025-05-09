@@ -99,9 +99,9 @@ export async function createOfficeRnDDocuments(memberData: OfficeRnDMemberData):
 /**
  * Handle checkin event webhooks from officernd
  *
- * Update the member's checkin_location attribute with:
- *  - checkin_location=location if they are checked in
- *  - checkin_location=null if they are checked out
+ * Update the member's checkin_location_today attribute with:
+ *  - checkin_location_today=location if they are checked in
+ *  - checkin_location_today=null if they are checked out
  */
 export const handleCheckinEvent = async (payload: OfficeRnDRawWebhookPayload) => {
   if (!['checkin.created', 'checkin.updated'].includes(payload.eventType)) {
@@ -119,6 +119,6 @@ export const handleCheckinEvent = async (payload: OfficeRnDRawWebhookPayload) =>
   // When a member checks out: the checkin object is updated with end=<checkout time>
   // So if end date is null, it indicates the member is currently checked in
   await updateMember(checkin.member, {
-    checkin_location: checkin.end == null ? getOfficeLocation(checkin.office) : null,
+    checkin_location_today: checkin.end == null ? getOfficeLocation(checkin.office) : null,
   });
 };
