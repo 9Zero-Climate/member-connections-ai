@@ -4,6 +4,7 @@ import type { Express } from 'express';
 import { registerAssistantAndHandlers } from './assistant';
 import { config } from './config';
 import { boltLogger, logUncaughtErrors, logger } from './services/logger';
+import { handleCheckinEvent } from './sync/officernd';
 
 logUncaughtErrors(logger);
 
@@ -15,8 +16,9 @@ const app = new App({
   logger: boltLogger,
 });
 
-// Create an Express app for health checks
+// Create an Express app for health checks & webhooks
 const expressApp: Express = express();
+expressApp.use(express.json());
 
 // Health check endpoint
 expressApp.get('/', (_req, res) => {
@@ -27,9 +29,26 @@ expressApp.get('/', (_req, res) => {
   });
 });
 
+/* Handle checkin webhooks from OfficeRND
+Expected payload documented at https://developer.officernd.com/docs/webhooks-getting-started#receiving-webhook-notifications
+*/
+expressApp.post('/sync-officernd-checkin', async (req, res) => {
+  const { body } = req;
+  logger.info({ body }, 'Handling sync-checkin webhook');
+
+  try {
+    await handleCheckinEvent(body);
+  } catch (error) {
+    logger.error(error);
+    res.status(400).send((error as Error).message);
+  }
+
+  res.status(200).send('Checkin synced');
+});
+
 // Start the Express server
 expressApp.listen(config.port, () => {
-  logger.info({ port: config.port }, '🩺 Health check server started');
+  logger.info({ port: config.port }, '🩺 HTTP server started');
 });
 
 // Hook the chatbot into the Slack Bolt app

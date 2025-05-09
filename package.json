@@ -11,7 +11,7 @@
     "lint:fix": "npx @biomejs/biome check --write",
     "migrate": "tsx src/scripts/migrate/cli.ts file",
     "migrate:all": "tsx src/scripts/migrate/cli.ts all",
-    "sync": "tsx src/scripts/sync/cli.ts",
+    "sync": "tsx src/scripts/sync.ts",
     "check": "tsx src/scripts/check/cli.ts",
     "test": "jest",
     "test:unit": "jest --testMatch '**/*.test.ts' '!**/*.integration.test.ts'",

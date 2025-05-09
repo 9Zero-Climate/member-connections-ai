@@ -1,4 +1,4 @@
-import { mockDatabaseService, mockLoggerService, mockProxycurlService } from '../../services/mocks'; // These have to be imported before the libraries they are going to mock are imported
+import { mockDatabaseService, mockLoggerService, mockProxycurlService } from '../services/mocks'; // These have to be imported before the libraries they are going to mock are imported
 import {
   createLinkedInDocuments,
   getMembersToUpdate,
@@ -7,9 +7,9 @@ import {
   syncLinkedIn,
 } from './linkedin';
 
-jest.mock('../../services/proxycurl', () => mockProxycurlService);
-jest.mock('../../services/database', () => mockDatabaseService);
-jest.mock('../../services/logger', () => mockLoggerService);
+jest.mock('../services/proxycurl', () => mockProxycurlService);
+jest.mock('../services/database', () => mockDatabaseService);
+jest.mock('../services/logger', () => mockLoggerService);
 
 const VALID_ENV_VARS = {
   DB_URL: 'postgresql://postgres.test',

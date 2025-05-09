@@ -1,6 +1,6 @@
 import { Client } from 'pg';
 import { config } from '../config';
-import { DEFAULT_LINKEDIN_PROFLE_ALLOWED_AGE_DAYS } from '../scripts/sync/linkedin_constants';
+import { DEFAULT_LINKEDIN_PROFLE_ALLOWED_AGE_DAYS } from '../sync/linkedin_constants';
 import { generateEmbeddings } from './embedding';
 import { normalizeLinkedInUrl, normalizeLinkedinUrlOrNull } from './linkedin';
 import { logger } from './logger';
@@ -19,7 +19,7 @@ export interface Document {
 export interface DocumentWithMemberContext extends Document {
   member_name: string | null;
   member_slack_id: string | null;
-  member_location: MemberLocation | null;
+  member_location: OfficeLocation | null;
   member_linkedin_url: string | null;
   member_notion_page_url: string | null;
 }
@@ -35,7 +35,7 @@ export interface TestClient {
   end: jest.Mock;
 }
 
-export enum MemberLocation {
+export enum OfficeLocation {
   SEATTLE = 'Seattle',
   SAN_FRANCISCO = 'San Francisco',
 }
@@ -47,7 +47,8 @@ export interface Member {
   linkedin_url: string | null;
   notion_page_id: string | null;
   notion_page_url: string | null;
-  location: MemberLocation | null;
+  location: OfficeLocation | null;
+  checkin_location_today: OfficeLocation | null;
   created_at?: Date;
   updated_at?: Date;
 }
@@ -262,7 +263,7 @@ async function findSimilar(embedding: number[], options: SearchOptions = {}): Pr
         row: Document & {
           member_name: string | null;
           member_slack_id: string | null;
-          member_location: MemberLocation | null;
+          member_location: OfficeLocation | null;
           member_linkedin_url: string | null;
           member_notion_page_url: string | null;
         },
@@ -311,6 +312,60 @@ async function findSimilar(embedding: number[], options: SearchOptions = {}): Pr
     logger.error(error, 'Error finding similar documents:');
     throw error;
   }
+}
+
+async function updateMember(officerndId: string, updates: Partial<Member>): Promise<Member> {
+  logger.info({ updates }, `Updating member with officerndId=${officerndId}...`);
+  const client = await getOrCreateClient();
+
+  // Fetch existing member
+  const selectResult = await client.query('SELECT * from members WHERE officernd_id = $1', [officerndId]);
+  if (selectResult.rows.length !== 1) {
+    throw new Error(
+      `Failed to update member with id: ${officerndId}. Expected exactly one member, found ${selectResult.rows.length} members`,
+    );
+  }
+  const memberToUpdate = selectResult.rows[0];
+
+  // Merge with fields to update
+  const memberWithUpdates = {
+    ...memberToUpdate,
+    ...updates,
+  };
+
+  // Insert back into db
+  const updateResult = await client.query(
+    `
+      UPDATE members
+      SET
+        name = $2,
+        slack_id = $3,
+        linkedin_url = $4,
+        location = $5,
+        notion_page_id = $6,
+        notion_page_url = $7,
+        checkin_location_today = $8,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE officernd_id = $1
+      RETURNING *
+    `,
+    [
+      officerndId,
+      memberWithUpdates.name,
+      memberWithUpdates.slack_id,
+      memberWithUpdates.linkedin_url,
+      memberWithUpdates.location,
+      memberWithUpdates.notion_page_id,
+      memberWithUpdates.notion_page_url,
+      memberWithUpdates.checkin_location_today,
+    ],
+  );
+
+  const updatedMember = updateResult.rows[0];
+
+  logger.info({ updatedMember }, 'Updated');
+
+  return updatedMember;
 }
 
 /**
@@ -717,6 +772,7 @@ export {
   findSimilar,
   closeDbConnection,
   getMembersWithLastLinkedInUpdates,
+  updateMember,
   bulkUpsertMembers,
   deleteTypedDocumentsForMember,
   deleteNotionDocuments,

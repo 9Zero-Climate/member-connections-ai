@@ -3,7 +3,7 @@ import { mockEmbeddingsService } from './mocks';
 
 import type { DocumentWithMemberContext } from './database';
 import {
-  MemberLocation,
+  OfficeLocation,
   bulkUpsertMembers,
   deleteDoc,
   findSimilar,
@@ -11,6 +11,7 @@ import {
   getLinkedInDocumentsByMemberIdentifier,
   getOrCreateClient,
   insertOrUpdateDoc,
+  updateMember,
   updateMembersFromNotion,
 } from './database';
 import { normalizeLinkedInUrl } from './linkedin';
@@ -166,6 +167,72 @@ describe('Database Integration Tests', () => {
     });
   });
 
+  describe('updateMember', () => {
+    beforeEach(async () => {
+      // Clear members table
+      await testDbClient.query('DELETE FROM members');
+      // Insert test member
+      await testDbClient.query(
+        `INSERT INTO members (officernd_id, name, location) 
+           VALUES 
+           ('member-1', 'Alice Smith', 'Seattle')
+        `,
+      );
+    });
+
+    it('finds and updates member', async () => {
+      const updates = {
+        name: 'Alice Smith',
+        slack_id: null,
+        linkedin_url: null,
+        notion_page_id: null,
+        notion_page_url: null,
+        location: OfficeLocation.SAN_FRANCISCO,
+        checkin_location_today: null,
+      };
+      const updatedMember = await updateMember('member-1', updates);
+
+      expect(updatedMember).toEqual({
+        officernd_id: 'member-1',
+        name: 'Alice Smith',
+        slack_id: null,
+        linkedin_url: null,
+        notion_page_id: null,
+        notion_page_url: null,
+        location: OfficeLocation.SAN_FRANCISCO,
+        checkin_location_today: null,
+        created_at: expect.any(Date),
+        updated_at: expect.any(Date),
+      });
+    });
+
+    it('does not overwrite existing attributes with missing attributes', async () => {
+      const updates = {};
+      const updatedMember = await updateMember('member-1', updates);
+
+      expect(updatedMember).toMatchObject({
+        officernd_id: 'member-1',
+        location: OfficeLocation.SEATTLE,
+      });
+    });
+
+    it('overwrites existing attributes with null', async () => {
+      const updates = {
+        location: null,
+      };
+      const updatedMember = await updateMember('member-1', updates);
+
+      expect(updatedMember).toMatchObject({
+        officernd_id: 'member-1',
+        location: null,
+      });
+    });
+
+    it('errors if no matching member', async () => {
+      await expect(updateMember('member-100', {})).rejects.toThrow();
+    });
+  });
+
   describe('updateMembersFromNotion', () => {
     const testNotionMembers = [
       {
@@ -312,7 +379,7 @@ describe('Database Integration Tests', () => {
           name: 'Donald Duck',
           slack_id: 'U123',
           linkedin_url: 'https://linkedin.com/in/johndoe',
-          location: MemberLocation.SAN_FRANCISCO,
+          location: OfficeLocation.SAN_FRANCISCO,
         },
         {
           officernd_id: 'member-5',

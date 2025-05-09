@@ -1,13 +1,13 @@
-import { ConfigContext, validateConfig } from '../../config';
+import { ConfigContext, validateConfig } from '../config';
 import {
   type MemberWithLinkedInUpdateMetadata,
   closeDbConnection,
   deleteTypedDocumentsForMember,
   getMembersWithLastLinkedInUpdates,
   insertOrUpdateDoc,
-} from '../../services/database';
-import { logger } from '../../services/logger';
-import { type ProxycurlDateObject, type ProxycurlProfile, getLinkedInProfile } from '../../services/proxycurl';
+} from '../services/database';
+import { logger } from '../services/logger';
+import { type ProxycurlDateObject, type ProxycurlProfile, getLinkedInProfile } from '../services/proxycurl';
 import { DEFAULT_LINKEDIN_PROFLE_ALLOWED_AGE_DAYS } from './linkedin_constants';
 
 // Constants for time calculations

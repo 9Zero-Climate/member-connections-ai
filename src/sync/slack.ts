@@ -1,8 +1,8 @@
-import { ConfigContext, validateConfig } from '../../config';
-import { type Document, closeDbConnection, getDocBySource, insertOrUpdateDoc } from '../../services/database';
-import { logger } from '../../services/logger';
-import slackSync, { doesSlackMessageMatchDb } from '../../services/slack_sync';
-import type { SlackMessage } from '../../services/slack_sync';
+import { ConfigContext, validateConfig } from '../config';
+import { type Document, closeDbConnection, getDocBySource, insertOrUpdateDoc } from '../services/database';
+import { logger } from '../services/logger';
+import slackSync, { doesSlackMessageMatchDb } from '../services/slack_sync';
+import type { SlackMessage } from '../services/slack_sync';
 
 interface SlackSyncOptions {
   limit: number;

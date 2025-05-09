@@ -1,4 +1,5 @@
 import { XMLBuilder } from 'fast-xml-parser';
+import { NINEZERO_SLACK_MEMBER_LINK_PREFIX } from '../assistant/prompts';
 import { findSimilar, getLinkedInDocumentsByMemberIdentifier } from './database';
 import type { Document } from './database';
 import { generateEmbedding } from './embedding';
@@ -143,7 +144,7 @@ export const getToolCallShortDescription = (toolCall: ToolCall) => {
       return `Semantic search for "${toolArgs.query}"`;
     case 'fetchLinkedInProfile': {
       const memberIdForDisplay = looksLikeSlackId(toolArgs.memberIdentifier)
-        ? `<@${toolArgs.memberIdentifier}>`
+        ? `${NINEZERO_SLACK_MEMBER_LINK_PREFIX}${toolArgs.memberIdentifier} `
         : toolArgs.memberIdentifier;
       return `Fetch LinkedIn profile for ${memberIdForDisplay}`;
     }

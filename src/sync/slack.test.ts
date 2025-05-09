@@ -1,9 +1,9 @@
-import { mockDatabaseService, mockLoggerService, mockSlackService } from '../../services/mocks'; // These have to be imported before the libraries they are going to mock are imported
+import { mockDatabaseService, mockLoggerService, mockSlackService } from '../services/mocks'; // These have to be imported before the libraries they are going to mock are imported
 import { syncSlackChannels } from './slack';
 
-jest.mock('../../services/slack_sync', () => mockSlackService);
-jest.mock('../../services/database', () => mockDatabaseService);
-jest.mock('../../services/logger', () => mockLoggerService);
+jest.mock('../services/slack_sync', () => mockSlackService);
+jest.mock('../services/database', () => mockDatabaseService);
+jest.mock('../services/logger', () => mockLoggerService);
 
 const mockMembers = [
   {

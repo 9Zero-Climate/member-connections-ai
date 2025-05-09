@@ -2,7 +2,7 @@ import { mockLoggerService } from './mocks';
 jest.mock('./logger', () => mockLoggerService);
 
 import { logger } from './logger';
-import { getAllOfficeRnDMembersData, getMemberLinkedin, getMemberLocation } from './officernd';
+import { getAllOfficeRnDMembersData, getMemberLinkedin, getOfficeLocation } from './officernd';
 
 const mockFetch = jest.fn();
 global.fetch = mockFetch as jest.Mock;
@@ -87,19 +87,19 @@ describe('OfficeRnD Service', () => {
   });
 });
 
-describe('getMemberLocation', () => {
+describe('getOfficeLocation', () => {
   it('should return correct location given office uuid', () => {
-    const location = getMemberLocation('6685ac246c4b7640a1887a7c');
+    const location = getOfficeLocation('6685ac246c4b7640a1887a7c');
     expect(location).toEqual('San Francisco');
   });
 
   it.each(['', undefined, null])('returns null if no office uuid (office=%s)', (missingOffice) => {
-    const location = getMemberLocation(missingOffice);
+    const location = getOfficeLocation(missingOffice);
     expect(location).toBeNull();
   });
 
   it('throws error if no hardcoded location for given office uuid', () => {
-    expect(() => getMemberLocation('unknown office uuid')).toThrow(/unknown office uuid/);
+    expect(() => getOfficeLocation('unknown office uuid')).toThrow(/unknown office uuid/);
   });
 });
 
