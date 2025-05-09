@@ -248,6 +248,7 @@ async function findSimilar(embedding: number[], options: SearchOptions = {}): Pr
         member_name,
         member_slack_id,
         member_location,
+        member_checkin_location_today,
         member_linkedin_url,
         member_notion_page_url,
         1 - (embedding <=> $1) as similarity
@@ -264,6 +265,7 @@ async function findSimilar(embedding: number[], options: SearchOptions = {}): Pr
           member_name: string | null;
           member_slack_id: string | null;
           member_location: OfficeLocation | null;
+          member_checkin_location_today: OfficeLocation | null;
           member_linkedin_url: string | null;
           member_notion_page_url: string | null;
         },
@@ -279,6 +281,7 @@ async function findSimilar(embedding: number[], options: SearchOptions = {}): Pr
           member_name,
           member_slack_id,
           member_location,
+          member_checkin_location_today,
           member_linkedin_url,
           member_notion_page_url,
           embedding: rawEmbedding,
@@ -302,6 +305,7 @@ async function findSimilar(embedding: number[], options: SearchOptions = {}): Pr
             member_name,
             member_slack_id,
             member_location,
+            member_checkin_location_today,
             member_linkedin_url,
             member_notion_page_url,
           },
