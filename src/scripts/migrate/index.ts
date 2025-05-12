@@ -42,7 +42,7 @@ export async function migrate(filePath: string): Promise<void> {
   } catch (err) {
     const errorMessage =
       typeof err === 'object' && err !== null && 'message' in err ? (err as Error).message : String(err);
-    logger.error(`Migration failed: ${errorMessage}`, err);
+    logger.error({ err }, `Migration failed: ${errorMessage}`);
     process.exit(1);
   } finally {
     if (client) {

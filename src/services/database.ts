@@ -80,7 +80,7 @@ async function getOrCreateClient(): Promise<Client> {
     globalClient = new Client({ connectionString: config.dbUrl });
     await globalClient.connect();
   } catch (error) {
-    logger.error('Failed to connect to database:', error);
+    logger.error(error, 'Failed to connect to database');
     throw error;
   }
 
@@ -181,7 +181,7 @@ async function insertOrUpdateDoc(doc: Document): Promise<Document> {
     returnedDoc.embedding = parseStoredEmbedding(returnedDoc.embedding as string | null);
     return returnedDoc;
   } catch (error) {
-    logger.error('Error inserting/updating document:', error);
+    logger.error(error, 'Error inserting/updating document');
     throw error;
   }
 }
@@ -203,7 +203,7 @@ async function getDocBySource(sourceUniqueId: string): Promise<Document | null> 
     doc.embedding = parseStoredEmbedding(doc.embedding as string | null);
     return doc;
   } catch (error) {
-    logger.error('Error getting document:', error);
+    logger.error(error, 'Error getting document:');
     throw error;
   }
 }
@@ -220,7 +220,7 @@ async function deleteDoc(sourceUniqueId: string): Promise<boolean> {
     const result = await client.query('DELETE FROM rag_docs WHERE source_unique_id = $1 RETURNING *', [sourceUniqueId]);
     return result.rows.length > 0;
   } catch (error) {
-    logger.error('Error deleting document:', error);
+    logger.error(error, 'Error deleting document');
     throw error;
   }
 }
@@ -319,7 +319,7 @@ async function findSimilar(embedding: number[], options: SearchOptions = {}): Pr
       },
     );
   } catch (error) {
-    logger.error(error, 'Error finding similar documents:');
+    logger.error(error, 'Error finding similar documents');
     throw error;
   }
 }
@@ -443,7 +443,7 @@ async function deleteTypedDocumentsForMember(officerndMemberId: string, typePref
     );
     logger.debug(`Deleted ${typePrefix} documents for member ${officerndMemberId}`);
   } catch (error) {
-    logger.error(`Error deleting ${typePrefix} documents for member ${officerndMemberId}:`, error);
+    logger.error(error, `Error deleting ${typePrefix} documents for member ${officerndMemberId}`);
     throw error;
   }
 }
@@ -498,7 +498,7 @@ async function getMembersWithLastLinkedInUpdates(): Promise<MemberWithLinkedInUp
     logger.info(`Fetched ${members.length} members`);
     return members;
   } catch (error) {
-    logger.error('Error getting last LinkedIn updates:', error);
+    logger.error(error, 'Error getting last LinkedIn updates');
     throw error;
   }
 }
@@ -531,7 +531,7 @@ async function getLinkedInDocuments(linkedinUrl: string): Promise<Document[]> {
       },
     }));
   } catch (error) {
-    logger.error('Error fetching LinkedIn documents by URL:', error);
+    logger.error(error, 'Error fetching LinkedIn documents by URL');
     throw error;
   }
 }
@@ -583,7 +583,7 @@ async function getLinkedInDocumentsByMemberIdentifier(
     // Map results, ensuring metadata includes view fields
     return result.rows;
   } catch (error) {
-    logger.error('Error fetching LinkedIn documents by Name:', error);
+    logger.error(error, 'Error fetching LinkedIn documents by Name');
     throw error;
   }
 }
@@ -613,7 +613,7 @@ async function saveFeedback(feedback: FeedbackVote): Promise<FeedbackVote> {
     // We assert the type here because RETURNING * should give us back the full row including DB-generated columns
     return result.rows[0] as FeedbackVote;
   } catch (error) {
-    logger.error('Error saving feedback vote:', error);
+    logger.error(error, 'Error saving feedback vote');
     throw error; // Re-throw the error to be handled by the caller
   }
 }

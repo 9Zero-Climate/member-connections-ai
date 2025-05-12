@@ -103,11 +103,14 @@ async function getAccessToken(): Promise<string> {
 
   if (!response.ok) {
     const errorText = await response.text();
-    logger.error('Token request failed:', {
-      status: response.status,
-      statusText: response.statusText,
-      body: errorText,
-    });
+    logger.error(
+      {
+        status: response.status,
+        statusText: response.statusText,
+        body: errorText,
+      },
+      'Token request failed',
+    );
     throw new Error(`Failed to get OfficeRnD access token: ${response.statusText}`);
   }
 
@@ -169,9 +172,10 @@ export const getMemberLinkedin = (member: OfficeRnDRawMemberData): string | null
   if (rawLinkedinUrl) {
     try {
       return normalizeLinkedInUrl(rawLinkedinUrl);
-    } catch (e) {
+    } catch (error) {
       logger.error(
         {
+          err: error,
           rawLinkedinUrl,
           member,
         },

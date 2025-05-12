@@ -87,7 +87,7 @@ export default class ResponseManager {
         finalChannel = this.inProgressMessage?.channel;
       } catch (error) {
         logger.error(
-          { error, inProgressMessage: this.inProgressMessage },
+          { err: error, inProgressMessage: this.inProgressMessage },
           'Failed to update message during finalization',
         );
         // Ensure we don't return potentially stale ts/channel on error

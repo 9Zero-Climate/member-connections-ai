@@ -63,19 +63,22 @@ export async function getLinkedInProfile(linkedinUrl: string): Promise<Proxycurl
 
     if (!response.ok) {
       const errorText = await response.text();
-      logger.error('Proxycurl API error:', {
-        status: response.status,
-        statusText: response.statusText,
-        body: errorText,
-        linkedinUrl,
-      });
+      logger.error(
+        {
+          status: response.status,
+          statusText: response.statusText,
+          body: errorText,
+          linkedinUrl,
+        },
+        'Proxycurl API error',
+      );
       // Consider specific error handling based on status codes if needed
       throw new Error(`Proxycurl API error: ${response.statusText}`);
     }
 
     return (await response.json()) as ProxycurlProfile;
   } catch (error) {
-    logger.error('Error fetching LinkedIn profile:', { error, linkedinUrl });
+    logger.error({ err: error, linkedinUrl }, 'Error fetching LinkedIn profile');
     throw error; // Re-throw after logging
   }
 }

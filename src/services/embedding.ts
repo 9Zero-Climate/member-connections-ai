@@ -36,13 +36,17 @@ async function generateEmbedding(text: string): Promise<number[]> {
 
     return response.data[0].embedding;
   } catch (error) {
-    logger.error('Error generating embedding:', {
-      message: error instanceof Error ? error.message : 'Unknown error',
-      status: (error as OpenAIError).status,
-      type: (error as OpenAIError).type,
-      code: (error as OpenAIError).code,
-      response: (error as OpenAIError).response?.data,
-    });
+    logger.error(
+      {
+        err: error,
+        message: error instanceof Error ? error.message : 'Unknown error',
+        status: (error as OpenAIError).status,
+        type: (error as OpenAIError).type,
+        code: (error as OpenAIError).code,
+        response: (error as OpenAIError).response?.data,
+      },
+      'Error generating embedding',
+    );
     throw error;
   }
 }
@@ -78,13 +82,17 @@ async function generateEmbeddings(texts: string[]): Promise<number[][]> {
     }
     return allEmbeddings;
   } catch (error) {
-    logger.error('Error generating embeddings:', {
-      message: error instanceof Error ? error.message : 'Unknown error',
-      status: (error as OpenAIError).status,
-      type: (error as OpenAIError).type,
-      code: (error as OpenAIError).code,
-      response: (error as OpenAIError).response?.data,
-    });
+    logger.error(
+      {
+        err: error,
+        message: error instanceof Error ? error.message : 'Unknown error',
+        status: (error as OpenAIError).status,
+        type: (error as OpenAIError).type,
+        code: (error as OpenAIError).code,
+        response: (error as OpenAIError).response?.data,
+      },
+      'Error generating embeddings',
+    );
     throw error;
   }
 }
