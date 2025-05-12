@@ -87,6 +87,11 @@ async function getOrCreateClient(): Promise<Client> {
   return globalClient;
 }
 
+async function checkDbConnection(): Promise<void> {
+  const client = await getOrCreateClient();
+  await client.query('SELECT 1');
+}
+
 async function closeDbConnection(): Promise<void> {
   if (globalClient === undefined) {
     logger.error("Trying to close global database connection but it doesn't exist");
@@ -771,6 +776,7 @@ async function updateMembersFromNotion(notionMembers: NotionMemberData[]): Promi
 
 export {
   getOrCreateClient,
+  checkDbConnection,
   insertOrUpdateDoc,
   getDocBySource,
   deleteDoc,

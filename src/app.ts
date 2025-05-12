@@ -3,6 +3,7 @@ import express from 'express';
 import type { Express } from 'express';
 import { registerAssistantAndHandlers } from './assistant';
 import { config } from './config';
+import { checkDbConnection } from './services/database';
 import { boltLogger, logUncaughtErrors, logger } from './services/logger';
 import { handleCheckinEvent } from './sync/officernd';
 
@@ -21,17 +22,24 @@ const expressApp: Express = express();
 expressApp.use(express.json());
 
 // Health check endpoint
-expressApp.get('/', (_req, res) => {
-  res.status(200).json({
-    status: 'ok',
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-  });
+expressApp.get('/', async (_req, res) => {
+  try {
+    await checkDbConnection();
+    res.status(200).json({
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime(),
+    });
+  } catch (error) {
+    logger.error(error);
+    res.status(500).send('Database connection failed');
+  }
 });
 
-/* Handle checkin webhooks from OfficeRND
-Expected payload documented at https://developer.officernd.com/docs/webhooks-getting-started#receiving-webhook-notifications
-*/
+/**
+ * Handle checkin webhooks from OfficeRND
+ * Expected payload documented at https://developer.officernd.com/docs/webhooks-getting-started#receiving-webhook-notifications
+ */
 expressApp.post('/officernd-webhook', async (req, res) => {
   const { body } = req;
   logger.info({ body }, 'Handling OfficeRND webhook');
