@@ -24,9 +24,10 @@ import {
  */
 export async function syncOfficeRnD(): Promise<void> {
   logger.info('Starting OfficeRnD sync...');
-  validateConfig(process.env, ConfigContext.SyncOfficeRnD);
 
   try {
+    validateConfig(process.env, ConfigContext.SyncOfficeRnD);
+
     // 1. Fetch data
     const officeRndMembersData = await getAllOfficeRnDMembersData();
 
@@ -47,6 +48,9 @@ export async function syncOfficeRnD(): Promise<void> {
       await deleteOfficeRnDDocuments(memberData.id);
       await createOfficeRnDDocuments(memberData);
     }
+  } catch (error) {
+    logger.error(error);
+    process.exit(1);
   } finally {
     await closeDbConnection();
   }
