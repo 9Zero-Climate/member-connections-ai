@@ -59,7 +59,7 @@ export default async function threadStartedHandler({
 
     await say({
       text: `Sorry, something went wrong.\n You may want to forward this error message to an admin:
-          \`\`\`\n${JSON.stringify(e, null, 2)}\n\`\`\``,
+          \`\`\`\n${JSON.stringify(error, null, 2)}\n\`\`\``,
     });
   }
 }
