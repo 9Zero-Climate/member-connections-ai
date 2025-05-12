@@ -99,6 +99,7 @@ const logUncaughtErrors = (logger: Logger) => {
   loggingUncaughtErrors = true;
   process.on('uncaughtException', (err) => {
     logger.fatal(err, 'uncaught exception detected');
+    process.exit(1);
   });
 };
 

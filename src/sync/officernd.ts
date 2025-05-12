@@ -50,7 +50,6 @@ export async function syncOfficeRnD(): Promise<void> {
     }
   } catch (error) {
     logger.error(error);
-    process.exit(1);
   } finally {
     await closeDbConnection();
   }
