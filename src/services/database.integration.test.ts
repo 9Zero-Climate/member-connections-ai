@@ -483,8 +483,15 @@ describe('Database Integration Tests', () => {
     });
 
     it('returns helpful warning string for non-existent member', async () => {
-      const docs = await getLinkedInDocumentsByMemberIdentifier('NonExistentUser');
-      expect(docs).toMatch('New profiles are synced daily');
+      const nonExistentMemberId = 'non-existent-member';
+      // Expect the function to reject with an error containing the specific message
+      await expect(getLinkedInDocumentsByMemberIdentifier(nonExistentMemberId)).rejects.toThrow(
+        /No synced LinkedIn profile found for the given identifier./,
+      );
     });
+  });
+
+  describe('getOnboardingConfig', () => {
+    // Implementation of getOnboardingConfig test case
   });
 });

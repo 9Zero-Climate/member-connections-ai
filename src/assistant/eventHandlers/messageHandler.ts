@@ -8,7 +8,7 @@ import type { SlackMessage } from '../initialLlmThread';
 import { handleIncomingMessage } from '../llmConversation';
 import { convertSlackHistoryToLLMHistory } from '../messagePacking';
 import { BASIC_ASSISTANT_DESCRIPTION } from '../prompts';
-import { fetchSlackThreadAndChannelContext, getBotId } from '../slackInteraction';
+import { fetchSlackThreadAndChannelContext, getBotUserId } from '../slackInteraction';
 
 export type ThreadMessage = MessageEvent & { thread_ts: string };
 export enum ConditionalResponse {
@@ -53,7 +53,7 @@ export const shouldRespondToMessage = async (
     channel: slackMessage.channel,
     ts: slackMessage.thread_ts,
   });
-  const botId = await getBotId(client);
+  const botId = await getBotUserId(client);
 
   if (!wePreviouslyParticipatedInThread(threadContents, botId)) {
     logger.info({ threadContents, botId }, 'We did not previously participate in this thread, skipping');
