@@ -35,7 +35,7 @@ export async function checkOfficeRnDConnection() {
       logger.warn('No members found or returned from OfficeRnD.');
     }
   } catch (error) {
-    logger.error({ err: error }, 'Error testing OfficeRnD connection');
+    logger.error(error, 'Error testing OfficeRnD connection');
     process.exitCode = 1; // Indicate failure
   }
 }

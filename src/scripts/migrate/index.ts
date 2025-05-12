@@ -39,10 +39,10 @@ export async function migrate(filePath: string): Promise<void> {
     await client.query(migrationQuery);
     logger.info(`Migration from ${path.basename(absoluteMigrationPath)} completed successfully.`);
     process.exit(0);
-  } catch (err) {
+  } catch (error) {
     const errorMessage =
-      typeof err === 'object' && err !== null && 'message' in err ? (err as Error).message : String(err);
-    logger.error({ err }, `Migration failed: ${errorMessage}`);
+      typeof error === 'object' && error !== null && 'message' in error ? (error as Error).message : String(error);
+    logger.error(error, `Migration failed: ${errorMessage}`);
     process.exit(1);
   } finally {
     if (client) {
