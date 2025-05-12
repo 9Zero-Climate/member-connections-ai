@@ -1,11 +1,11 @@
+import type { WebClient } from '@slack/web-api/dist/WebClient';
 import { XMLBuilder } from 'fast-xml-parser';
+import type { ChatCompletionTool } from 'openai/resources/chat';
+import { createNewOnboardingDmWithAdmins } from '../assistant/createNewOnboardingDmWithAdmins';
 import { NINEZERO_SLACK_MEMBER_LINK_PREFIX } from '../assistant/prompts';
 import { findSimilar, getLinkedInDocumentsByMemberIdentifier } from './database';
 import type { Document } from './database';
 import { generateEmbedding } from './embedding';
-import type { ChatCompletionTool } from 'openai/resources/chat';
-import { createNewOnboardingDmWithAdmins } from '../assistant/createNewOnboardingDmWithAdmins';
-import type { WebClient } from '@slack/web-api/dist/WebClient';
 import { logger } from './logger';
 
 // --- Argument Types for LLM Tool Calls ---
