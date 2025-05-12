@@ -48,8 +48,6 @@ export async function syncOfficeRnD(): Promise<void> {
       await deleteOfficeRnDDocuments(memberData.id);
       await createOfficeRnDDocuments(memberData);
     }
-  } catch (error) {
-    logger.error(error);
   } finally {
     await closeDbConnection();
   }

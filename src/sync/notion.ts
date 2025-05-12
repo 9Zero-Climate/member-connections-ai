@@ -10,9 +10,10 @@ import { fetchNotionMembers } from '../services/notion';
  */
 export async function syncNotion(): Promise<void> {
   logger.info('Starting Notion sync...');
-  validateConfig(process.env, ConfigContext.SyncNotion);
 
   try {
+    validateConfig(process.env, ConfigContext.SyncNotion);
+
     const notionMembers = await fetchNotionMembers();
     await updateMembersFromNotion(notionMembers);
   } finally {
