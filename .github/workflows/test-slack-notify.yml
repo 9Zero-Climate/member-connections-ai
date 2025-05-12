@@ -1,4 +1,4 @@
-name: Failure Notification
+name: Test Slack Notify
 
 on:
   workflow_dispatch:
@@ -20,8 +20,10 @@ jobs:
       - name: Slack Notification
         uses: rtCamp/action-slack-notify@v2
         env:
-          SLACK_USERNAME: Nightly Sync Failure Notifier
-          SLACK_ICON_EMOJI: ":bell:"
-          SLACK_TITLE: Nightly Sync Failed
+          SLACK_USERNAME: Fabric
           MSG_MINIMAL: actions url
+          SLACK_TITLE: Nightly Sync Failed
+          SLACK_MESSAGE: Check GH Action logs via link above for more detail
           SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_COLOR: failure
+          SLACK_FOOTER: ""
