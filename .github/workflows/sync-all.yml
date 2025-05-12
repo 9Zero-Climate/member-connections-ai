@@ -50,7 +50,7 @@ jobs:
         env:
           DB_URL: ${{ secrets.DB_URL }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
+          # NOTION_API_KEY: ${{ secrets.NOTION_API_KEY }}
           NOTION_MEMBERS_DATABASE_ID: ${{ secrets.NOTION_MEMBERS_DATABASE_ID }}
 
         run: pnpm sync notion
@@ -59,7 +59,7 @@ jobs:
         env:
           DB_URL: ${{ secrets.DB_URL }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          PROXYCURL_API_KEY: ${{ secrets.PROXYCURL_API_KEY }}
+          # PROXYCURL_API_KEY: ${{ secrets.PROXYCURL_API_KEY }}
 
         run: |
           pnpm sync linkedin \
@@ -70,7 +70,7 @@ jobs:
         env:
           DB_URL: ${{ secrets.DB_URL }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          # SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
 
         run: |
           echo "Running sync for all configured channels"
