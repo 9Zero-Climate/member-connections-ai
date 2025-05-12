@@ -120,6 +120,7 @@ describe('llmConversation', () => {
         [],
         'C123',
         '1678886400.000001',
+        false,
       );
       expect(finalTs).toBeDefined();
     });
@@ -160,6 +161,7 @@ describe('llmConversation', () => {
         [],
         'C123',
         '1678886400.000001',
+        false,
       );
       expect(finalTs).toBeDefined();
     });
@@ -307,6 +309,7 @@ describe('runLlmConversation', () => {
       initialThread,
       'C123',
       '123.456',
+      false,
     );
 
     expect(finalTs).toBe('123.456');
@@ -369,6 +372,7 @@ describe('runLlmConversation', () => {
       initialThread,
       'C123',
       '123.456',
+      false,
     );
 
     expect(finalTs).toBe('123.456');

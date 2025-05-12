@@ -26,6 +26,12 @@ export const mockDatabaseService = {
   getDocBySource: jest.fn(),
   deleteTypedDocumentsForMember: jest.fn(),
   insertOrUpdateDoc: jest.fn(),
+  getOnboardingConfig: jest.fn(),
+  getMemberFromSlackId: jest.fn(),
+  OfficeLocation: {
+    SEATTLE: 'Seattle',
+    SAN_FRANCISCO: 'San Francisco',
+  },
 };
 
 export const mockProxycurlService = {
@@ -36,6 +42,10 @@ export const mockSlackService = {
   getChannelId: jest.fn(),
   fetchChannelHistory: jest.fn(),
   processMessageBatch: jest.fn(),
+};
+
+export const mockSlackInteractionService = {
+  getBotUserId: jest.fn(),
 };
 
 export const mockLoggerService = {
