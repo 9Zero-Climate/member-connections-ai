@@ -786,6 +786,9 @@ async function getOnboardingConfig(location: OfficeLocation): Promise<Onboarding
     'SELECT admin_user_slack_ids, onboarding_message_content FROM onboarding_config WHERE location = $1',
     [location],
   );
+  if (result.rows.length === 0) {
+    throw new Error(`No onboarding config found for location: ${location}`);
+  }
   return result.rows[0] as OnboardingConfig;
 }
 

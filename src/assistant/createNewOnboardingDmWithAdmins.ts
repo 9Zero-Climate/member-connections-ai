@@ -7,10 +7,7 @@ import { getBotUserId } from './slackInteraction';
 export const getSentenceAboutAdmins = (adminUserSlackIds: string[], location: OfficeLocation) => {
   const adminUserNames = adminUserSlackIds.map((id) => `<@${id}>`).join(' and ');
   const multipleAdmins = adminUserSlackIds.length > 1;
-  if (multipleAdmins) {
-    return `${adminUserNames} are also on this thread. They're the admin team for 9Zero in ${location} and can help with anything you need.`;
-  }
-  return `${adminUserNames} is also on this thread. They're the admin for 9Zero in ${location} and can help with anything you need.`;
+  return `${adminUserNames} ${multipleAdmins ? 'are' : 'is'} also on this thread. They're the admin ${multipleAdmins ? 'team ' : ''}for 9Zero in ${location} and can help with anything you need.`;
 };
 
 export async function getOfficeLocationFromSlackId(slackId: string): Promise<OfficeLocation> {

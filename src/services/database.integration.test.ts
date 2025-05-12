@@ -9,6 +9,7 @@ import {
   findSimilar,
   getDocBySource,
   getLinkedInDocumentsByMemberIdentifier,
+  getOnboardingConfig,
   getOrCreateClient,
   insertOrUpdateDoc,
   updateMember,
@@ -484,7 +485,6 @@ describe('Database Integration Tests', () => {
 
     it('returns helpful warning string for non-existent member', async () => {
       const nonExistentMemberId = 'non-existent-member';
-      // Expect the function to reject with an error containing the specific message
       await expect(getLinkedInDocumentsByMemberIdentifier(nonExistentMemberId)).rejects.toThrow(
         /No synced LinkedIn profile found for the given identifier./,
       );
@@ -492,6 +492,21 @@ describe('Database Integration Tests', () => {
   });
 
   describe('getOnboardingConfig', () => {
-    // Implementation of getOnboardingConfig test case
+    it('returns onboarding config for a location', async () => {
+      const location = OfficeLocation.SEATTLE;
+      const config = await getOnboardingConfig(location);
+
+      expect(config).toEqual({
+        admin_user_slack_ids: ['U073CUASRSR', 'U07QU1QCX52'],
+        onboarding_message_content: expect.stringContaining('Join #introductions'),
+      });
+    });
+
+    it('throws error for non-existent location', async () => {
+      const nonExistentLocation = 'NonExistentLocation' as OfficeLocation;
+      await expect(getOnboardingConfig(nonExistentLocation)).rejects.toThrow(
+        'No onboarding config found for location: NonExistentLocation',
+      );
+    });
   });
 });

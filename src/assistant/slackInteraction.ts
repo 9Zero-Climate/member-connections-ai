@@ -150,11 +150,11 @@ const getAuthInfo = async (client: WebClient): Promise<AuthTestResponse> => {
 };
 
 export const getBotId = async (client: WebClient): Promise<string> => {
-  const authTestResponse = await getAuthInfo(client);
-  return authTestResponse.bot_id as string;
+  const authInfo = await getAuthInfo(client);
+  return authInfo.bot_id as string;
 };
 
 export const getBotUserId = async (client: WebClient): Promise<string> => {
-  const authTestResponse = await getAuthInfo(client);
-  return authTestResponse.user_id as string;
+  const authInfo = await getAuthInfo(client);
+  return authInfo.user_id as string;
 };
