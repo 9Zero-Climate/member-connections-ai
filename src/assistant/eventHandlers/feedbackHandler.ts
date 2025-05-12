@@ -138,7 +138,7 @@ export const handleFeedbackShortcut = async ({
     });
     shortcutLogger.info({ triggerId, channel: channel.id, message: message.ts }, 'Feedback modal opened');
   } catch (error) {
-    shortcutLogger.error({ error, shortcut }, 'Error handling feedback shortcut');
+    shortcutLogger.error({ err: error, shortcut }, 'Error handling feedback shortcut');
   }
 };
 
@@ -243,7 +243,7 @@ export const handleFeedbackViewSubmission = async ({
     await ack();
   } catch (error) {
     viewLogger.error(
-      { error, viewId: view.id, metadata: view.private_metadata },
+      { err: error, viewId: view.id, metadata: view.private_metadata },
       'Error handling feedback view submission',
     );
     // Respond with an error update in the modal

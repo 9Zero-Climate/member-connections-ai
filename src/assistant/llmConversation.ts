@@ -233,6 +233,6 @@ export const handleIncomingMessage = async ({
         channel: slackChannel,
         timestamp: triggeringMessageTs,
       })
-      .catch((err: unknown) => logger.error({ error: err }, 'Failed to remove thinking_face reaction'));
+      .catch((error: unknown) => logger.error(error, 'Failed to remove thinking_face reaction'));
   }
 };
