@@ -1,24 +1,8 @@
 // Mocks must be declared before imports!
-const mockGetOnboardingConfig = jest.fn();
-const mockGetBotUserId = jest.fn();
-const mockGetMemberFromSlackId = jest.fn();
-const mockLoggerService = {
-  logger: {
-    info: jest.fn(),
-    error: jest.fn(),
-    warn: jest.fn(),
-    debug: jest.fn(),
-  },
-};
+import { mockDatabaseService, mockLoggerService, mockSlackInteractionService } from '../services/mocks';
 
-jest.mock('../services/database', () => ({
-  OfficeLocation: jest.requireActual('../services/database').OfficeLocation,
-  getOnboardingConfig: mockGetOnboardingConfig,
-  getMemberFromSlackId: mockGetMemberFromSlackId,
-}));
-jest.mock('./slackInteraction', () => ({
-  getBotUserId: mockGetBotUserId,
-}));
+jest.mock('../services/database', () => mockDatabaseService);
+jest.mock('./slackInteraction', () => mockSlackInteractionService);
 jest.mock('../services/logger', () => mockLoggerService);
 
 import type { WebClient } from '@slack/web-api';
@@ -66,9 +50,9 @@ describe('createNewOnboardingDmWithAdmins', () => {
     jest.clearAllMocks();
 
     // Setup default mock behaviors
-    mockGetOnboardingConfig.mockResolvedValue(defaultOnboardingConfig);
-    mockGetBotUserId.mockResolvedValue(defaultBotUserId);
-    mockGetMemberFromSlackId.mockResolvedValue({ location: OfficeLocation.SEATTLE });
+    mockDatabaseService.getOnboardingConfig.mockResolvedValue(defaultOnboardingConfig);
+    mockSlackInteractionService.getBotUserId.mockResolvedValue(defaultBotUserId);
+    mockDatabaseService.getMemberFromSlackId.mockResolvedValue({ location: OfficeLocation.SEATTLE });
 
     mockClient = {
       conversations: {
@@ -90,9 +74,9 @@ describe('createNewOnboardingDmWithAdmins', () => {
 
     const channelId = await createNewOnboardingDmWithAdmins(mockClient, newUserSlackId);
 
-    expect(mockGetMemberFromSlackId).toHaveBeenCalledWith(newUserSlackId);
-    expect(mockGetOnboardingConfig).toHaveBeenCalledWith(location);
-    expect(mockGetBotUserId).toHaveBeenCalledWith(mockClient);
+    expect(mockDatabaseService.getMemberFromSlackId).toHaveBeenCalledWith(newUserSlackId);
+    expect(mockDatabaseService.getOnboardingConfig).toHaveBeenCalledWith(location);
+    expect(mockSlackInteractionService.getBotUserId).toHaveBeenCalledWith(mockClient);
     expect(mockClient.conversations.open).toHaveBeenCalledWith({ users: 'UADMIN,UBOT,UNEWUSER' });
     expect(mockClient.conversations.setTopic).toHaveBeenCalledWith({
       channel: defaultChannelId,
@@ -120,7 +104,7 @@ describe('createNewOnboardingDmWithAdmins', () => {
 
   it('throws if no admin users found', async () => {
     // Override default mock behavior for this specific test
-    mockGetOnboardingConfig.mockResolvedValue({
+    mockDatabaseService.getOnboardingConfig.mockResolvedValue({
       admin_user_slack_ids: [],
       onboarding_message_content: 'irrelevant',
     });
@@ -134,12 +118,12 @@ describe('createNewOnboardingDmWithAdmins', () => {
 
   it('posts only welcome message if onboarding_message_content is empty', async () => {
     // Override default mock behavior
-    mockGetOnboardingConfig.mockResolvedValue({
+    mockDatabaseService.getOnboardingConfig.mockResolvedValue({
       admin_user_slack_ids: ['UADMIN'],
       onboarding_message_content: '', // Empty content
     });
     mockClient.users.info = jest.fn().mockResolvedValue({ user: { real_name: 'Bob' } }); // Different user name
-    mockGetMemberFromSlackId.mockResolvedValue({ location: OfficeLocation.SAN_FRANCISCO }); // Mock location lookup for this case
+    mockDatabaseService.getMemberFromSlackId.mockResolvedValue({ location: OfficeLocation.SAN_FRANCISCO }); // Mock location lookup for this case
 
     const newUserSlackId = 'UNEWUSER';
     await createNewOnboardingDmWithAdmins(mockClient, newUserSlackId);
@@ -159,13 +143,13 @@ describe('createNewOnboardingDmWithAdmins', () => {
   });
 
   it('throws if member location cannot be determined', async () => {
-    mockGetMemberFromSlackId.mockResolvedValue(null); // Simulate member not found or no location
+    mockDatabaseService.getMemberFromSlackId.mockResolvedValue(null); // Simulate member not found or no location
 
     await expect(createNewOnboardingDmWithAdmins(mockClient, 'UNKNOWNUSER')).rejects.toThrow(
       'Member not found for slack ID.',
     );
     // Ensure no further actions were taken
-    expect(mockGetOnboardingConfig).not.toHaveBeenCalled();
+    expect(mockDatabaseService.getOnboardingConfig).not.toHaveBeenCalled();
     expect(mockClient.conversations.open).not.toHaveBeenCalled();
   });
 });
