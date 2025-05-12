@@ -769,6 +769,20 @@ async function updateMembersFromNotion(notionMembers: NotionMemberData[]): Promi
   logger.info(`Finished updating database with Notion data. Matched: ${matchedCount}, Unmatched: ${unmatchedCount}`);
 }
 
+export interface OnboardingConfig {
+  admin_user_slack_ids: string[];
+  onboarding_message_content: string;
+}
+
+async function getOnboardingConfig(location: OfficeLocation): Promise<OnboardingConfig> {
+  const client = await getOrCreateClient();
+  const result = await client.query(
+    'SELECT admin_user_slack_ids, onboarding_message_content FROM onboarding_config WHERE location = $1',
+    [location],
+  );
+  return result.rows[0] as OnboardingConfig;
+}
+
 export {
   getOrCreateClient,
   insertOrUpdateDoc,
@@ -786,4 +800,5 @@ export {
   saveFeedback,
   upsertNotionDataForMember,
   updateMembersFromNotion,
+  getOnboardingConfig,
 };

@@ -11,7 +11,7 @@ import { type SlackMessage, buildInitialLlmThread } from './initialLlmThread';
 import { convertSlackHistoryToLLMHistory, packToolCallInfoIntoSlackMessageMetadata } from './messagePacking';
 import { addFeedbackHintReactions, fetchSlackThreadAndChannelContext } from './slackInteraction';
 import { fetchSlackThreadMessages } from './slackInteraction';
-import { getBotUserId } from './slackInteraction';
+import { getBotId } from './slackInteraction';
 import { fetchUserInfo } from './slackInteraction';
 import type { ChatMessage } from './types';
 
@@ -188,7 +188,7 @@ export const handleIncomingMessage = async ({
     }
 
     const userInfo = await fetchUserInfo(client, userId);
-    const botUserId = await getBotUserId(client);
+    const botUserId = await getBotId(client);
     const threadHistoryForLLM = convertSlackHistoryToLLMHistory(slackMessages, triggeringMessageTs);
     const initialLlmThread = buildInitialLlmThread(threadHistoryForLLM, userInfo, text, botUserId);
 

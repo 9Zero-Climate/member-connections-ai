@@ -1,4 +1,5 @@
 import type {
+  AuthTestResponse,
   ConversationsHistoryArguments,
   ConversationsRepliesArguments,
   ConversationsRepliesResponse,
@@ -136,11 +137,21 @@ export const addFeedbackHintReactions = async (client: WebClient, channel: strin
   ]);
 };
 
-export const getBotUserId = async (client: WebClient): Promise<string> => {
-  const authTest = await client.auth.test();
-  if (!authTest.ok || !authTest.bot_id) {
-    throw new Error('Could not fetch bot user ID via auth.test');
+const getAuthInfo = async (client: WebClient): Promise<AuthTestResponse> => {
+  const authTestResponse = await client.auth.test();
+  if (!authTestResponse.ok) {
+    throw new Error('Could not fetch auth info via auth.test');
   }
-  logger.info({ botUserId: authTest.bot_id }, 'Fetched bot user ID via auth.test');
-  return authTest.bot_id;
+  logger.debug({ authTestResponse }, 'Fetched auth info via auth.test');
+  return authTestResponse;
+};
+
+export const getBotId = async (client: WebClient): Promise<string> => {
+  const authTestResponse = await getAuthInfo(client);
+  return authTestResponse.bot_id as string;
+};
+
+export const getBotUserId = async (client: WebClient): Promise<string> => {
+  const authTestResponse = await getAuthInfo(client);
+  return authTestResponse.user_id as string;
 };
