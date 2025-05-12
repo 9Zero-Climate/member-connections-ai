@@ -42,7 +42,7 @@ jobs:
           OFFICERND_CLIENT_ID: ${{ secrets.OFFICERND_CLIENT_ID }}
           OFFICERND_CLIENT_SECRET: ${{ secrets.OFFICERND_CLIENT_SECRET }}
           OFFICERND_ORG_SLUG: ${{ secrets.OFFICERND_ORG_SLUG }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          # OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 
         run: pnpm sync officernd
 
