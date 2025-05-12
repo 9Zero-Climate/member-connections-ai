@@ -319,6 +319,12 @@ async function findSimilar(embedding: number[], options: SearchOptions = {}): Pr
   }
 }
 
+export async function getMemberFromSlackId(slackId: string): Promise<Member | null> {
+  const client = await getOrCreateClient();
+  const result = await client.query('SELECT * from members WHERE slack_id = $1', [slackId]);
+  return result.rows[0] || null;
+}
+
 async function updateMember(officerndId: string, updates: Partial<Member>): Promise<Member> {
   logger.info({ updates }, `Updating member with officerndId=${officerndId}...`);
   const client = await getOrCreateClient();
@@ -536,9 +542,7 @@ async function getLinkedInDocuments(linkedinUrl: string): Promise<Document[]> {
  * @param memberIdentifier - The member's fullname, slackID, linkedin URL, or OfficeRnD ID
  * @returns Array of documents with their content and metadata
  */
-async function getLinkedInDocumentsByMemberIdentifier(
-  memberIdentifier: string,
-): Promise<DocumentWithMemberContext[] | string> {
+async function getLinkedInDocumentsByMemberIdentifier(memberIdentifier: string): Promise<DocumentWithMemberContext[]> {
   const client = await getOrCreateClient();
   // Since this function call is LLM-friendly, we can't assume that the memberIdentifier is normalized if it's a linkedin URL
   const normalizedLinkedInUrl = normalizeLinkedinUrlOrNull(memberIdentifier);
@@ -573,7 +577,9 @@ async function getLinkedInDocumentsByMemberIdentifier(
       [memberIdentifier, ...linkedinQueryParams],
     );
     if (result.rows.length === 0) {
-      return `No synced LinkedIn profile found for the given identifier. New profiles are synced daily for new members in OfficeRnD, and existing members are updated every ${DEFAULT_LINKEDIN_PROFLE_ALLOWED_AGE_DAYS} days.`;
+      throw new Error(
+        `No synced LinkedIn profile found for the given identifier. New profiles are synced daily for new members in OfficeRnD, and existing members are updated at least every ${DEFAULT_LINKEDIN_PROFLE_ALLOWED_AGE_DAYS} days.`,
+      );
     }
     // Map results, ensuring metadata includes view fields
     return result.rows;

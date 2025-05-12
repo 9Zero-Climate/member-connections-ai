@@ -1,6 +1,6 @@
 import type { WebClient } from '@slack/web-api';
 import type { OfficeLocation } from '../services/database';
-import { getOnboardingConfig } from '../services/database';
+import { getMemberFromSlackId, getOnboardingConfig } from '../services/database';
 import { logger } from '../services/logger';
 import { getBotUserId } from './slackInteraction';
 
@@ -13,15 +13,29 @@ export const getSentenceAboutAdmins = (adminUserSlackIds: string[], location: Of
   return `${adminUserNames} is also on this thread. They're the admin for 9Zero in ${location} and can help with anything you need.`;
 };
 
+export async function getOfficeLocationFromSlackId(slackId: string): Promise<OfficeLocation> {
+  const member = await getMemberFromSlackId(slackId);
+  if (!member) {
+    logger.info({ slackId }, 'Member not found for slack ID.');
+    throw new Error('Member not found for slack ID.');
+  }
+  const location = member.location;
+  if (!location) {
+    logger.info(
+      { slackId, member },
+      'Location not found for member. Their location may not be synced from OfficeRnD yet.',
+    );
+    throw new Error('Location not found for member. Their location may not be synced from OfficeRnD yet.');
+  }
+  return location;
+}
+
 /**
  * Create a new onboarding thread with the admin users, the assistant, and the new user.
  * Welcomes the new user and sends the onboarding message content.
  */
-export async function createNewOnboardingDmWithAdmins(
-  client: WebClient,
-  newUserSlackId: string,
-  location: OfficeLocation,
-): Promise<string> {
+export async function createNewOnboardingDmWithAdmins(client: WebClient, newUserSlackId: string): Promise<string> {
+  const location = await getOfficeLocationFromSlackId(newUserSlackId);
   const { admin_user_slack_ids, onboarding_message_content } = await getOnboardingConfig(location);
   if (admin_user_slack_ids.length === 0) {
     throw new Error(`No admin users found for ${location}`);
@@ -31,7 +45,12 @@ export async function createNewOnboardingDmWithAdmins(
 
   const userIds = [...admin_user_slack_ids, botUserId, newUserSlackId];
   logger.info(`Creating new onboarding thread with users: ${userIds}`);
-  const conversationOpenResponse = await client.conversations.open({ users: userIds.join(',') });
+  const conversationOpenResponse = await client.conversations.open({
+    users: userIds.join(','),
+  });
+
+  logger.info({ conversationOpenResponse }, 'Conversation open response');
+
   const channelId = conversationOpenResponse.channel?.id as string;
 
   const userInfo = await client.users.info({ user: newUserSlackId });

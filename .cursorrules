@@ -10,6 +10,7 @@ Coding Conventions:
 - Strongly prefer map() and named functions over for loops. This increases readability and testability
 - Don't aggressively catch errors if you're just going to rethrow them. Prefer to handle errors once at a higher level but do ensure that stacktraces are preserved so we don't lose information.
 - In cases of unexpected external errors (eg. Slack API failure), DON'T catch errors preemptively - let the app crash so that developers will be notified and can make the appropriate fix. We don't want to pollute the codebase with unnecessary try/catch blocks. An exception is when a catch is necessary to avoid a typescript error.
+- Prefer arrow functions over named functions.
 
 Naming conventions:
 - When creating tests in Jest, don't use the word "should" in test names. For example, use "it('throws on condition X')" instead of "it('should throw on condition X')".

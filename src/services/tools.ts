@@ -3,24 +3,45 @@ import { NINEZERO_SLACK_MEMBER_LINK_PREFIX } from '../assistant/prompts';
 import { findSimilar, getLinkedInDocumentsByMemberIdentifier } from './database';
 import type { Document } from './database';
 import { generateEmbedding } from './embedding';
+import type { ChatCompletionTool } from 'openai/resources/chat';
+import { createNewOnboardingDmWithAdmins } from '../assistant/createNewOnboardingDmWithAdmins';
+import type { WebClient } from '@slack/web-api/dist/WebClient';
+import { logger } from './logger';
+
+// --- Argument Types for LLM Tool Calls ---
 
 export interface SearchToolParams {
   query: string;
   limit?: number;
 }
 
+export interface LinkedInProfileToolParams {
+  memberIdentifier: string;
+}
+
+// Params the LLM provides for createOnboardingThread
+export interface CreateOnboardingThreadLLMParams {
+  memberSlackId: string;
+}
+// Params needed by the actual createOnboardingThread implementation
+export interface CreateOnboardingThreadImplParams extends CreateOnboardingThreadLLMParams {
+  client: WebClient;
+}
+
+// --- Result Types for Tool Implementations ---
+
 export interface SearchToolResult {
   documents: Document[];
   query: string;
 }
 
-export interface LinkedInProfileToolParams {
+export interface LinkedInProfileToolResult {
+  documents: Document[];
   memberIdentifier: string;
 }
 
-export interface LinkedInProfileToolResult {
-  documents: Document[] | string;
-  memberIdentifier: string;
+export interface CreateOnboardingThreadResult {
+  createdOnboardingDmId: string;
 }
 
 export interface ToolCall {
@@ -31,6 +52,8 @@ export interface ToolCall {
     arguments: string;
   };
 }
+
+// --- Tool Implementations ---
 
 const DEFAULT_DOCUMENT_LIMIT = 20;
 /**
@@ -63,6 +86,16 @@ export async function fetchLinkedInProfile(params: LinkedInProfileToolParams): P
   };
 }
 
+const _createOnboardingThreadImpl = async ({
+  client,
+  memberSlackId,
+}: CreateOnboardingThreadImplParams): Promise<CreateOnboardingThreadResult> => {
+  const createdOnboardingDmId = await createNewOnboardingDmWithAdmins(client, memberSlackId);
+  return {
+    createdOnboardingDmId,
+  };
+};
+
 /**
  * Convert an object to XML. XML is a best practice format for feeding into LLMs
  *
@@ -79,8 +112,34 @@ export function objectToXml(obj: any): string {
   return builder.build(obj);
 }
 
-// Define our tools for the LLM
-export const tools = [
+const adminOnlyToolSpecs: ChatCompletionTool[] = [
+  {
+    type: 'function',
+    function: {
+      name: 'createOnboardingThread',
+      description:
+        'Create a new onboarding thread for a new member. Use this when asked by an admin to onboard a new member.',
+      parameters: {
+        type: 'object',
+        properties: {
+          memberSlackId: {
+            type: 'string',
+            description: 'The member\'s slack ID to onboard e.g. "U07BA4JA3HC"',
+          },
+        },
+        required: ['memberSlackId'],
+      },
+    },
+  },
+];
+
+export type ToolName = 'searchDocuments' | 'fetchLinkedInProfile' | 'createOnboardingThread';
+
+const isToolName = (name: string): name is ToolName => {
+  return ['searchDocuments', 'fetchLinkedInProfile', 'createOnboardingThread'].includes(name);
+};
+
+export const getToolSpecs = (userIsAdmin: boolean): ChatCompletionTool[] => [
   {
     type: 'function',
     function: {
@@ -125,36 +184,70 @@ export const tools = [
       },
     },
   },
+  ...(userIsAdmin ? adminOnlyToolSpecs : []),
 ];
 
 const looksLikeSlackId = (identifier: string) => {
   return /^U[A-Z0-9]+$/.test(identifier);
 };
 
-export const getToolCallShortDescription = (toolCall: ToolCall) => {
+export const getToolCallShortDescription = (toolCall: ToolCall): string => {
   if (toolCall.type !== 'function') {
-    throw new Error(`Unhandled tool call type - not a function: ${JSON.stringify(toolCall, null, 2)}`);
+    logger.error({ toolCall }, 'Unhandled tool call type - not a function');
+    throw new Error(`Unhandled tool call type - not a function: ${toolCall.type}`);
   }
 
   const toolName = toolCall.function.name;
+  if (!isToolName(toolName)) {
+    logger.error({ toolCall }, 'Unknown tool name encountered');
+    throw new Error(`Unhandled tool call: ${toolName}`);
+  }
+
   const toolArgs = JSON.parse(toolCall.function.arguments);
 
   switch (toolName) {
-    case 'searchDocuments':
-      return `Semantic search for "${toolArgs.query}"`;
+    case 'searchDocuments': {
+      const searchArgs = toolArgs as SearchToolParams;
+      return `Semantic search for "${searchArgs.query}"`;
+    }
     case 'fetchLinkedInProfile': {
-      const memberIdForDisplay = looksLikeSlackId(toolArgs.memberIdentifier)
-        ? `${NINEZERO_SLACK_MEMBER_LINK_PREFIX}${toolArgs.memberIdentifier} `
-        : toolArgs.memberIdentifier;
+      const linkedInArgs = toolArgs as LinkedInProfileToolParams;
+      const memberIdForDisplay = looksLikeSlackId(linkedInArgs.memberIdentifier)
+        ? `${NINEZERO_SLACK_MEMBER_LINK_PREFIX}${linkedInArgs.memberIdentifier} `
+        : linkedInArgs.memberIdentifier;
       return `Fetch LinkedIn profile for ${memberIdForDisplay}`;
     }
-    default:
-      throw new Error(`Unhandled tool call: ${toolName}`);
+    case 'createOnboardingThread': {
+      const createArgs = toolArgs as CreateOnboardingThreadLLMParams;
+      return `Creating onboarding thread for <@${createArgs.memberSlackId}>`;
+    }
+    default: {
+      throw new Error(`Unhandled tool case: ${toolName}`);
+    }
   }
 };
 
+type ToolImplementation<Params, Result> = (params: Params) => Promise<Result>;
+export type ToolImplementationsByName = {
+  searchDocuments: ToolImplementation<SearchToolParams, SearchToolResult>;
+  fetchLinkedInProfile: ToolImplementation<LinkedInProfileToolParams, LinkedInProfileToolResult>;
+  createOnboardingThread?: ToolImplementation<CreateOnboardingThreadLLMParams, CreateOnboardingThreadResult>;
+};
+
 // Map of tool names to their implementations
-export const toolImplementations = {
-  searchDocuments,
-  fetchLinkedInProfile,
+export const getToolImplementationsMap = ({
+  slackClient,
+  userIsAdmin,
+}: { slackClient: WebClient; userIsAdmin: boolean }): ToolImplementationsByName => {
+  const adminOnlyToolImplementations = userIsAdmin
+    ? {
+        createOnboardingThread: (args: CreateOnboardingThreadLLMParams) =>
+          _createOnboardingThreadImpl({ ...args, client: slackClient }),
+      }
+    : {};
+  return {
+    ...adminOnlyToolImplementations,
+    searchDocuments: searchDocuments,
+    fetchLinkedInProfile: fetchLinkedInProfile,
+  };
 };

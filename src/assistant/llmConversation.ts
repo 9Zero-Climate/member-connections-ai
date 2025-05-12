@@ -1,10 +1,9 @@
 import type { SayFn } from '@slack/bolt';
 import type { WebClient } from '@slack/web-api';
 import type { OpenAI } from 'openai';
-import type { ChatCompletionTool } from 'openai/resources/chat';
 import { config } from '../config';
 import { logger } from '../services/logger';
-import { type ToolCall, getToolCallShortDescription, toolImplementations, tools } from '../services/tools';
+import { type ToolCall, getToolCallShortDescription, getToolImplementationsMap, getToolSpecs } from '../services/tools';
 import ResponseManager from './ResponseManager';
 import executeToolCalls from './executeToolCalls';
 import { type SlackMessage, buildInitialLlmThread } from './initialLlmThread';
@@ -26,6 +25,7 @@ export const runLlmConversation = async (
   initialLlmThread: ChatMessage[],
   slackChannel: string,
   triggeringMessageTs: string, // Can be user message ts or app_mention ts
+  userIsAdmin: boolean,
 ): Promise<string | undefined> => {
   const llmThread = [...initialLlmThread];
   let remainingLlmLoopsAllowed = config.maxToolCallIterations;
@@ -40,7 +40,7 @@ export const runLlmConversation = async (
     const streamFromLlm = await llmClient.chat.completions.create({
       model: config.modelName,
       messages: llmThread,
-      tools: tools as ChatCompletionTool[],
+      tools: getToolSpecs(userIsAdmin),
       tool_choice: remainingLlmLoopsAllowed === 0 ? 'none' : 'auto',
       stream: true,
     });
@@ -115,6 +115,7 @@ export const runLlmConversation = async (
     });
 
     // Execute tools and add results to history
+    const toolImplementations = getToolImplementationsMap({ slackClient: client, userIsAdmin });
     const toolCallAndResultMessages: ChatMessage[] = await executeToolCalls(validToolCalls, toolImplementations);
     llmThread.push(...toolCallAndResultMessages);
   }
@@ -199,6 +200,7 @@ export const handleIncomingMessage = async ({
       initialLlmThread,
       slackChannel,
       effectiveThreadTs,
+      userInfo.is_admin || false,
     );
 
     // Add feedback reactions if the conversation resulted in a final message

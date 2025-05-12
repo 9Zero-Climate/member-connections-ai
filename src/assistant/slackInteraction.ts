@@ -19,6 +19,7 @@ export interface UserInfo {
   time_zone?: string;
   time_zone_offset?: number;
   source?: string;
+  is_admin?: boolean;
 }
 
 const sortSlackMessagesByTimestamp = (messages: MessageElement[] | undefined): MessageElement[] => {
@@ -115,6 +116,7 @@ export const fetchUserInfo = async (client: WebClient, userId: string): Promise<
   if (!userResponse.ok || !userResponse.user) {
     throw new Error(`Failed to fetch user info for ${userId}: ${userResponse.error || 'Unknown error'}`);
   }
+  logger.debug({ userResponse }, 'User info fetched');
   const user = userResponse.user;
   const userProfile = user.profile;
   return {
@@ -123,6 +125,7 @@ export const fetchUserInfo = async (client: WebClient, userId: string): Promise<
     real_name: userProfile?.real_name,
     time_zone: user.tz,
     time_zone_offset: user.tz_offset,
+    is_admin: user.is_admin,
   };
 };
 
