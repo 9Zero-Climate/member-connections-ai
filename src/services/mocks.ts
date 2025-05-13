@@ -41,7 +41,7 @@ export const mockProxycurlService = {
 export const mockSlackService = {
   getChannelId: jest.fn(),
   fetchChannelHistory: jest.fn(),
-  processMessageBatch: jest.fn(),
+  processMessages: jest.fn(),
 };
 
 export const mockSlackInteractionService = {

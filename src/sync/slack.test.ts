@@ -1,24 +1,10 @@
+import type { Document } from '../services/database';
 import { mockDatabaseService, mockLoggerService, mockSlackService } from '../services/mocks'; // These have to be imported before the libraries they are going to mock are imported
-import { syncSlackChannels } from './slack';
+import { doesSlackMessageMatchDb, syncSlackChannels, upsertSlackMessagesRagDocs } from './slack';
 
 jest.mock('../services/slack_sync', () => mockSlackService);
 jest.mock('../services/database', () => mockDatabaseService);
 jest.mock('../services/logger', () => mockLoggerService);
-
-const mockMembers = [
-  {
-    officernd_id: '1',
-    name: 'John Doe',
-    slack_id: 'U123',
-    linkedin_url: 'https://linkedin.com/in/johndoe',
-  },
-  {
-    officernd_id: '2',
-    name: 'Jane Smith',
-    slack_id: 'U456',
-    linkedin_url: 'https://linkedin.com/in/janesmith',
-  },
-];
 
 const VALID_ENV_VARS = {
   DB_URL: 'postgresql://postgres.test',
@@ -46,7 +32,7 @@ describe('syncSlackChannels', () => {
   it('syncs members successfully', async () => {
     mockSlackService.getChannelId.mockResolvedValue('fake-channel-id');
     mockSlackService.fetchChannelHistory.mockResolvedValue([]);
-    mockSlackService.processMessageBatch.mockResolvedValue([]);
+    mockSlackService.processMessages.mockResolvedValue([]);
 
     await syncSlackChannels(['fake-channel-name']);
 
@@ -74,5 +60,133 @@ describe('syncSlackChannels', () => {
     await expect(syncSlackChannels(['fake-channel-name'])).rejects.toThrow();
 
     expect(mockDatabaseService.closeDbConnection).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('upsertSlackMessagesRagDocs', () => {
+  const mockChannelName = 'Channel Name';
+  const mockChannelId = 'channel-id';
+  const mockFormattedMessage = {
+    ts: 'timestamp',
+    text: 'text',
+    permalink: 'permalink',
+  };
+  const mockMatchingDoc = {
+    source_type: 'slack',
+    source_unique_id: 'channel-id:timestamp',
+    content: 'text',
+    metadata: {
+      ts: 'timestamp',
+      channelId: mockChannelId,
+      channelName: mockChannelName,
+      permalink: 'permalink',
+    },
+  };
+
+  it('skips upsert if unchanged', async () => {
+    mockDatabaseService.getDocBySource.mockResolvedValue(mockMatchingDoc);
+
+    await upsertSlackMessagesRagDocs([mockFormattedMessage], mockChannelName, mockChannelId);
+
+    expect(mockDatabaseService.insertOrUpdateDoc).not.toHaveBeenCalled();
+  });
+
+  it('upserts if no existing doc', async () => {
+    mockDatabaseService.getDocBySource.mockResolvedValue(null);
+    await upsertSlackMessagesRagDocs([mockFormattedMessage], mockChannelName, mockChannelId);
+
+    expect(mockDatabaseService.insertOrUpdateDoc).toHaveBeenCalled();
+  });
+
+  it('upserts if existing doc does not match', async () => {
+    mockDatabaseService.getDocBySource.mockResolvedValue({ ...mockMatchingDoc, content: 'different text' });
+    await upsertSlackMessagesRagDocs([mockFormattedMessage], mockChannelName, mockChannelId);
+
+    expect(mockDatabaseService.insertOrUpdateDoc).toHaveBeenCalled();
+  });
+});
+
+describe('doesSlackMessageMatchDb', () => {
+  const baseDoc: Document = {
+    source_type: 'slack',
+    source_unique_id: 'test:123',
+    content: 'Hello world',
+    embedding: null,
+    metadata: {
+      slack_user_id: 'U123',
+      channel: 'C123',
+      channel_name: 'general',
+    },
+  };
+
+  it('should return true for identical documents', () => {
+    const doc1 = { ...baseDoc };
+    const doc2 = { ...baseDoc };
+    expect(doesSlackMessageMatchDb(doc1, doc2)).toBe(true);
+  });
+
+  it('should return false for different content', () => {
+    const doc1 = { ...baseDoc };
+    const doc2 = { ...baseDoc, content: 'Different content' };
+    expect(doesSlackMessageMatchDb(doc1, doc2)).toBe(false);
+  });
+
+  it('should ignore undefined/null metadata fields', () => {
+    const doc1 = {
+      ...baseDoc,
+      metadata: {
+        ...baseDoc.metadata,
+        thread_ts: undefined,
+        reply_count: undefined,
+      },
+    };
+    const doc2 = {
+      ...baseDoc,
+      metadata: {
+        ...baseDoc.metadata,
+        // These fields are missing entirely
+      },
+    };
+    expect(doesSlackMessageMatchDb(doc1, doc2)).toBe(true);
+  });
+
+  it('should handle missing metadata', () => {
+    const doc1 = { ...baseDoc, metadata: undefined };
+    const doc2 = { ...baseDoc, metadata: {} };
+    expect(doesSlackMessageMatchDb(doc1, doc2)).toBe(true);
+  });
+
+  it('should ignore database-specific fields', () => {
+    const doc1 = {
+      ...baseDoc,
+      created_at: new Date('2024-03-14'),
+      updated_at: new Date('2024-03-14'),
+    };
+    const doc2 = { ...baseDoc };
+    expect(doesSlackMessageMatchDb(doc1, doc2)).toBe(true);
+  });
+
+  it('should ignore embedding differences', () => {
+    const doc1 = { ...baseDoc, embedding: [1, 2, 3] };
+    const doc2 = { ...baseDoc, embedding: [4, 5, 6] };
+    expect(doesSlackMessageMatchDb(doc1, doc2)).toBe(true);
+  });
+
+  it('should detect meaningful metadata differences', () => {
+    const doc1 = {
+      ...baseDoc,
+      metadata: {
+        ...baseDoc.metadata,
+        reactions: [{ name: 'thumbsup', count: 1 }],
+      },
+    };
+    const doc2 = {
+      ...baseDoc,
+      metadata: {
+        ...baseDoc.metadata,
+        reactions: [{ name: 'thumbsdown', count: 1 }],
+      },
+    };
+    expect(doesSlackMessageMatchDb(doc1, doc2)).toBe(false);
   });
 });
