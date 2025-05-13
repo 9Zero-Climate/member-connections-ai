@@ -1,3 +1,5 @@
+import * as fs from 'node:fs';
+import path from 'node:path';
 import { WebClient } from '@slack/web-api';
 import type { MessageElement } from '@slack/web-api/dist/types/response/ConversationsHistoryResponse';
 import { config } from '../config';
@@ -94,6 +96,8 @@ const slackSync = {
       cursor = result.response_metadata?.next_cursor;
     } while (cursor);
 
+    logger.info(`Fetched ${messages.length} messages`);
+
     return messages;
   },
 
@@ -109,6 +113,7 @@ const slackSync = {
     if (!channel?.id) {
       throw new Error(`Channel '${channelName}' not found`);
     }
+    logger.info(`Found channel ID: ${channel.id}`);
     return channel.id;
   },
 
@@ -174,3 +179,37 @@ const slackSync = {
 
 export default { ...slackSync, setTestClient };
 export type { FormattedSlackMessage, SlackSyncOptions };
+
+/**
+ * Extracts Slack messages for a given channel from a folder of exported data.
+ * Expects the export to be a directory in the format:
+ *  /<export name>
+ *    /<channel-name-a>
+ *      <date1>.json
+ *      <date2>.json
+ *    /<channel-name-b>
+ *      <date1>.json
+ *      <date2>.json
+ *
+ * Where the content of the .json files is a MessageElement[]
+ */
+
+export const extractChannelMessagesFromSlackHistoryExport = async (
+  exportDirectoryPath: string,
+  channelName: string,
+): Promise<MessageElement[]> => {
+  const channelExportDirectoryPath = path.join(exportDirectoryPath, channelName);
+  logger.info(`Extracting messages for ${channelName} channel at path: ${channelExportDirectoryPath}`);
+  const jsonFileNames = fs.readdirSync(channelExportDirectoryPath).filter((fileName) => fileName.endsWith('.json'));
+
+  const messages = jsonFileNames.flatMap((fileName) => {
+    const filePath = path.join(channelExportDirectoryPath, fileName);
+    const fileContents = fs.readFileSync(filePath, 'utf-8');
+    const jsonData = JSON.parse(fileContents);
+    return jsonData;
+  });
+
+  logger.info(`Extracted ${messages.length} messages`);
+
+  return messages;
+};

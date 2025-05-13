@@ -2,7 +2,7 @@ import { isDeepStrictEqual } from 'node:util';
 import { ConfigContext, validateConfig } from '../config';
 import { type Document, closeDbConnection, getDocBySource, insertOrUpdateDoc } from '../services/database';
 import { logger } from '../services/logger';
-import slackSync from '../services/slack_sync';
+import slackSync, { extractChannelMessagesFromSlackHistoryExport } from '../services/slack_sync';
 import type { FormattedSlackMessage, SlackSyncOptions } from '../services/slack_sync';
 
 const defaultSyncOptions: SlackSyncOptions = {
@@ -116,11 +116,9 @@ export async function syncSlackChannels(channelNames: string[], syncOptionOverri
       logger.info(`Syncing channel: ${channelName}`);
 
       const channelId = await slackSync.getChannelId(channelName);
-      logger.info(`Found channel ID: ${channelId}`);
 
       // Fetch messages
       const messages = await slackSync.fetchChannelHistory(channelId, syncOptions);
-      logger.info(`Fetched ${messages.length} messages`);
 
       // Process messages into a shape we can use
       const formattedMessages = await slackSync.processMessages(messages, channelId);
@@ -136,3 +134,44 @@ export async function syncSlackChannels(channelNames: string[], syncOptionOverri
 
   logger.info('Slack sync complete');
 }
+
+/**
+ * Imports data from a full slack history export. Expects the export to be a directory in the format:
+ * /<export name>
+ *   /<channel-name-a>
+ *     <date1>.json
+ *     <date2>.json
+ *   /<channel-name-b>
+ *     <date1>.json
+ *     <date2>.json
+ *
+ * Where the content of the .json files is a MessageElement[]
+ */
+export const importSlackHistory = async (exportDirectoryPath: string, channelNames: string[]): Promise<void> => {
+  logger.info(`Starting import for channels: ${channelNames.join(', ')}`);
+
+  try {
+    validateConfig(process.env, ConfigContext.SyncSlack);
+
+    for (const channelName of channelNames) {
+      logger.info(`Importing channel: ${channelName}`);
+
+      const channelId = await slackSync.getChannelId(channelName);
+
+      // Exract messages
+      const messages = await extractChannelMessagesFromSlackHistoryExport(exportDirectoryPath, channelName);
+
+      // Process messages into a shape we can use
+      const formattedMessages = await slackSync.processMessages(messages, channelId);
+
+      // Upsert those messages as RAG docs (only if changed or new)
+      await upsertSlackMessagesRagDocs(formattedMessages, channelName, channelId);
+
+      logger.info(`Successfully imported ${formattedMessages.length} messages to database`);
+    }
+  } finally {
+    await closeDbConnection();
+  }
+
+  logger.info('Slack sync complete');
+};
