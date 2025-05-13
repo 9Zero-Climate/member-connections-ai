@@ -1,6 +1,6 @@
 This is a typescript project. For prior rules specific to Python, ignore them or apply them with the appropriate modifications.
 
-Before saying you're "done" with anything, run `pnpm test && pnpm lint && pnpm typecheck` to verify, and fix any issues. Use `pnpm test` or `pnpm test [file]` for testing as you go in a tighter loop.
+Before saying you're "done" with anything, run `pnpm test && pnpm lint && pnpm typecheck` to verify, and fix any issues. Use `pnpm test` or `pnpm test [file]` for testing as you go in a tighter loop (no need to lint and typecheck as often as you test).
 For lint issues, first line of defense is `pnpm lint --fix` to fix automatically.
 
 Communication style:
@@ -10,6 +10,7 @@ Coding Conventions:
 - Strongly prefer map() and named functions over for loops. This increases readability and testability
 - Don't aggressively catch errors if you're just going to rethrow them. Prefer to handle errors once at a higher level but do ensure that stacktraces are preserved so we don't lose information.
 - In cases of unexpected external errors (eg. Slack API failure), DON'T catch errors preemptively - let the app crash so that developers will be notified and can make the appropriate fix. We don't want to pollute the codebase with unnecessary try/catch blocks. An exception is when a catch is necessary to avoid a typescript error.
+- Prefer arrow functions over named functions.
 
 Naming conventions:
 - When creating tests in Jest, don't use the word "should" in test names. For example, use "it('throws on condition X')" instead of "it('should throw on condition X')".
@@ -47,3 +48,4 @@ Testing conventions:
 - prefer to centralize test logic - if there are several similar tests, use helper functions or declarative test cases that get mapped over with `it.each(testCases, ...)`.
 - prefer to use Jest's built-in matchers and assertions over custom logic.
 - avoid mocks when possible. Prefer to factor business logic out into pure functions that can be tested in isolation.
+- when you do need to mock a service, import & use our premade service mocks in src/services/mocks.ts where possible.

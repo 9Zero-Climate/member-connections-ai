@@ -80,11 +80,16 @@ async function getOrCreateClient(): Promise<Client> {
     globalClient = new Client({ connectionString: config.dbUrl });
     await globalClient.connect();
   } catch (error) {
-    logger.error('Failed to connect to database:', error);
+    logger.error(error, 'Failed to connect to database');
     throw error;
   }
 
   return globalClient;
+}
+
+async function checkDbConnection(): Promise<void> {
+  const client = await getOrCreateClient();
+  await client.query('SELECT 1');
 }
 
 async function closeDbConnection(): Promise<void> {
@@ -176,7 +181,7 @@ async function insertOrUpdateDoc(doc: Document): Promise<Document> {
     returnedDoc.embedding = parseStoredEmbedding(returnedDoc.embedding as string | null);
     return returnedDoc;
   } catch (error) {
-    logger.error('Error inserting/updating document:', error);
+    logger.error(error, 'Error inserting/updating document');
     throw error;
   }
 }
@@ -198,7 +203,7 @@ async function getDocBySource(sourceUniqueId: string): Promise<Document | null> 
     doc.embedding = parseStoredEmbedding(doc.embedding as string | null);
     return doc;
   } catch (error) {
-    logger.error('Error getting document:', error);
+    logger.error(error, 'Error getting document:');
     throw error;
   }
 }
@@ -215,7 +220,7 @@ async function deleteDoc(sourceUniqueId: string): Promise<boolean> {
     const result = await client.query('DELETE FROM rag_docs WHERE source_unique_id = $1 RETURNING *', [sourceUniqueId]);
     return result.rows.length > 0;
   } catch (error) {
-    logger.error('Error deleting document:', error);
+    logger.error(error, 'Error deleting document');
     throw error;
   }
 }
@@ -314,9 +319,15 @@ async function findSimilar(embedding: number[], options: SearchOptions = {}): Pr
       },
     );
   } catch (error) {
-    logger.error(error, 'Error finding similar documents:');
+    logger.error(error, 'Error finding similar documents');
     throw error;
   }
+}
+
+export async function getMemberFromSlackId(slackId: string): Promise<Member | null> {
+  const client = await getOrCreateClient();
+  const result = await client.query('SELECT * from members WHERE slack_id = $1', [slackId]);
+  return result.rows[0] || null;
 }
 
 async function updateMember(officerndId: string, updates: Partial<Member>): Promise<Member> {
@@ -438,7 +449,7 @@ async function deleteTypedDocumentsForMember(officerndMemberId: string, typePref
     );
     logger.debug(`Deleted ${typePrefix} documents for member ${officerndMemberId}`);
   } catch (error) {
-    logger.error(`Error deleting ${typePrefix} documents for member ${officerndMemberId}:`, error);
+    logger.error(error, `Error deleting ${typePrefix} documents for member ${officerndMemberId}`);
     throw error;
   }
 }
@@ -493,7 +504,7 @@ async function getMembersWithLastLinkedInUpdates(): Promise<MemberWithLinkedInUp
     logger.info(`Fetched ${members.length} members`);
     return members;
   } catch (error) {
-    logger.error('Error getting last LinkedIn updates:', error);
+    logger.error(error, 'Error getting last LinkedIn updates');
     throw error;
   }
 }
@@ -526,7 +537,7 @@ async function getLinkedInDocuments(linkedinUrl: string): Promise<Document[]> {
       },
     }));
   } catch (error) {
-    logger.error('Error fetching LinkedIn documents by URL:', error);
+    logger.error(error, 'Error fetching LinkedIn documents by URL');
     throw error;
   }
 }
@@ -536,9 +547,7 @@ async function getLinkedInDocuments(linkedinUrl: string): Promise<Document[]> {
  * @param memberIdentifier - The member's fullname, slackID, linkedin URL, or OfficeRnD ID
  * @returns Array of documents with their content and metadata
  */
-async function getLinkedInDocumentsByMemberIdentifier(
-  memberIdentifier: string,
-): Promise<DocumentWithMemberContext[] | string> {
+async function getLinkedInDocumentsByMemberIdentifier(memberIdentifier: string): Promise<DocumentWithMemberContext[]> {
   const client = await getOrCreateClient();
   // Since this function call is LLM-friendly, we can't assume that the memberIdentifier is normalized if it's a linkedin URL
   const normalizedLinkedInUrl = normalizeLinkedinUrlOrNull(memberIdentifier);
@@ -573,12 +582,14 @@ async function getLinkedInDocumentsByMemberIdentifier(
       [memberIdentifier, ...linkedinQueryParams],
     );
     if (result.rows.length === 0) {
-      return `No synced LinkedIn profile found for the given identifier. New profiles are synced daily for new members in OfficeRnD, and existing members are updated every ${DEFAULT_LINKEDIN_PROFLE_ALLOWED_AGE_DAYS} days.`;
+      throw new Error(
+        `No synced LinkedIn profile found for the given identifier. New profiles are synced daily for new members in OfficeRnD, and existing members are updated at least every ${DEFAULT_LINKEDIN_PROFLE_ALLOWED_AGE_DAYS} days.`,
+      );
     }
     // Map results, ensuring metadata includes view fields
     return result.rows;
   } catch (error) {
-    logger.error('Error fetching LinkedIn documents by Name:', error);
+    logger.error(error, 'Error fetching LinkedIn documents by Name');
     throw error;
   }
 }
@@ -608,7 +619,7 @@ async function saveFeedback(feedback: FeedbackVote): Promise<FeedbackVote> {
     // We assert the type here because RETURNING * should give us back the full row including DB-generated columns
     return result.rows[0] as FeedbackVote;
   } catch (error) {
-    logger.error('Error saving feedback vote:', error);
+    logger.error(error, 'Error saving feedback vote');
     throw error; // Re-throw the error to be handled by the caller
   }
 }
@@ -769,8 +780,26 @@ async function updateMembersFromNotion(notionMembers: NotionMemberData[]): Promi
   logger.info(`Finished updating database with Notion data. Matched: ${matchedCount}, Unmatched: ${unmatchedCount}`);
 }
 
+export interface OnboardingConfig {
+  admin_user_slack_ids: string[];
+  onboarding_message_content: string;
+}
+
+async function getOnboardingConfig(location: OfficeLocation): Promise<OnboardingConfig> {
+  const client = await getOrCreateClient();
+  const result = await client.query(
+    'SELECT admin_user_slack_ids, onboarding_message_content FROM onboarding_config WHERE location = $1',
+    [location],
+  );
+  if (result.rows.length === 0) {
+    throw new Error(`No onboarding config found for location: ${location}`);
+  }
+  return result.rows[0] as OnboardingConfig;
+}
+
 export {
   getOrCreateClient,
+  checkDbConnection,
   insertOrUpdateDoc,
   getDocBySource,
   deleteDoc,
@@ -786,4 +815,5 @@ export {
   saveFeedback,
   upsertNotionDataForMember,
   updateMembersFromNotion,
+  getOnboardingConfig,
 };

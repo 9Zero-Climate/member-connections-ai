@@ -1,4 +1,5 @@
 import type {
+  AuthTestResponse,
   ConversationsHistoryArguments,
   ConversationsRepliesArguments,
   ConversationsRepliesResponse,
@@ -18,6 +19,7 @@ export interface UserInfo {
   time_zone?: string;
   time_zone_offset?: number;
   source?: string;
+  is_admin?: boolean;
 }
 
 const sortSlackMessagesByTimestamp = (messages: MessageElement[] | undefined): MessageElement[] => {
@@ -114,6 +116,7 @@ export const fetchUserInfo = async (client: WebClient, userId: string): Promise<
   if (!userResponse.ok || !userResponse.user) {
     throw new Error(`Failed to fetch user info for ${userId}: ${userResponse.error || 'Unknown error'}`);
   }
+  logger.debug({ userResponse }, 'User info fetched');
   const user = userResponse.user;
   const userProfile = user.profile;
   return {
@@ -122,6 +125,7 @@ export const fetchUserInfo = async (client: WebClient, userId: string): Promise<
     real_name: userProfile?.real_name,
     time_zone: user.tz,
     time_zone_offset: user.tz_offset,
+    is_admin: user.is_admin,
   };
 };
 
@@ -136,11 +140,21 @@ export const addFeedbackHintReactions = async (client: WebClient, channel: strin
   ]);
 };
 
-export const getBotUserId = async (client: WebClient): Promise<string> => {
-  const authTest = await client.auth.test();
-  if (!authTest.ok || !authTest.bot_id) {
-    throw new Error('Could not fetch bot user ID via auth.test');
+const getAuthInfo = async (client: WebClient): Promise<AuthTestResponse> => {
+  const authTestResponse = await client.auth.test();
+  if (!authTestResponse.ok) {
+    throw new Error('Could not fetch auth info via auth.test');
   }
-  logger.info({ botUserId: authTest.bot_id }, 'Fetched bot user ID via auth.test');
-  return authTest.bot_id;
+  logger.debug({ authTestResponse }, 'Fetched auth info via auth.test');
+  return authTestResponse;
+};
+
+export const getBotId = async (client: WebClient): Promise<string> => {
+  const authInfo = await getAuthInfo(client);
+  return authInfo.bot_id as string;
+};
+
+export const getBotUserId = async (client: WebClient): Promise<string> => {
+  const authInfo = await getAuthInfo(client);
+  return authInfo.user_id as string;
 };

@@ -71,12 +71,13 @@ async function processMessages(messages: SlackMessage[], channelId: string, batc
  */
 export async function syncSlackChannels(channelNames: string[], syncOptionOverrides?: SlackSyncOptions): Promise<void> {
   logger.info(`Starting Slack sync for channels: ${channelNames.join(', ')}`);
-  validateConfig(process.env, ConfigContext.SyncSlack);
 
   const syncOptions = { ...defaultSyncOptions, ...syncOptionOverrides };
   const { limit, oldest, newest: latest, batchSize } = syncOptions;
 
   try {
+    validateConfig(process.env, ConfigContext.SyncSlack);
+
     for (const channelName of channelNames) {
       logger.info(`Syncing channel: ${channelName}`);
       // Get channel ID

@@ -37,9 +37,10 @@ type MemberWithLinkedInUrl = MemberWithLinkedInUpdateMetadata & { linkedin_url: 
  */
 export async function syncLinkedIn(syncOptionOverrides?: LinkedInSyncOptionOverrides): Promise<void> {
   logger.info('Starting LinkedIn profile synchronization...');
-  validateConfig(process.env, ConfigContext.SyncLinkedIn);
 
   try {
+    validateConfig(process.env, ConfigContext.SyncLinkedIn);
+
     const { maxUpdates, allowedAgeDays } = getValidSyncOptions(syncOptionOverrides);
 
     // Get all members along with their last linkedin update times
@@ -285,7 +286,7 @@ export async function createLinkedInDocuments(
       });
     }
   } catch (error) {
-    logger.error('Error creating LinkedIn documents:', error);
+    logger.error(error, 'Error creating LinkedIn documents');
     throw error;
   }
 }

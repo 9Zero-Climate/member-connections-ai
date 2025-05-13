@@ -1,17 +1,16 @@
 import type { SayFn } from '@slack/bolt';
 import type { WebClient } from '@slack/web-api';
 import type { OpenAI } from 'openai';
-import type { ChatCompletionTool } from 'openai/resources/chat';
 import { config } from '../config';
 import { logger } from '../services/logger';
-import { type ToolCall, getToolCallShortDescription, toolImplementations, tools } from '../services/tools';
+import { type ToolCall, getToolCallShortDescription, getToolImplementationsMap, getToolSpecs } from '../services/tools';
 import ResponseManager from './ResponseManager';
 import executeToolCalls from './executeToolCalls';
 import { type SlackMessage, buildInitialLlmThread } from './initialLlmThread';
 import { convertSlackHistoryToLLMHistory, packToolCallInfoIntoSlackMessageMetadata } from './messagePacking';
 import { addFeedbackHintReactions, fetchSlackThreadAndChannelContext } from './slackInteraction';
 import { fetchSlackThreadMessages } from './slackInteraction';
-import { getBotUserId } from './slackInteraction';
+import { getBotId } from './slackInteraction';
 import { fetchUserInfo } from './slackInteraction';
 import type { ChatMessage } from './types';
 
@@ -26,6 +25,7 @@ export const runLlmConversation = async (
   initialLlmThread: ChatMessage[],
   slackChannel: string,
   triggeringMessageTs: string, // Can be user message ts or app_mention ts
+  userIsAdmin: boolean,
 ): Promise<string | undefined> => {
   const llmThread = [...initialLlmThread];
   let remainingLlmLoopsAllowed = config.maxToolCallIterations;
@@ -40,7 +40,7 @@ export const runLlmConversation = async (
     const streamFromLlm = await llmClient.chat.completions.create({
       model: config.modelName,
       messages: llmThread,
-      tools: tools as ChatCompletionTool[],
+      tools: getToolSpecs(userIsAdmin),
       tool_choice: remainingLlmLoopsAllowed === 0 ? 'none' : 'auto',
       stream: true,
     });
@@ -115,6 +115,7 @@ export const runLlmConversation = async (
     });
 
     // Execute tools and add results to history
+    const toolImplementations = getToolImplementationsMap({ slackClient: client, userIsAdmin });
     const toolCallAndResultMessages: ChatMessage[] = await executeToolCalls(validToolCalls, toolImplementations);
     llmThread.push(...toolCallAndResultMessages);
   }
@@ -188,7 +189,7 @@ export const handleIncomingMessage = async ({
     }
 
     const userInfo = await fetchUserInfo(client, userId);
-    const botUserId = await getBotUserId(client);
+    const botUserId = await getBotId(client);
     const threadHistoryForLLM = convertSlackHistoryToLLMHistory(slackMessages, triggeringMessageTs);
     const initialLlmThread = buildInitialLlmThread(threadHistoryForLLM, userInfo, text, botUserId);
 
@@ -199,6 +200,7 @@ export const handleIncomingMessage = async ({
       initialLlmThread,
       slackChannel,
       effectiveThreadTs,
+      userInfo.is_admin || false,
     );
 
     // Add feedback reactions if the conversation resulted in a final message
@@ -233,6 +235,6 @@ export const handleIncomingMessage = async ({
         channel: slackChannel,
         timestamp: triggeringMessageTs,
       })
-      .catch((err: unknown) => logger.error({ error: err }, 'Failed to remove thinking_face reaction'));
+      .catch((error: unknown) => logger.error(error, 'Failed to remove thinking_face reaction'));
   }
 };

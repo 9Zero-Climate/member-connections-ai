@@ -24,9 +24,10 @@ import {
  */
 export async function syncOfficeRnD(): Promise<void> {
   logger.info('Starting OfficeRnD sync...');
-  validateConfig(process.env, ConfigContext.SyncOfficeRnD);
 
   try {
+    validateConfig(process.env, ConfigContext.SyncOfficeRnD);
+
     // 1. Fetch data
     const officeRndMembersData = await getAllOfficeRnDMembersData();
 

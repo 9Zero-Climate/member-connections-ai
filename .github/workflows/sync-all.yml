@@ -91,3 +91,21 @@ jobs:
             sea-events \
             sea-ag \
             cdr
+  notify-slack-on-failure:
+    name: Notify Slack on Failure
+    runs-on: ubuntu-latest
+    if: ${{ always() && (needs.sync.result == 'failure' || needs.sync.result == 'timed_out') }}
+    needs:
+      - sync
+    steps:
+      - uses: actions/checkout@v2
+      - name: Slack Notification
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_USERNAME: Fabric
+          MSG_MINIMAL: actions url
+          SLACK_TITLE: Nightly Sync Failed
+          SLACK_MESSAGE: This means we have failed to sync some or all new data from our external sources (e.g. OfficeRnD, LinkedIn, etc), so the Fabric bot won't have the latest information. Check GitHub Action logs via link above for more detail
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_COLOR: failure
+          SLACK_FOOTER: ""
