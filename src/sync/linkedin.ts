@@ -27,7 +27,7 @@ type LinkedInSyncOptionOverrides =
 
 const DEFAULT_MAX_UPDATES = 100;
 
-type MemberWithLinkedInUrl = MemberWithLinkedInUpdateMetadata & { linkedin_url: string };
+type MemberWithLinkedInUpdateMetadataAndUrl = MemberWithLinkedInUpdateMetadata & { linkedin_url: string };
 
 /**
  * Sync data from LinkedIn. This is expensive, so we are careful to only fetch the data we really need
@@ -69,6 +69,34 @@ export async function syncLinkedIn(syncOptionOverrides?: LinkedInSyncOptionOverr
   }
 }
 
+export const updateLinkedinForOfficerndIdIfNeeded = async (officerndId: string): Promise<void> => {
+  const membersWithLastUpdate = await getMembersWithLastLinkedInUpdates(officerndId);
+  if (membersWithLastUpdate.length === 0) {
+    logger.error(
+      { officerndId },
+      'Could not get last linkedin update for officerndId - member probably not inserted yet',
+    );
+    throw new Error('Could not get last linkedin update for officerndId - member probably not inserted yet');
+  }
+
+  const member = membersWithLastUpdate[0];
+  const hasLinkedInUrl = member?.linkedin_url !== null;
+  const neverUpdated = member?.last_linkedin_update === null;
+  const stale = member?.last_linkedin_update && needsLinkedInUpdate(member.last_linkedin_update);
+
+  const shouldUpdate = hasLinkedInUrl && (neverUpdated || stale);
+
+  if (!shouldUpdate) {
+    logger.info({ membersWithLastUpdate, officerndId }, 'No LinkedIn update needed');
+    return;
+  }
+
+  const profileData = await getLinkedInProfile(member.linkedin_url as string);
+  if (profileData) {
+    await createLinkedInDocuments(officerndId, member.name, member.linkedin_url as string, profileData);
+  }
+};
+
 const isValidNumber = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value);
 const isValidOption = (value: unknown): value is number | undefined => value === undefined || isValidNumber(value);
 
@@ -103,7 +131,7 @@ export function getMembersToUpdate(
   members: MemberWithLinkedInUpdateMetadata[],
   maxUpdates = DEFAULT_MAX_UPDATES,
   allowedAgeDays = DEFAULT_LINKEDIN_PROFLE_ALLOWED_AGE_DAYS,
-): MemberWithLinkedInUrl[] {
+): MemberWithLinkedInUpdateMetadataAndUrl[] {
   const now = Date.now();
   const minimumUpdateAge = allowedAgeDays * MILLISECONDS_PER_DAY;
   const cutoffTime = now - minimumUpdateAge;
@@ -112,7 +140,7 @@ export function getMembersToUpdate(
   //  - members for whom we have a LinkedIn url
   //  - members who actually need updates (last update is before cutoff time)
   const filteredMembers = members
-    .filter((member): member is MemberWithLinkedInUrl => member.linkedin_url !== null)
+    .filter((member): member is MemberWithLinkedInUpdateMetadataAndUrl => member.linkedin_url !== null)
     .filter((member) => {
       const lastUpdate = member.last_linkedin_update;
       const updateNeeded = !lastUpdate || lastUpdate < cutoffTime;

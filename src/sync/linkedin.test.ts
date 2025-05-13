@@ -5,6 +5,7 @@ import {
   getValidSyncOptions,
   needsLinkedInUpdate,
   syncLinkedIn,
+  updateLinkedinForOfficerndIdIfNeeded,
 } from './linkedin';
 
 jest.mock('../services/proxycurl', () => mockProxycurlService);
@@ -434,5 +435,99 @@ describe('needsLinkedInUpdate', () => {
     const update = Date.now() - 31 * 24 * 60 * 60 * 1000; // 31 days ago
     expect(needsLinkedInUpdate(update, 30 * 24 * 60 * 60 * 1000)).toBe(true);
     expect(needsLinkedInUpdate(update, 32 * 24 * 60 * 60 * 1000)).toBe(false);
+  });
+});
+
+describe('updateLinkedinForOfficerndIdIfNeeded', () => {
+  const OFFICERND_ID_TEST = 'test-officernd-id';
+  const MEMBER_NAME_TEST = 'Test Member Name';
+  const LINKEDIN_URL_TEST = 'https://linkedin.com/in/testmember';
+  // Define locally for tests (90 days in ms) - matches value in ./linkedin.ts
+  const LINKEDIN_PROFILE_AGE_DAYS = 90;
+  const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    // Default mock implementations
+    mockDatabaseService.getMembersWithLastLinkedInUpdates.mockResolvedValue([
+      {
+        officernd_id: OFFICERND_ID_TEST,
+        name: MEMBER_NAME_TEST,
+        linkedin_url: LINKEDIN_URL_TEST,
+        last_linkedin_update: null, // Default to never updated
+      },
+    ]);
+    mockProxycurlService.getLinkedInProfile.mockResolvedValue(mockLinkedInProfile);
+  });
+
+  it('throws an error if member cannot be fetched', async () => {
+    mockDatabaseService.getMembersWithLastLinkedInUpdates.mockResolvedValue([]);
+    await expect(updateLinkedinForOfficerndIdIfNeeded(OFFICERND_ID_TEST)).rejects.toThrow(
+      'Could not get last linkedin update for officerndId - member probably not inserted yet',
+    );
+  });
+
+  it('does not update if member has no LinkedIn URL', async () => {
+    mockDatabaseService.getMembersWithLastLinkedInUpdates.mockResolvedValue([
+      {
+        officernd_id: OFFICERND_ID_TEST,
+        name: MEMBER_NAME_TEST,
+        linkedin_url: null,
+        last_linkedin_update: null,
+      },
+    ]);
+
+    await updateLinkedinForOfficerndIdIfNeeded(OFFICERND_ID_TEST);
+
+    expect(mockProxycurlService.getLinkedInProfile).not.toHaveBeenCalled();
+  });
+
+  it('does not update if LinkedIn data is recent enough', async () => {
+    const recentUpdate = Date.now() - (LINKEDIN_PROFILE_AGE_DAYS - 1) * ONE_DAY_MS;
+    mockDatabaseService.getMembersWithLastLinkedInUpdates.mockResolvedValue([
+      {
+        officernd_id: OFFICERND_ID_TEST,
+        name: MEMBER_NAME_TEST,
+        linkedin_url: LINKEDIN_URL_TEST,
+        last_linkedin_update: recentUpdate,
+      },
+    ]);
+
+    await updateLinkedinForOfficerndIdIfNeeded(OFFICERND_ID_TEST);
+
+    expect(mockProxycurlService.getLinkedInProfile).not.toHaveBeenCalled();
+  });
+
+  it('updates if LinkedIn data is missing (null last_linkedin_update)', async () => {
+    // Default mock setup already covers this case (last_linkedin_update: null)
+    await updateLinkedinForOfficerndIdIfNeeded(OFFICERND_ID_TEST);
+
+    expect(mockProxycurlService.getLinkedInProfile).toHaveBeenCalledWith(LINKEDIN_URL_TEST);
+  });
+
+  it('updates if LinkedIn data is stale', async () => {
+    const staleUpdate = Date.now() - (LINKEDIN_PROFILE_AGE_DAYS + 1) * ONE_DAY_MS;
+    mockDatabaseService.getMembersWithLastLinkedInUpdates.mockResolvedValue([
+      {
+        officernd_id: OFFICERND_ID_TEST,
+        name: MEMBER_NAME_TEST,
+        linkedin_url: LINKEDIN_URL_TEST,
+        last_linkedin_update: staleUpdate,
+      },
+    ]);
+
+    await updateLinkedinForOfficerndIdIfNeeded(OFFICERND_ID_TEST);
+
+    expect(mockProxycurlService.getLinkedInProfile).toHaveBeenCalledWith(LINKEDIN_URL_TEST);
+  });
+
+  it('does not create documents if LinkedIn profile fetch fails', async () => {
+    mockProxycurlService.getLinkedInProfile.mockResolvedValue(null); // Simulate fetch failure
+
+    await updateLinkedinForOfficerndIdIfNeeded(OFFICERND_ID_TEST);
+
+    expect(mockProxycurlService.getLinkedInProfile).toHaveBeenCalledWith(LINKEDIN_URL_TEST);
+    // Should still make the call but with no documents created
+    expect(mockDatabaseService.deleteTypedDocumentsForMember).not.toHaveBeenCalled();
   });
 });

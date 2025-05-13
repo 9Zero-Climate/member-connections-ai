@@ -4,7 +4,7 @@ import type { Express } from 'express';
 import { registerAssistantAndHandlers } from './assistant';
 import { config } from './config';
 import { boltLogger, logUncaughtErrors, logger } from './services/logger';
-import { handleCheckinEvent } from './sync/officernd';
+import { handleOfficeRnDWebhook } from './sync/officernd';
 
 logUncaughtErrors(logger);
 
@@ -37,13 +37,13 @@ expressApp.post('/officernd-webhook', async (req, res) => {
   logger.info({ body }, 'Handling OfficeRND webhook');
 
   try {
-    await handleCheckinEvent(body);
+    await handleOfficeRnDWebhook(body);
   } catch (error) {
-    logger.error(error);
+    logger.error(error, 'Error handling OfficeRnD webhook');
     res.status(400).send((error as Error).message);
   }
 
-  res.status(200).send('Checkin synced');
+  res.status(200).send('Webhook handled successfully');
 });
 
 // Start the Express server

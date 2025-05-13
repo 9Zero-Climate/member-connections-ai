@@ -1,6 +1,12 @@
 import { mockDatabaseService, mockLoggerService, mockOfficeRndService } from '../services/mocks'; // These have to be imported before the libraries they are going to mock are imported
-import type { OfficeRnDMemberData } from '../services/officernd';
-import { createOfficeRnDDocuments, handleCheckinEvent, syncOfficeRnD } from './officernd';
+import type { OfficeRnDMemberData, OfficeRnDRawWebhookPayload } from '../services/officernd';
+import {
+  createOfficeRnDDocuments,
+  handleCheckinEvent,
+  handleMemberEvent,
+  handleOfficeRnDWebhook,
+  syncOfficeRnD,
+} from './officernd';
 
 jest.mock('../services/officernd', () => mockOfficeRndService);
 jest.mock('../services/database', () => mockDatabaseService);
@@ -227,5 +233,186 @@ describe('handleCheckinEvent', () => {
       },
     };
     await expect(handleCheckinEvent(payloadWithNoOffice)).rejects.toThrow(/checkin.office missing/);
+  });
+});
+
+describe('handleMemberEvent', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockOfficeRndService.cleanMember.mockImplementation((member) => ({
+      id: member._id,
+      name: 'Test User',
+      slackId: 'U123',
+      linkedinUrl: null,
+      location: 'Seattle',
+    }));
+
+    // Mock the LinkedIn update check to avoid errors
+    mockDatabaseService.getMembersWithLastLinkedInUpdates.mockResolvedValue([
+      {
+        id: 'member-id-1',
+        name: 'Test User',
+        linkedin_url: null,
+        last_linkedin_update: Date.now(),
+      },
+    ]);
+
+    // Ensure the update function always resolves
+    mockDatabaseService.updateLinkedinForOfficerndIdIfNeeded.mockResolvedValue(undefined);
+  });
+
+  it('deletes inactive member', async () => {
+    const mockPayload: OfficeRnDRawWebhookPayload = {
+      event: 'event-id-1',
+      eventType: 'member.updated',
+      data: {
+        object: {
+          _id: 'member-id-1',
+          calculatedStatus: 'inactive',
+          name: 'Member Name',
+          office: '',
+          properties: {},
+        },
+      },
+      createdAt: '2023-01-01T00:00:00Z',
+    };
+
+    await handleMemberEvent(mockPayload);
+
+    expect(mockDatabaseService.deleteMember).toHaveBeenCalledWith('member-id-1');
+    expect(mockDatabaseService.deleteTypedDocumentsForMember).toHaveBeenCalledWith('member-id-1', 'officernd_');
+    expect(mockDatabaseService.deleteLinkedinDocumentsForOfficerndId).toHaveBeenCalledWith('member-id-1');
+    expect(mockDatabaseService.bulkUpsertMembers).not.toHaveBeenCalled();
+  });
+
+  it('upserts active member', async () => {
+    const mockPayload: OfficeRnDRawWebhookPayload = {
+      event: 'event-id-1',
+      eventType: 'member.updated',
+      data: {
+        object: {
+          _id: 'member-id-1',
+          calculatedStatus: 'active',
+          name: 'Member Name',
+          office: '',
+          properties: {},
+        },
+      },
+      createdAt: '2023-01-01T00:00:00Z',
+    };
+
+    await handleMemberEvent(mockPayload);
+
+    // Should have cleaned and prepared the member for the database
+    expect(mockOfficeRndService.cleanMember).toHaveBeenCalled();
+
+    // Should have upserted the member
+    expect(mockDatabaseService.bulkUpsertMembers).toHaveBeenCalledWith([
+      {
+        officernd_id: 'member-id-1',
+        name: 'Test User',
+        slack_id: 'U123',
+        linkedin_url: null,
+        location: 'Seattle',
+      },
+    ]);
+
+    // Should have deleted documents
+    expect(mockDatabaseService.deleteTypedDocumentsForMember).toHaveBeenCalledWith('member-id-1', 'officernd_');
+
+    // NOTE: We're not testing updateLinkedinForOfficerndIdIfNeeded here
+    // since it's implementation details are tested elsewhere
+  });
+});
+
+describe('handleOfficeRnDWebhook', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+
+    // Add mockImplementation for cleanMember here to ensure it's available
+    mockOfficeRndService.cleanMember.mockImplementation((member) => ({
+      id: member._id,
+      name: 'Test User',
+      slackId: 'U123',
+      linkedinUrl: null,
+      location: 'Seattle',
+    }));
+
+    // Mock the LinkedIn update check to avoid errors
+    mockDatabaseService.getMembersWithLastLinkedInUpdates.mockResolvedValue([
+      {
+        id: 'member-id-1',
+        name: 'Test User',
+        linkedin_url: null,
+        last_linkedin_update: Date.now(),
+      },
+    ]);
+  });
+
+  it('routes checkin events correctly', async () => {
+    const mockPayload: OfficeRnDRawWebhookPayload = {
+      event: 'event-id-1',
+      eventType: 'checkin.created',
+      data: {
+        object: {
+          member: 'member-id-1',
+          office: 'office-id-1',
+          start: '2023-01-01',
+          end: null,
+          createdAt: '2023-01-01',
+          createdBy: 'user-1',
+        },
+      },
+      createdAt: '2023-01-01T00:00:00Z',
+    };
+
+    await handleOfficeRnDWebhook(mockPayload);
+
+    // Should call handleCheckinEvent
+    expect(mockDatabaseService.updateMember).toHaveBeenCalled();
+  });
+
+  it('routes member events correctly', async () => {
+    // Use spyOn for better visibility
+    const bulkUpsertSpy = jest.spyOn(mockDatabaseService, 'bulkUpsertMembers');
+
+    const mockPayload: OfficeRnDRawWebhookPayload = {
+      event: 'event-id-1',
+      eventType: 'member.created',
+      data: {
+        object: {
+          _id: 'member-id-1',
+          calculatedStatus: 'active',
+          name: 'Member Name',
+          office: '',
+          properties: {},
+        },
+      },
+      createdAt: '2023-01-01T00:00:00Z',
+    };
+
+    await handleOfficeRnDWebhook(mockPayload);
+
+    // Should call handleMemberEvent which then calls bulkUpsertMembers
+    expect(bulkUpsertSpy).toHaveBeenCalled();
+  });
+
+  it('throws error for unsupported event types', async () => {
+    const mockPayload: OfficeRnDRawWebhookPayload = {
+      event: 'event-id-1',
+      eventType: 'unsupported.event',
+      data: {
+        object: {
+          _id: 'member-id-1',
+          calculatedStatus: 'active',
+          name: 'Member Name',
+          office: '',
+          properties: {},
+        },
+      },
+      createdAt: '2023-01-01T00:00:00Z',
+    };
+
+    await expect(handleOfficeRnDWebhook(mockPayload)).rejects.toThrow(/Unsupported event type/);
   });
 });

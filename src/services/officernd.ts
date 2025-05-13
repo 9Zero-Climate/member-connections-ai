@@ -6,6 +6,8 @@ import { logger } from './logger';
 
 const OFFICERND_API_URL = 'https://app.officernd.com/api/v1';
 const OFFICERND_ORG_SLUG = config.officerndOrgSlug;
+// These are the only members that we care about. All others should be ignored/purged as they are nonmembers or former members
+export const OFFICERND_ACTIVE_MEMBER_STATUS = 'active';
 
 type OfficeRnDTokenResponse = {
   access_token: string;
@@ -14,7 +16,7 @@ type OfficeRnDTokenResponse = {
 };
 
 // The shape of data returned directly from OfficeRnD fetch
-type OfficeRnDRawMemberData = {
+export type OfficeRnDRawMemberData = {
   // First-class ORND properties
   _id: string;
   name: string;
@@ -32,9 +34,10 @@ type OfficeRnDRawMemberData = {
     Type?: string[]; // e.g. Startup, Investor, Ecosystem Services, Nonprofit, Corporation, etc..
     CurrentRole?: string;
   };
+  calculatedStatus: string;
 };
 
-type OfficeRnDRawCheckinData = {
+export type OfficeRnDRawCheckinData = {
   member: string; // member id
   team?: string; // team (aka company) id
   start: string; // start date in ISO string format
@@ -49,8 +52,8 @@ export type OfficeRnDRawWebhookPayload = {
   event: string;
   eventType: string;
   data: {
-    object: OfficeRnDRawCheckinData; // This could be other ORND entities also, but for now we only use webhooks for checkins
-    previousAttributes?: Partial<OfficeRnDRawCheckinData>;
+    object: OfficeRnDRawCheckinData | OfficeRnDRawMemberData;
+    previousAttributes?: Partial<OfficeRnDRawCheckinData> | Partial<OfficeRnDRawMemberData>;
   };
   createdAt: string;
 };
@@ -118,6 +121,19 @@ async function getAccessToken(): Promise<string> {
   return accessToken;
 }
 
+export const cleanMember = (member: OfficeRnDRawMemberData): OfficeRnDMemberData => ({
+  id: member._id,
+  name: member.name,
+  location: getOfficeLocation(member.office),
+  slackId: member.properties.slack_id || null,
+  linkedinUrl: getMemberLinkedin(member),
+  sector: member.properties.Sector,
+  subsector: member.properties.Subsector,
+  blurb: member.properties.Blurb,
+  type: member.properties.Type,
+  currentRole: member.properties.CurrentRole,
+});
+
 export async function getAllOfficeRnDMembersData(): Promise<OfficeRnDMemberData[]> {
   logger.info('Fetching members from OfficeRnD...');
 
@@ -127,7 +143,7 @@ export async function getAllOfficeRnDMembersData(): Promise<OfficeRnDMemberData[
 
   const token = await getAccessToken();
   const response = await fetch(
-    `${OFFICERND_API_URL}/organizations/${OFFICERND_ORG_SLUG}/members?calculatedStatus=active&$limit=10000`,
+    `${OFFICERND_API_URL}/organizations/${OFFICERND_ORG_SLUG}/members?calculatedStatus=${OFFICERND_ACTIVE_MEMBER_STATUS}&$limit=10000`,
     {
       headers: {
         Authorization: `Bearer ${token}`,
@@ -141,20 +157,7 @@ export async function getAllOfficeRnDMembersData(): Promise<OfficeRnDMemberData[
 
   const rawMembers = (await response.json()) as OfficeRnDRawMemberData[];
 
-  const members = rawMembers.map((member): OfficeRnDMemberData => {
-    return {
-      id: member._id,
-      name: member.name,
-      location: getOfficeLocation(member.office),
-      slackId: member.properties.slack_id || null,
-      linkedinUrl: getMemberLinkedin(member),
-      sector: member.properties.Sector,
-      subsector: member.properties.Subsector,
-      blurb: member.properties.Blurb,
-      type: member.properties.Type,
-      currentRole: member.properties.CurrentRole,
-    };
-  });
+  const members = rawMembers.map(cleanMember);
 
   logger.info(`Fetched ${members.length} active members from OfficeRnD.`);
 

@@ -1,7 +1,10 @@
 import { ConfigContext, validateConfig } from '../config';
 import {
+  type BasicMemberForUpsert,
   bulkUpsertMembers,
   closeDbConnection,
+  deleteLinkedinDocumentsForOfficerndId,
+  deleteMember,
   deleteTypedDocumentsForMember,
   insertOrUpdateDoc,
   updateMember,
@@ -9,11 +12,27 @@ import {
 import { normalizeLinkedInUrl } from '../services/linkedin';
 import { logger } from '../services/logger';
 import {
+  OFFICERND_ACTIVE_MEMBER_STATUS,
   type OfficeRnDMemberData,
+  type OfficeRnDRawCheckinData,
+  type OfficeRnDRawMemberData,
   type OfficeRnDRawWebhookPayload,
+  cleanMember,
   getAllOfficeRnDMembersData,
   getOfficeLocation,
 } from '../services/officernd';
+import { updateLinkedinForOfficerndIdIfNeeded } from './linkedin';
+
+export const prepMemberForDb = (orndMember: OfficeRnDMemberData): BasicMemberForUpsert => {
+  const { id, name, slackId, linkedinUrl, location } = orndMember;
+  return {
+    name,
+    officernd_id: id,
+    slack_id: slackId,
+    linkedin_url: linkedinUrl ? normalizeLinkedInUrl(linkedinUrl) : null,
+    location,
+  };
+};
 
 /**
  * Sync data from OfficeRnD
@@ -31,15 +50,7 @@ export async function syncOfficeRnD(): Promise<void> {
     const officeRndMembersData = await getAllOfficeRnDMembersData();
 
     // 2. Upsert members
-    const members = officeRndMembersData.map(({ id, name, slackId, linkedinUrl, location }) => {
-      return {
-        name,
-        officernd_id: id,
-        slack_id: slackId,
-        linkedin_url: linkedinUrl ? normalizeLinkedInUrl(linkedinUrl) : null,
-        location,
-      };
-    });
+    const members = officeRndMembersData.map(prepMemberForDb);
     await bulkUpsertMembers(members);
 
     // 3. Replace RAG docs
@@ -109,7 +120,7 @@ export const handleCheckinEvent = async (payload: OfficeRnDRawWebhookPayload) =>
     throw new Error(`Unsupported event type: ${payload.eventType}`);
   }
 
-  const checkin = payload.data.object;
+  const checkin = payload.data.object as OfficeRnDRawCheckinData;
 
   if (checkin.office == null) {
     throw new Error(`checkin.office missing, can't set checkin location`);
@@ -122,4 +133,39 @@ export const handleCheckinEvent = async (payload: OfficeRnDRawWebhookPayload) =>
   await updateMember(checkin.member, {
     checkin_location_today: checkin.end == null ? getOfficeLocation(checkin.office) : null,
   });
+};
+
+export const handleMemberEvent = async (payload: OfficeRnDRawWebhookPayload) => {
+  logger.info({ payload }, 'Handling member created/updated event');
+  const rawMember = payload.data.object as OfficeRnDRawMemberData;
+
+  if (rawMember.calculatedStatus !== OFFICERND_ACTIVE_MEMBER_STATUS) {
+    logger.info({ orndMemberId: rawMember._id }, 'Member is not active, removing');
+    await deleteMember(rawMember._id);
+    await deleteOfficeRnDDocuments(rawMember._id);
+    await deleteLinkedinDocumentsForOfficerndId(rawMember._id);
+    return;
+  }
+
+  logger.info({ rawMember }, 'Member is active, upserting');
+  const cleanedMember = cleanMember(rawMember);
+  const memberForUpsert = prepMemberForDb(cleanedMember);
+
+  await bulkUpsertMembers([memberForUpsert]);
+  await deleteOfficeRnDDocuments(cleanedMember.id);
+  await createOfficeRnDDocuments(cleanedMember);
+  await updateLinkedinForOfficerndIdIfNeeded(cleanedMember.id);
+
+  logger.info({ payload }, 'Member created/updated');
+};
+
+export const handleOfficeRnDWebhook = async (payload: OfficeRnDRawWebhookPayload) => {
+  if (['checkin.created', 'checkin.updated'].includes(payload.eventType)) {
+    await handleCheckinEvent(payload);
+  } else if (['member.created', 'member.updated'].includes(payload.eventType)) {
+    await handleMemberEvent(payload);
+  } else {
+    logger.warn({ payload }, `Unsupported event type: ${payload.eventType}`);
+    throw new Error(`Unsupported event type: ${payload.eventType}`);
+  }
 };

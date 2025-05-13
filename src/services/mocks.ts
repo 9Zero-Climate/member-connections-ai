@@ -11,6 +11,8 @@ export const mockEmbeddingsService = {
 export const mockOfficeRndService = {
   getAllOfficeRnDMembersData: jest.fn(),
   getOfficeLocation: jest.fn(),
+  cleanMember: jest.fn(),
+  OFFICERND_ACTIVE_MEMBER_STATUS: 'active',
 };
 
 export const mockNotionService = {
@@ -28,6 +30,9 @@ export const mockDatabaseService = {
   insertOrUpdateDoc: jest.fn(),
   getOnboardingConfig: jest.fn(),
   getMemberFromSlackId: jest.fn(),
+  deleteMember: jest.fn(),
+  deleteLinkedinDocumentsForOfficerndId: jest.fn(),
+  updateLinkedinForOfficerndIdIfNeeded: jest.fn(),
   OfficeLocation: {
     SEATTLE: 'Seattle',
     SAN_FRANCISCO: 'San Francisco',
