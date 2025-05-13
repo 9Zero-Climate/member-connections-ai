@@ -1,11 +1,14 @@
 import { mockDatabaseService, mockLoggerService, mockProxycurlService } from '../services/mocks'; // These have to be imported before the libraries they are going to mock are imported
 import {
+  MILLISECONDS_PER_DAY,
   createLinkedInDocuments,
   getMembersToUpdate,
   getValidSyncOptions,
   needsLinkedInUpdate,
   syncLinkedIn,
+  updateLinkedinForMemberIfNeeded,
 } from './linkedin';
+import { DEFAULT_LINKEDIN_PROFLE_ALLOWED_AGE_DAYS } from './linkedin_constants';
 
 jest.mock('../services/proxycurl', () => mockProxycurlService);
 jest.mock('../services/database', () => mockDatabaseService);
@@ -431,8 +434,56 @@ describe('needsLinkedInUpdate', () => {
   });
 
   it('should respect custom maxAge parameter', () => {
-    const update = Date.now() - 31 * 24 * 60 * 60 * 1000; // 31 days ago
-    expect(needsLinkedInUpdate(update, 30 * 24 * 60 * 60 * 1000)).toBe(true);
-    expect(needsLinkedInUpdate(update, 32 * 24 * 60 * 60 * 1000)).toBe(false);
+    const update = Date.now() - 31 * MILLISECONDS_PER_DAY; // 31 days ago
+    expect(needsLinkedInUpdate(update, 30 * MILLISECONDS_PER_DAY)).toBe(true);
+    expect(needsLinkedInUpdate(update, 32 * MILLISECONDS_PER_DAY)).toBe(false);
+  });
+});
+
+describe('updateLinkedinForOfficerndIdIfNeeded', () => {
+  const OFFICERND_ID_TEST = 'test-officernd-id';
+  const recentUpdate = Date.now() - (DEFAULT_LINKEDIN_PROFLE_ALLOWED_AGE_DAYS - 1) * MILLISECONDS_PER_DAY;
+  const defaultMember = {
+    officernd_id: OFFICERND_ID_TEST,
+    name: 'Test Member Name',
+    linkedin_url: 'https://linkedin.com/in/testmember',
+    last_linkedin_update: null,
+  };
+
+  it.each([
+    {
+      description: 'does not update if member has no LinkedIn URL',
+      lastLinkedinUpdate: recentUpdate,
+      member: { ...defaultMember, linkedin_url: null },
+      shouldCallProxycurl: false,
+    },
+    {
+      description: 'does not update if LinkedIn data is recent enough',
+      lastLinkedinUpdate: recentUpdate,
+      member: defaultMember,
+      shouldCallProxycurl: false,
+    },
+    {
+      description: 'updates if LinkedIn data is stale',
+      lastLinkedinUpdate: Date.now() - 100 * MILLISECONDS_PER_DAY, // 100 days ago (longer than any default),
+      member: defaultMember,
+      shouldCallProxycurl: true,
+    },
+    {
+      description: 'updates if LinkedIn data never updated (last_linkedin_update is null)',
+      lastLinkedinUpdate: null,
+      member: defaultMember,
+      shouldCallProxycurl: true,
+    },
+  ])('%s', async ({ lastLinkedinUpdate, member, shouldCallProxycurl }) => {
+    mockDatabaseService.getLastLinkedInUpdateForMember.mockResolvedValue(lastLinkedinUpdate);
+    mockDatabaseService.getMember.mockResolvedValue(member);
+
+    await updateLinkedinForMemberIfNeeded(OFFICERND_ID_TEST);
+    if (shouldCallProxycurl) {
+      expect(mockProxycurlService.getLinkedInProfile).toHaveBeenCalledWith(member.linkedin_url);
+    } else {
+      expect(mockProxycurlService.getLinkedInProfile).not.toHaveBeenCalled();
+    }
   });
 });

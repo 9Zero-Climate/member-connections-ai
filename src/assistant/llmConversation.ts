@@ -14,19 +14,29 @@ import { getBotId } from './slackInteraction';
 import { fetchUserInfo } from './slackInteraction';
 import type { ChatMessage } from './types';
 
+type RunLlmConversationArgs = {
+  llmClient: OpenAI;
+  client: WebClient;
+  responseManager: ResponseManager;
+  initialLlmThread: ChatMessage[];
+  slackChannel: string;
+  triggeringMessageTs: string;
+  userIsAdmin: boolean;
+};
+
 /**
  * Run the main LLM conversation loop, handling responses, streaming, and tool calls.
  * Return the timestamp of the last finalized assistant message, if any.
  */
-export const runLlmConversation = async (
-  llmClient: OpenAI,
-  client: WebClient,
-  responseManager: ResponseManager,
-  initialLlmThread: ChatMessage[],
-  slackChannel: string,
-  triggeringMessageTs: string, // Can be user message ts or app_mention ts
-  userIsAdmin: boolean,
-): Promise<string | undefined> => {
+export const runLlmConversation = async ({
+  llmClient,
+  client,
+  responseManager,
+  initialLlmThread,
+  slackChannel,
+  triggeringMessageTs,
+  userIsAdmin,
+}: RunLlmConversationArgs): Promise<string | undefined> => {
   const llmThread = [...initialLlmThread];
   let remainingLlmLoopsAllowed = config.maxToolCallIterations;
   let finalizedMessageTs: string | undefined;
@@ -193,15 +203,15 @@ export const handleIncomingMessage = async ({
     const threadHistoryForLLM = convertSlackHistoryToLLMHistory(slackMessages, triggeringMessageTs);
     const initialLlmThread = buildInitialLlmThread(threadHistoryForLLM, userInfo, text, botUserId);
 
-    const finalizedMessageTs = await runLlmConversation(
+    const finalizedMessageTs = await runLlmConversation({
       llmClient,
       client,
       responseManager,
       initialLlmThread,
       slackChannel,
-      effectiveThreadTs,
-      userInfo.is_admin || false,
-    );
+      triggeringMessageTs: effectiveThreadTs,
+      userIsAdmin: userInfo.is_admin || false,
+    });
 
     // Add feedback reactions if the conversation resulted in a final message
     if (finalizedMessageTs) {

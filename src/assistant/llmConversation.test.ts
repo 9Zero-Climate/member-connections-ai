@@ -113,15 +113,15 @@ describe('llmConversation', () => {
         say: mockSay,
         channelOrThreadTs: '1678886400.000001',
       });
-      const finalTs = await runLlmConversation(
-        mockLlmClientInstance,
-        mockClientInstance,
+      const finalTs = await runLlmConversation({
+        llmClient: mockLlmClientInstance,
+        client: mockClientInstance,
         responseManager,
-        [],
-        'C123',
-        '1678886400.000001',
-        false,
-      );
+        initialLlmThread: [],
+        slackChannel: 'C123',
+        triggeringMessageTs: '1678886400.000001',
+        userIsAdmin: false,
+      });
       expect(finalTs).toBeDefined();
     });
 
@@ -154,15 +154,15 @@ describe('llmConversation', () => {
         say: mockSay,
         channelOrThreadTs: '1678886400.000001',
       });
-      const finalTs = await runLlmConversation(
-        mockLlmClientInstance,
-        mockClientInstance,
+      const finalTs = await runLlmConversation({
+        llmClient: mockLlmClientInstance,
+        client: mockClientInstance,
         responseManager,
-        [],
-        'C123',
-        '1678886400.000001',
-        false,
-      );
+        initialLlmThread: [],
+        slackChannel: 'C123',
+        triggeringMessageTs: '1678886400.000001',
+        userIsAdmin: false,
+      });
       expect(finalTs).toBeDefined();
     });
   });
@@ -302,15 +302,15 @@ describe('runLlmConversation', () => {
 
     const initialThread: ChatMessage[] = [{ role: 'user', content: 'Hi' }];
 
-    const finalTs = await runLlmConversation(
-      mockLlmClient,
-      mockWebClient,
-      mockResponseManager,
-      initialThread,
-      'C123',
-      '123.456',
-      false,
-    );
+    const finalTs = await runLlmConversation({
+      llmClient: mockLlmClient,
+      client: mockWebClient,
+      responseManager: mockResponseManager,
+      initialLlmThread: initialThread,
+      slackChannel: 'C123',
+      triggeringMessageTs: '123.456',
+      userIsAdmin: false,
+    });
 
     expect(finalTs).toBe('123.456');
     expect(mockResponseManager.startNewMessageWithPlaceholder).toHaveBeenCalledWith('_thinking..._');
@@ -365,15 +365,15 @@ describe('runLlmConversation', () => {
 
     const initialThread: ChatMessage[] = [{ role: 'user', content: 'Use a tool' }];
 
-    const finalTs = await runLlmConversation(
-      mockLlmClient,
-      mockWebClient,
-      mockResponseManager,
-      initialThread,
-      'C123',
-      '123.456',
-      false,
-    );
+    const finalTs = await runLlmConversation({
+      llmClient: mockLlmClient,
+      client: mockWebClient,
+      responseManager: mockResponseManager,
+      initialLlmThread: initialThread,
+      slackChannel: 'C123',
+      triggeringMessageTs: '123.456',
+      userIsAdmin: false,
+    });
 
     expect(finalTs).toBe('123.456');
     expect(mockResponseManager.startNewMessageWithPlaceholder).toHaveBeenCalledWith('_thinking..._');

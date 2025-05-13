@@ -6,9 +6,13 @@ import {
   OfficeLocation,
   bulkUpsertMembers,
   deleteDoc,
+  deleteLinkedinDocumentsForOfficerndId,
+  deleteMember,
   findSimilar,
   getDocBySource,
+  getLastLinkedInUpdateForMember,
   getLinkedInDocumentsByMemberIdentifier,
+  getMembersWithLastLinkedInUpdates,
   getOnboardingConfig,
   getOrCreateClient,
   insertOrUpdateDoc,
@@ -403,6 +407,7 @@ describe('Database Integration Tests', () => {
         name: 'Alice Smith',
         slack_id: 'U456',
         linkedin_url: 'https://linkedin.com/in/janesmith',
+        location: null,
       };
       await bulkUpsertMembers([memberWithUpdates]);
 
@@ -508,5 +513,231 @@ describe('Database Integration Tests', () => {
         'No onboarding config found for location: NonExistentLocation',
       );
     });
+  });
+
+  describe('deleteMember', () => {
+    beforeEach(async () => {
+      // Clear members table and insert a test member
+      await testDbClient.query('DELETE FROM members CASCADE');
+      await testDbClient.query(
+        `INSERT INTO members (officernd_id, name, location)
+           VALUES
+           ('test-delete-id', 'Test Delete User', 'Seattle')`,
+      );
+    });
+
+    it('deletes an existing member', async () => {
+      await deleteMember('test-delete-id');
+      const result = await testDbClient.query("SELECT * FROM members WHERE officernd_id = 'test-delete-id'");
+      expect(result.rowCount).toBe(0);
+    });
+  });
+});
+
+describe('member last LinkedIn update', () => {
+  let testDbClient: Client;
+
+  const seattleMemberLastLinkedInUpdate = new Date(2021, 1, 1);
+  const sfMemberLastLinkedInUpdate = new Date(2022, 2, 2);
+
+  const seattleMember = {
+    officernd_id: 'seattle-member',
+    name: 'Seattle Member',
+    linkedin_url: 'https://linkedin.com/in/seattle-member',
+    location: OfficeLocation.SEATTLE,
+    created_at: new Date(),
+    updated_at: new Date(),
+  };
+  const sfMember = {
+    officernd_id: 'sf-member',
+    name: 'SF Member',
+    linkedin_url: 'https://linkedin.com/in/sf-member',
+    location: OfficeLocation.SAN_FRANCISCO,
+    created_at: new Date(),
+    updated_at: new Date(),
+  };
+  const sfMemberWithoutLinkedinOrRAGDocs = {
+    officernd_id: 'sf-member-without-linkedin',
+    name: 'SF Member without LinkedIn',
+    linkedin_url: null,
+    location: OfficeLocation.SAN_FRANCISCO,
+    created_at: new Date(),
+    updated_at: new Date(),
+  };
+
+  const seattleMemberDoc = {
+    source_type: 'linkedin_profile',
+    source_unique_id: `officernd_member_${seattleMember.officernd_id}:profile`,
+    content: 'Profile for Seattle Member',
+    embedding: generateMockEmbedding(1),
+    created_at: seattleMemberLastLinkedInUpdate,
+    updated_at: seattleMemberLastLinkedInUpdate,
+  };
+  const sfMemberDoc = {
+    source_type: 'linkedin_posts',
+    source_unique_id: `officernd_member_${sfMember.officernd_id}:posts`,
+    content: 'Posts for SF Member',
+    embedding: generateMockEmbedding(2),
+    created_at: sfMemberLastLinkedInUpdate,
+    updated_at: sfMemberLastLinkedInUpdate,
+  };
+
+  beforeAll(async () => {
+    testDbClient = await getOrCreateClient();
+    await testDbClient.query('DELETE FROM members CASCADE');
+    await testDbClient.query('DELETE FROM rag_docs');
+
+    // Insert members
+    const memberValues = [seattleMember, sfMemberWithoutLinkedinOrRAGDocs, sfMember]
+      .map(
+        (m) =>
+          `('${m.officernd_id}', '${m.name}', ${m.linkedin_url ? `'${m.linkedin_url}'` : 'NULL'}, '${m.location}', '${m.created_at.toISOString()}', '${m.updated_at.toISOString()}')`,
+      )
+      .join(',');
+    await testDbClient.query(
+      `INSERT INTO members (officernd_id, name, linkedin_url, location, created_at, updated_at) VALUES ${memberValues}`,
+    );
+
+    // Insert related docs
+    const relatedDocValues = [seattleMemberDoc, sfMemberDoc]
+      .map(
+        (d) =>
+          `('${d.source_type}', '${d.source_unique_id}', '${d.content}', '${d.created_at.toISOString()}', '${d.updated_at.toISOString()}')`,
+      )
+      .join(',');
+    await testDbClient.query(
+      `INSERT INTO rag_docs (source_type, source_unique_id, content, created_at, updated_at) VALUES ${relatedDocValues}`,
+    );
+  });
+
+  describe('getMembersWithLastLinkedInUpdates', () => {
+    it('fetches all members with their correct last LinkedIn update times', async () => {
+      const results = await getMembersWithLastLinkedInUpdates();
+
+      expect(results).toHaveLength(3);
+
+      expect(results).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: seattleMember.officernd_id,
+            last_linkedin_update: seattleMemberLastLinkedInUpdate,
+          }),
+          expect.objectContaining({
+            id: sfMemberWithoutLinkedinOrRAGDocs.officernd_id,
+            last_linkedin_update: null,
+          }),
+          expect.objectContaining({
+            id: sfMember.officernd_id,
+            last_linkedin_update: sfMemberLastLinkedInUpdate,
+          }),
+        ]),
+      );
+    });
+  });
+
+  describe('getLastLinkedInUpdateForMember', () => {
+    it.each([
+      {
+        description: 'fetches a specific member with their last LinkedIn update time when officerndId is provided',
+        officerndId: seattleMember.officernd_id,
+        expectedResult: seattleMemberLastLinkedInUpdate,
+      },
+      {
+        description: 'returns null update time if no docs exist for member',
+        officerndId: sfMemberWithoutLinkedinOrRAGDocs.officernd_id,
+        expectedResult: null,
+      },
+      {
+        description: 'returns null if the specified member does not exist',
+        officerndId: 'non-existent-member',
+        expectedResult: null,
+      },
+    ])('returns $expectedResult for $description', async ({ officerndId, expectedResult }) => {
+      const result = await getLastLinkedInUpdateForMember(officerndId);
+
+      expect(result).toEqual(expectedResult);
+    });
+  });
+});
+
+describe('deleteLinkedinDocumentsForOfficerndId', () => {
+  let testDbClient: Client;
+  const memberId1 = 'linkedin-doc-member-1';
+  const memberId2 = 'linkedin-doc-member-2'; // Member with no LinkedIn docs initially
+
+  const doc1Profile = {
+    source_type: 'linkedin_profile',
+    source_unique_id: `officernd_member_${memberId1}:profile`,
+    content: 'Profile info for member 1',
+    embedding: generateMockEmbedding(10),
+    created_at: new Date(),
+  };
+  const doc1Posts = {
+    source_type: 'linkedin_posts',
+    source_unique_id: `officernd_member_${memberId1}:post_xyz`,
+    content: 'Post by member 1',
+    embedding: generateMockEmbedding(11),
+    created_at: new Date(),
+  };
+  const docOtherMember = {
+    source_type: 'linkedin_profile',
+    source_unique_id: 'officernd_member_other-member-id:profile',
+    content: 'Profile for another member',
+    embedding: generateMockEmbedding(12),
+    created_at: new Date(),
+  };
+  const docNotLinkedin = {
+    source_type: 'slack',
+    source_unique_id: `slack_${memberId1}_123`,
+    content: 'Slack message by member 1',
+    embedding: generateMockEmbedding(13),
+    created_at: new Date(),
+  };
+  const ragDocsToInsert = [doc1Profile, doc1Posts, docOtherMember, docNotLinkedin];
+
+  beforeAll(async () => {
+    testDbClient = await getOrCreateClient();
+  });
+
+  beforeEach(async () => {
+    await testDbClient.query('DELETE FROM rag_docs');
+    for (const doc of ragDocsToInsert) {
+      await testDbClient.query(
+        'INSERT INTO rag_docs (source_type, source_unique_id, content, created_at) VALUES ($1, $2, $3, $4)',
+        [doc.source_type, doc.source_unique_id, doc.content, doc.created_at],
+      );
+    }
+  });
+
+  it('deletes only LinkedIn documents for the specified member ID', async () => {
+    await deleteLinkedinDocumentsForOfficerndId(memberId1);
+
+    // Check that member1's LinkedIn docs are gone
+    const member1Docs = await testDbClient.query(
+      `SELECT * FROM rag_docs WHERE source_unique_id LIKE 'officernd_member_${memberId1}:%' AND source_type LIKE 'linkedin_%'`,
+    );
+    expect(member1Docs.rowCount).toBe(0);
+
+    // Check that member1's non-LinkedIn docs are still there
+    const member1NonLinkedinDocs = await testDbClient.query(
+      `SELECT * FROM rag_docs WHERE source_unique_id LIKE 'slack_${memberId1}%'`,
+    );
+    expect(member1NonLinkedinDocs.rowCount).toBe(1);
+    expect(member1NonLinkedinDocs.rows[0].source_unique_id).toBe(docNotLinkedin.source_unique_id);
+
+    // Check that other member's LinkedIn docs are still there
+    const otherMemberDocs = await testDbClient.query('SELECT * FROM rag_docs WHERE source_unique_id = $1', [
+      docOtherMember.source_unique_id,
+    ]);
+    expect(otherMemberDocs.rowCount).toBe(1);
+    expect(otherMemberDocs.rows[0].source_unique_id).toBe(docOtherMember.source_unique_id);
+  });
+
+  it('does not throw an error if no LinkedIn documents exist for the member', async () => {
+    await expect(deleteLinkedinDocumentsForOfficerndId(memberId2)).resolves.not.toThrow();
+
+    // Verify no docs were deleted (as none matched)
+    const allDocs = await testDbClient.query('SELECT * FROM rag_docs');
+    expect(allDocs.rowCount).toBe(4); // Initially inserted 4 docs
   });
 });
