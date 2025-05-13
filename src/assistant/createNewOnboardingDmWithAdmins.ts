@@ -1,4 +1,5 @@
 import type { WebClient } from '@slack/web-api';
+import type { Channel } from '@slack/web-api/dist/types/response/ConversationsOpenResponse';
 import type { OfficeLocation } from '../services/database';
 import { getMemberFromSlackId, getOnboardingConfig } from '../services/database';
 import { logger } from '../services/logger';
@@ -27,6 +28,8 @@ export async function getOfficeLocationFromSlackId(slackId: string): Promise<Off
   return location;
 }
 
+const getChannelUri = ({ id, context_team_id }: Channel) => `slack://channel?team=${context_team_id}&id=${id}`;
+
 /**
  * Create a new onboarding thread with the admin users, the assistant, and the new user.
  * Welcomes the new user and sends the onboarding message content.
@@ -45,10 +48,16 @@ export async function createNewOnboardingDmWithAdmins(client: WebClient, newUser
   const conversationOpenResponse = await client.conversations.open({
     users: userIds.join(','),
   });
+  const channel = conversationOpenResponse.channel;
 
   logger.info({ conversationOpenResponse }, 'Conversation open response');
 
-  const channelId = conversationOpenResponse.channel?.id as string;
+  if (!channel?.id) {
+    logger.error({ conversationOpenResponse }, 'Failed to create onboarding thread');
+    throw new Error('Failed to create onboarding thread');
+  }
+
+  const channelId = channel.id;
 
   const userInfo = await client.users.info({ user: newUserSlackId });
   const userName = userInfo.user?.real_name || userInfo.user?.name || newUserSlackId;
@@ -88,5 +97,5 @@ export async function createNewOnboardingDmWithAdmins(client: WebClient, newUser
       ],
     });
   }
-  return channelId;
+  return getChannelUri(channel);
 }

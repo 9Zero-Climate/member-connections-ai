@@ -327,7 +327,13 @@ async function findSimilar(embedding: number[], options: SearchOptions = {}): Pr
 export async function getMemberFromSlackId(slackId: string): Promise<Member | null> {
   const client = await getOrCreateClient();
   const result = await client.query('SELECT * from members WHERE slack_id = $1', [slackId]);
+  logger.info({ result }, 'getMemberFromSlackId');
   return result.rows[0] || null;
+}
+
+export async function deleteMember(officerndId: string): Promise<void> {
+  const client = await getOrCreateClient();
+  await client.query('DELETE FROM members WHERE officernd_id = $1', [officerndId]);
 }
 
 async function updateMember(officerndId: string, updates: Partial<Member>): Promise<Member> {
@@ -384,12 +390,14 @@ async function updateMember(officerndId: string, updates: Partial<Member>): Prom
   return updatedMember;
 }
 
+export type BasicMemberForUpsert = Pick<Member, 'officernd_id' | 'name' | 'slack_id' | 'linkedin_url' | 'location'>;
+
 /**
  * Bulk insert or update members
  * @param members - Array of members to insert/update
  * @returns The inserted/updated members
  */
-async function bulkUpsertMembers(members: Partial<Member>[]): Promise<Member[]> {
+async function bulkUpsertMembers(members: BasicMemberForUpsert[]): Promise<Member[]> {
   logger.info('Upserting basic member info into database...');
   const client = await getOrCreateClient();
 
@@ -467,14 +475,18 @@ export interface MemberWithLinkedInUpdateMetadata {
 
 /**
  * Get all members with their last LinkedIn documents update times in a single query
+ * @param officerndId - Optional OfficeRnD ID to filter by. If not provided, all members will be returned.
  * @returns List of members
  */
-async function getMembersWithLastLinkedInUpdates(): Promise<MemberWithLinkedInUpdateMetadata[]> {
+const getMemberOrMembersWithLastLinkedInUpdates = async (
+  officerndId?: string | null,
+): Promise<MemberWithLinkedInUpdateMetadata[]> => {
   logger.info('Fetching Members with last LinkedIn update metadata...');
   const client = await getOrCreateClient();
 
   try {
-    const result = await client.query(`
+    const result = await client.query(
+      `
       WITH linked_in_last_updates_by_member as (
         SELECT
           member_id,
@@ -496,8 +508,11 @@ async function getMembersWithLastLinkedInUpdates(): Promise<MemberWithLinkedInUp
         linkedin_url,
         linked_in_last_updates_by_member.last_update as last_linkedin_update
       FROM members
-      LEFT JOIN linked_in_last_updates_by_member on linked_in_last_updates_by_member.member_id = members.officernd_id;
-    `);
+      LEFT JOIN linked_in_last_updates_by_member on linked_in_last_updates_by_member.member_id = members.officernd_id
+      ${officerndId ? 'WHERE members.officernd_id = $1' : ''}
+    `,
+      officerndId ? [officerndId] : [],
+    );
 
     const members: MemberWithLinkedInUpdateMetadata[] = result.rows;
 
@@ -507,7 +522,27 @@ async function getMembersWithLastLinkedInUpdates(): Promise<MemberWithLinkedInUp
     logger.error(error, 'Error getting last LinkedIn updates');
     throw error;
   }
-}
+};
+
+const getMembersWithLastLinkedInUpdates = async (): Promise<MemberWithLinkedInUpdateMetadata[]> => {
+  return getMemberOrMembersWithLastLinkedInUpdates();
+};
+
+const getLastLinkedInUpdateForMember = async (officerndId: string): Promise<number | null> => {
+  const members = await getMemberOrMembersWithLastLinkedInUpdates(officerndId);
+  return members[0]?.last_linkedin_update || null;
+};
+
+const getMember = async (officerndId: string): Promise<Member> => {
+  const client = await getOrCreateClient();
+  const result = await client.query('SELECT * FROM members WHERE officernd_id = $1', [officerndId]);
+
+  if (result.rows.length !== 1) {
+    logger.error({ result, officerndId }, `Expected 1 member, got ${result.rows.length} for officerndId`);
+    throw new Error(`Expected 1 member, got ${result.rows.length} for officerndId=${officerndId}`);
+  }
+  return result.rows[0];
+};
 
 /**
  * Get all LinkedIn documents for a given LinkedIn URL
@@ -541,6 +576,20 @@ async function getLinkedInDocuments(linkedinUrl: string): Promise<Document[]> {
     throw error;
   }
 }
+
+export const deleteLinkedinDocumentsForOfficerndId = async (officerndMemberId: string): Promise<void> => {
+  const client = await getOrCreateClient();
+  const result = await client.query(
+    `DELETE FROM rag_docs
+      WHERE source_type LIKE 'linkedin_%'
+      AND source_unique_id LIKE 'officernd_member_${officerndMemberId}:%'`,
+  );
+  const anyDeleted = result.rowCount && result.rowCount > 0;
+  logger.debug(
+    { result, officerndMemberId, anyDeleted },
+    anyDeleted ? 'Deleted LinkedIn documents for member' : 'No LinkedIn documents found to delete for member',
+  );
+};
 
 /**
  * Get all LinkedIn documents for a given member identifier. LLM-friendly.
@@ -805,7 +854,9 @@ export {
   deleteDoc,
   findSimilar,
   closeDbConnection,
+  getLastLinkedInUpdateForMember,
   getMembersWithLastLinkedInUpdates,
+  getMember,
   updateMember,
   bulkUpsertMembers,
   deleteTypedDocumentsForMember,
