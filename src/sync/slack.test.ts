@@ -119,19 +119,19 @@ describe('doesSlackMessageMatchDb', () => {
     },
   };
 
-  it('should return true for identical documents', () => {
+  it('returns true for identical documents', () => {
     const doc1 = { ...baseDoc };
     const doc2 = { ...baseDoc };
     expect(doesSlackMessageMatchDb(doc1, doc2)).toBe(true);
   });
 
-  it('should return false for different content', () => {
+  it('returns false for different content', () => {
     const doc1 = { ...baseDoc };
     const doc2 = { ...baseDoc, content: 'Different content' };
     expect(doesSlackMessageMatchDb(doc1, doc2)).toBe(false);
   });
 
-  it('should ignore undefined/null metadata fields', () => {
+  it('ignores undefined/null metadata fields', () => {
     const doc1 = {
       ...baseDoc,
       metadata: {
@@ -150,13 +150,13 @@ describe('doesSlackMessageMatchDb', () => {
     expect(doesSlackMessageMatchDb(doc1, doc2)).toBe(true);
   });
 
-  it('should handle missing metadata', () => {
+  it('handles missing metadata', () => {
     const doc1 = { ...baseDoc, metadata: undefined };
     const doc2 = { ...baseDoc, metadata: {} };
     expect(doesSlackMessageMatchDb(doc1, doc2)).toBe(true);
   });
 
-  it('should ignore database-specific fields', () => {
+  it('ignores database-specific fields', () => {
     const doc1 = {
       ...baseDoc,
       created_at: new Date('2024-03-14'),
@@ -166,13 +166,13 @@ describe('doesSlackMessageMatchDb', () => {
     expect(doesSlackMessageMatchDb(doc1, doc2)).toBe(true);
   });
 
-  it('should ignore embedding differences', () => {
+  it('ignores embedding differences', () => {
     const doc1 = { ...baseDoc, embedding: [1, 2, 3] };
     const doc2 = { ...baseDoc, embedding: [4, 5, 6] };
     expect(doesSlackMessageMatchDb(doc1, doc2)).toBe(true);
   });
 
-  it('should detect meaningful metadata differences', () => {
+  it('detects meaningful metadata differences', () => {
     const doc1 = {
       ...baseDoc,
       metadata: {
