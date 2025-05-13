@@ -327,6 +327,7 @@ async function findSimilar(embedding: number[], options: SearchOptions = {}): Pr
 export async function getMemberFromSlackId(slackId: string): Promise<Member | null> {
   const client = await getOrCreateClient();
   const result = await client.query('SELECT * from members WHERE slack_id = $1', [slackId]);
+  logger.info({ result }, 'getMemberFromSlackId');
   return result.rows[0] || null;
 }
 
