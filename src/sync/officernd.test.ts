@@ -125,11 +125,11 @@ describe('syncOfficeRnD', () => {
   });
 
   it('syncs members successfully', async () => {
-    mockOfficeRndService.getAllOfficeRnDMembersData.mockResolvedValue(mockMembersData);
+    mockOfficeRndService.getAllActiveOfficeRnDMembersData.mockResolvedValue(mockMembersData);
 
     await syncOfficeRnD();
 
-    expect(mockOfficeRndService.getAllOfficeRnDMembersData).toHaveBeenCalledTimes(1);
+    expect(mockOfficeRndService.getAllActiveOfficeRnDMembersData).toHaveBeenCalledTimes(1);
     expect(mockDatabaseService.bulkUpsertMembers).toHaveBeenCalledTimes(1);
     expect(mockDatabaseService.bulkUpsertMembers).toHaveBeenCalledWith([dbMember1, dbMember2]);
   });
@@ -137,7 +137,7 @@ describe('syncOfficeRnD', () => {
   it.each([
     {
       name: 'API error',
-      setup: () => mockOfficeRndService.getAllOfficeRnDMembersData.mockRejectedValueOnce(new Error('API Error')),
+      setup: () => mockOfficeRndService.getAllActiveOfficeRnDMembersData.mockRejectedValueOnce(new Error('API Error')),
       expectedError: 'API Error',
     },
     {
@@ -153,7 +153,7 @@ describe('syncOfficeRnD', () => {
   });
 
   it('closes db connection even after error', async () => {
-    mockOfficeRndService.getAllOfficeRnDMembersData.mockRejectedValueOnce(new Error());
+    mockOfficeRndService.getAllActiveOfficeRnDMembersData.mockRejectedValueOnce(new Error());
 
     await expect(syncOfficeRnD()).rejects.toThrow();
     expect(mockDatabaseService.closeDbConnection).toHaveBeenCalledTimes(1);

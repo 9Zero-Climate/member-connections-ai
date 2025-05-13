@@ -134,7 +134,7 @@ export const cleanMember = (member: OfficeRnDRawMemberData): OfficeRnDMemberData
   currentRole: member.properties.CurrentRole,
 });
 
-export async function getAllOfficeRnDMembersData(): Promise<OfficeRnDMemberData[]> {
+export async function getAllActiveOfficeRnDMembersData(): Promise<OfficeRnDMemberData[]> {
   logger.info('Fetching members from OfficeRnD...');
 
   if (!OFFICERND_ORG_SLUG) {

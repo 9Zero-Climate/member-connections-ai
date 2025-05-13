@@ -1,10 +1,10 @@
 import { logger } from '../../services/logger';
-import { getAllOfficeRnDMembersData } from '../../services/officernd';
+import { getAllActiveOfficeRnDMembersData } from '../../services/officernd';
 
 export async function checkOfficeRnDConnection() {
   logger.info('Attempting to connect to OfficeRnD and fetch members...');
   try {
-    const members = await getAllOfficeRnDMembersData();
+    const members = await getAllActiveOfficeRnDMembersData();
     logger.info(`Successfully fetched ${members.length} members.`);
 
     const missingLocation = members.filter((member) => member.location == null);

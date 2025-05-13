@@ -9,7 +9,7 @@ export const mockEmbeddingsService = {
 };
 
 export const mockOfficeRndService = {
-  getAllOfficeRnDMembersData: jest.fn(),
+  getAllActiveOfficeRnDMembersData: jest.fn(),
   getOfficeLocation: jest.fn(),
   cleanMember: jest.fn(),
   OFFICERND_ACTIVE_MEMBER_STATUS: 'active',

@@ -3,7 +3,7 @@ import type { OfficeRnDRawMemberData } from './officernd';
 jest.mock('./logger', () => mockLoggerService);
 
 import { logger } from './logger';
-import { cleanMember, getAllOfficeRnDMembersData, getMemberLinkedin, getOfficeLocation } from './officernd';
+import { cleanMember, getAllActiveOfficeRnDMembersData, getMemberLinkedin, getOfficeLocation } from './officernd';
 
 // Test fixtures
 const TEST_LINKEDIN_URL = 'https://linkedin.com/in/testmember';
@@ -22,7 +22,7 @@ describe('OfficeRnD Service', () => {
     jest.clearAllMocks();
   });
 
-  describe('getAllOfficeRnDMembersData', () => {
+  describe('getAllActiveOfficeRnDMembersData', () => {
     it('should get all members', async () => {
       // Mock token response
       mockFetch.mockResolvedValueOnce(
@@ -73,7 +73,7 @@ describe('OfficeRnD Service', () => {
         ),
       );
 
-      const members = await getAllOfficeRnDMembersData();
+      const members = await getAllActiveOfficeRnDMembersData();
       expect(mockFetch).toHaveBeenCalledTimes(2); // Token + Members
       expect(Array.isArray(members)).toBe(true);
       expect(members).toHaveLength(2);

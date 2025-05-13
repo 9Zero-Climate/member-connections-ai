@@ -18,7 +18,7 @@ import {
   type OfficeRnDRawMemberData,
   type OfficeRnDRawWebhookPayload,
   cleanMember,
-  getAllOfficeRnDMembersData,
+  getAllActiveOfficeRnDMembersData,
   getOfficeLocation,
 } from '../services/officernd';
 import { updateLinkedinForMemberIfNeeded } from './linkedin';
@@ -47,7 +47,7 @@ export async function syncOfficeRnD(): Promise<void> {
 
   try {
     // 1. Fetch data
-    const officeRndMembersData = await getAllOfficeRnDMembersData();
+    const officeRndMembersData = await getAllActiveOfficeRnDMembersData();
 
     // 2. Upsert members
     const members = officeRndMembersData.map(prepMemberForDb);
