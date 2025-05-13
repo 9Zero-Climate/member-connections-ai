@@ -30,10 +30,8 @@ program
   .command('slack')
   .description('Sync messages from a specific set of Slack channels')
   .argument('<channelNames...>', 'Names of the channels to sync')
-  .option('-l, --limit <number>', 'Maximum number of messages to sync', Number.parseInt)
-  .option('-o, --oldest <timestamp>', 'Start time in Unix timestamp')
-  .option('-n, --newest <timestamp>', 'End time in Unix timestamp')
-  .option('-b, --batch-size <number>', 'Number of messages to process in each batch', Number.parseInt)
+  .option('--oldest <timestamp>', 'Start time in Unix timestamp')
+  .option('--latest <timestamp>', 'End time in Unix timestamp')
   .action(syncSlackChannels);
 
 program.parse();

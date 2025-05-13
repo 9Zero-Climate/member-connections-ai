@@ -1,45 +1,27 @@
-import { isDeepStrictEqual } from 'node:util';
 import { WebClient } from '@slack/web-api';
+import type { MessageElement } from '@slack/web-api/dist/types/response/ConversationsHistoryResponse';
 import { config } from '../config';
-import type { Document } from './database';
-import { generateEmbeddings } from './embedding';
 import { logger } from './logger';
 
 let client: WebClient | null = null;
 
-interface FetchOptions {
-  limit?: number;
+type SlackSyncOptions = {
   oldest?: string;
   latest?: string;
-}
+};
 
-interface SlackSyncOptions extends FetchOptions {}
-
-interface SlackMessage {
+type UsableSlackMessage = MessageElement & {
   ts: string;
-  text?: string;
+  text: string;
+};
+
+type FormattedSlackMessage = {
+  ts: string;
+  text: string;
+  permalink: string | null;
   user?: string;
   thread_ts?: string;
-  reply_count?: number;
-  reactions?: Array<{ name: string; count: number }>;
-  type?: string;
-  subtype?: string;
-  channel?: string;
-  team?: string;
-}
-
-interface FormattedMessage {
-  source: string;
-  content: string;
-  metadata: {
-    ts: string;
-    thread_ts?: string;
-    channel: string;
-    user?: string;
-    permalink: string;
-    channelName: string;
-  };
-}
+};
 
 interface SlackError extends Error {
   data?: {
@@ -88,15 +70,13 @@ const slackSync = {
   /**
    * Fetch messages from a channel
    * @param {string} channelId - The channel ID to fetch from
-   * @param {Object} options - Fetch options
-   * @param {number} options.limit - Maximum number of messages to fetch
-   * @param {string} options.oldest - Start time in Unix timestamp
-   * @param {string} options.latest - End time in Unix timestamp
-   * @returns {Promise<Array>} Array of messages
+   * @param {Object} syncOptions - Fetch options
+   * @param {string} syncOptions.oldest - Start time in Unix timestamp
+   * @param {string} syncOptions.newest - End time in Unix timestamp
+   * @returns {Promise<MessageElement>} Array of raw slack messages
    */
-  async fetchChannelHistory(channelId: string, options: FetchOptions = {}): Promise<SlackMessage[]> {
-    const { limit = 1000, oldest, latest } = options;
-    const messages: SlackMessage[] = [];
+  async fetchChannelHistory(channelId: string, syncOptions: SlackSyncOptions = {}): Promise<MessageElement[]> {
+    const messages: MessageElement[] = [];
     let cursor: string | undefined;
 
     await this.joinChannel(channelId);
@@ -104,15 +84,15 @@ const slackSync = {
     do {
       const result = await getClient().conversations.history({
         channel: channelId,
-        limit: Math.min(limit - messages.length, 100),
         cursor,
-        oldest,
-        latest,
+        ...syncOptions,
       });
 
-      messages.push(...(result.messages as SlackMessage[]));
+      if (result.messages) {
+        messages.push(...result.messages);
+      }
       cursor = result.response_metadata?.next_cursor;
-    } while (cursor && messages.length < limit);
+    } while (cursor);
 
     return messages;
   },
@@ -156,114 +136,41 @@ const slackSync = {
   },
 
   /**
-   * Format message for database storage
-   * @param {Object} message - Slack message object
-   * @param {string} channelId - Channel ID
-   * @returns {Object} Formatted message
+   * Process raw Slack messages:
+   *  - filter down to usable messages
+   *  - attach permalinks
    */
-  async formatMessage(message: SlackMessage, channelId: string): Promise<FormattedMessage | null> {
-    if (!message.text?.trim()) {
-      return null;
+  async processMessages(messages: MessageElement[], channelId: string): Promise<FormattedSlackMessage[]> {
+    const canHandleMessage = (message: MessageElement): message is UsableSlackMessage =>
+      message.ts != null && message.text?.trim() != null;
+
+    const unhandledMessages = messages.filter((msg) => !canHandleMessage(msg));
+    if (unhandledMessages.length > 0) {
+      logger.warn(`Unhandled messages: ${JSON.stringify(unhandledMessages)}`);
     }
 
-    const [permalinkResult, channelName] = await Promise.all([
-      getClient().chat.getPermalink({
-        channel: channelId,
-        message_ts: message.ts,
+    const validMessages = messages.filter(canHandleMessage);
+
+    const permalinkResults = await Promise.all(
+      validMessages.map((message) => {
+        return getClient().chat.getPermalink({
+          channel: channelId,
+          message_ts: message.ts,
+        });
       }),
-      this.getChannelName(channelId),
-    ]);
+    );
 
-    let userProfile: { display_name?: string; real_name?: string } | undefined;
-    if (message.user) {
-      try {
-        const userInfo = await getClient().users.info({ user: message.user });
-        if (userInfo.ok && userInfo.user) {
-          userProfile = userInfo.user.profile;
-        }
-      } catch (err) {
-        logger.warn(`Failed to get user info for ${message.user}:`, err);
-      }
-    }
-    const userDisplayName = userProfile?.display_name;
-    const userRealName = userProfile?.real_name;
-
-    return {
-      source: 'slack',
-      content: message.text,
-      metadata: {
-        ts: this.tsToISOString(message.ts),
-        thread_ts: message.thread_ts,
-        channel: channelId,
-        user: message.user,
-        permalink: permalinkResult.permalink ?? '',
-        channelName: channelName,
-      },
-    };
-  },
-
-  /**
-   * Process a batch of messages and generate embeddings
-   * @param {Array} messages - Array of Slack messages
-   * @param {string} channelId - Channel ID
-   * @returns {Promise<Array>} Array of formatted messages with embeddings
-   */
-  async processMessageBatch(
-    messages: SlackMessage[],
-    channelId: string,
-  ): Promise<(FormattedMessage & { embedding: number[] })[]> {
-    const formattedMessages = await Promise.all(messages.map((msg) => this.formatMessage(msg, channelId)));
-
-    const canHandleMessage = (msg: FormattedMessage | null): msg is FormattedMessage => msg !== null;
-
-    const validMessages = formattedMessages.filter(canHandleMessage);
-    const unhandledMessages = formattedMessages.filter((msg) => !canHandleMessage(msg));
-    logger.warn(`Unhandled messages: ${JSON.stringify(unhandledMessages)}`);
-
-    const embeddings = await generateEmbeddings(validMessages.map((msg) => msg.content));
-    return validMessages.map((msg, index) => ({
-      ...msg,
-      embedding: embeddings[index],
+    const formattedMessages = validMessages.map((message, index) => ({
+      ts: this.tsToISOString(message.ts),
+      text: message.text,
+      user: message.user,
+      thread_ts: message.thread_ts,
+      permalink: permalinkResults[index].permalink ?? null,
     }));
+
+    return formattedMessages;
   },
 };
 
-/**
- * Compares two documents for semantic equality, ignoring:
- * - Database-specific fields (created_at, updated_at)
- * - Undefined/null metadata fields
- * - Embedding data
- *
- * This is specifically designed for Slack message comparison where certain
- * fields (like thread_ts, reply_count) may be undefined in new messages
- * but null/missing in stored documents.
- *
- * @param msgDocInDb - Document from the database
- * @param newDoc - Newly processed document straight from Slack
- * @returns boolean indicating if the documents are semantically equal. If false, the DB should be updated with the newDoc.
- */
-export function doesSlackMessageMatchDb(msgDocInDb: Document, newDoc: Document): boolean {
-  if (msgDocInDb.content !== newDoc.content) {
-    console.log('Content mismatch');
-    return false;
-  }
-
-  const cleanMetadata = (metadata: Record<string, unknown> | undefined): Record<string, unknown> => {
-    if (!metadata) return {};
-    const entries = Object.entries(metadata).filter(([_, value]) => value !== undefined && value !== null);
-    return Object.fromEntries(entries);
-  };
-
-  const dbMeta = cleanMetadata(msgDocInDb.metadata);
-  const newMeta = cleanMetadata(newDoc.metadata);
-
-  if (!isDeepStrictEqual(dbMeta, newMeta)) {
-    logger.debug('Metadata mismatch');
-    return false;
-  }
-
-  return true;
-}
-
 export default { ...slackSync, setTestClient };
-export type { SlackMessage, FormattedMessage, FetchOptions };
+export type { FormattedSlackMessage, SlackSyncOptions };
