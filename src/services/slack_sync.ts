@@ -6,8 +6,8 @@ import { logger } from './logger';
 let client: WebClient | null = null;
 
 type SlackSyncOptions = {
-  oldest?: number;
-  latest?: number;
+  oldest?: string;
+  latest?: string;
 };
 
 type UsableSlackMessage = MessageElement & {
