@@ -159,13 +159,25 @@ export const handleMemberEvent = async (payload: OfficeRnDRawWebhookPayload) => 
   logger.info({ payload }, 'Member created/updated');
 };
 
+enum OfficeRnDWebhookEventType {
+  CheckinCreated = 'checkin.created',
+  CheckinUpdated = 'checkin.updated',
+  MemberCreated = 'member.created',
+  MemberUpdated = 'member.updated',
+}
+
 export const handleOfficeRnDWebhook = async (payload: OfficeRnDRawWebhookPayload) => {
-  if (['checkin.created', 'checkin.updated'].includes(payload.eventType)) {
-    await handleCheckinEvent(payload);
-  } else if (['member.created', 'member.updated'].includes(payload.eventType)) {
-    await handleMemberEvent(payload);
-  } else {
-    logger.warn({ payload }, `Unsupported event type: ${payload.eventType}`);
-    throw new Error(`Unsupported event type: ${payload.eventType}`);
+  switch (payload.eventType) {
+    case OfficeRnDWebhookEventType.CheckinCreated:
+    case OfficeRnDWebhookEventType.CheckinUpdated:
+      await handleCheckinEvent(payload);
+      break;
+    case OfficeRnDWebhookEventType.MemberCreated:
+    case OfficeRnDWebhookEventType.MemberUpdated:
+      await handleMemberEvent(payload);
+      break;
+    default:
+      logger.warn({ payload, eventType: payload.eventType }, 'Unsupported OfficedRnD webhook event type');
+      throw new Error(`Unsupported event type: ${payload.eventType}`);
   }
 };
