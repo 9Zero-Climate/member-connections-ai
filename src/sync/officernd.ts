@@ -21,7 +21,7 @@ import {
   getAllOfficeRnDMembersData,
   getOfficeLocation,
 } from '../services/officernd';
-import { updateLinkedinForOfficerndIdIfNeeded } from './linkedin';
+import { updateLinkedinForMemberIfNeeded } from './linkedin';
 
 export const prepMemberForDb = (orndMember: OfficeRnDMemberData): BasicMemberForUpsert => {
   const { id, name, slackId, linkedinUrl, location } = orndMember;
@@ -154,7 +154,7 @@ export const handleMemberEvent = async (payload: OfficeRnDRawWebhookPayload) => 
   await bulkUpsertMembers([memberForUpsert]);
   await deleteOfficeRnDDocuments(cleanedMember.id);
   await createOfficeRnDDocuments(cleanedMember);
-  await updateLinkedinForOfficerndIdIfNeeded(cleanedMember.id);
+  await updateLinkedinForMemberIfNeeded(cleanedMember.id);
 
   logger.info({ payload }, 'Member created/updated');
 };

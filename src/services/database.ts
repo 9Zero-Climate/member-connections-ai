@@ -472,9 +472,9 @@ export interface MemberWithLinkedInUpdateMetadata {
  * @param officerndId - Optional OfficeRnD ID to filter by. If not provided, all members will be returned.
  * @returns List of members
  */
-async function getMemberOrMembersWithLastLinkedInUpdates(
+const getMemberOrMembersWithLastLinkedInUpdates = async (
   officerndId?: string | null,
-): Promise<MemberWithLinkedInUpdateMetadata[]> {
+): Promise<MemberWithLinkedInUpdateMetadata[]> => {
   logger.info('Fetching Members with last LinkedIn update metadata...');
   const client = await getOrCreateClient();
 
@@ -516,7 +516,27 @@ async function getMemberOrMembersWithLastLinkedInUpdates(
     logger.error('Error getting last LinkedIn updates:', error);
     throw error;
   }
-}
+};
+
+const getMembersWithLastLinkedInUpdates = async (): Promise<MemberWithLinkedInUpdateMetadata[]> => {
+  return getMemberOrMembersWithLastLinkedInUpdates();
+};
+
+const getLastLinkedInUpdateForMember = async (officerndId: string): Promise<number | null> => {
+  const members = await getMemberOrMembersWithLastLinkedInUpdates(officerndId);
+  return members[0]?.last_linkedin_update || null;
+};
+
+const getMember = async (officerndId: string): Promise<Member> => {
+  const client = await getOrCreateClient();
+  const result = await client.query('SELECT * FROM members WHERE officernd_id = $1', [officerndId]);
+
+  if (result.rows.length !== 1) {
+    logger.error({ result, officerndId }, `Expected 1 member, got ${result.rows.length} for officerndId`);
+    throw new Error(`Expected 1 member, got ${result.rows.length} for officerndId=${officerndId}`);
+  }
+  return result.rows[0];
+};
 
 /**
  * Get all LinkedIn documents for a given LinkedIn URL
@@ -827,7 +847,9 @@ export {
   deleteDoc,
   findSimilar,
   closeDbConnection,
-  getMemberOrMembersWithLastLinkedInUpdates as getMembersWithLastLinkedInUpdates,
+  getLastLinkedInUpdateForMember,
+  getMembersWithLastLinkedInUpdates,
+  getMember,
   updateMember,
   bulkUpsertMembers,
   deleteTypedDocumentsForMember,

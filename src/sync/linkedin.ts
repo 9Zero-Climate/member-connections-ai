@@ -3,6 +3,8 @@ import {
   type MemberWithLinkedInUpdateMetadata,
   closeDbConnection,
   deleteTypedDocumentsForMember,
+  getLastLinkedInUpdateForMember,
+  getMember,
   getMembersWithLastLinkedInUpdates,
   insertOrUpdateDoc,
 } from '../services/database';
@@ -70,29 +72,21 @@ export async function syncLinkedIn(syncOptionOverrides?: LinkedInSyncOptionOverr
   }
 }
 
-export const updateLinkedinForOfficerndIdIfNeeded = async (officerndId: string): Promise<void> => {
-  const membersWithLastUpdate = await getMembersWithLastLinkedInUpdates(officerndId);
-  if (membersWithLastUpdate.length === 0) {
-    logger.error(
-      { officerndId },
-      'Could not get last linkedin update for officerndId - member probably not inserted yet',
-    );
-    throw new Error('Could not get last linkedin update for officerndId - member probably not inserted yet');
-  }
+export const updateLinkedinForMemberIfNeeded = async (officerndId: string): Promise<void> => {
+  const member = await getMember(officerndId);
+  const lastUpdate = await getLastLinkedInUpdateForMember(officerndId);
 
-  const member = membersWithLastUpdate[0];
   const hasLinkedInUrl = member?.linkedin_url !== null;
-  const neverUpdated = member?.last_linkedin_update === null;
-  const stale = member?.last_linkedin_update && needsLinkedInUpdate(member.last_linkedin_update);
+  const neverUpdated = lastUpdate === null;
+  const stale = lastUpdate && needsLinkedInUpdate(lastUpdate);
 
   const shouldUpdate = hasLinkedInUrl && (neverUpdated || stale);
 
   if (!shouldUpdate) {
-    logger.info({ membersWithLastUpdate, officerndId }, 'No LinkedIn update needed');
+    logger.info({ member, lastUpdate, officerndId }, 'No LinkedIn update needed');
     return;
   }
 
-  // Make sure we're actually calling the proxycurl service to get the LinkedIn profile
   const linkedinUrl = member.linkedin_url as string;
   const profileData = await getLinkedInProfile(linkedinUrl);
 

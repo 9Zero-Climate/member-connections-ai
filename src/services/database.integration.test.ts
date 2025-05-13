@@ -10,6 +10,7 @@ import {
   deleteMember,
   findSimilar,
   getDocBySource,
+  getLastLinkedInUpdateForMember,
   getLinkedInDocumentsByMemberIdentifier,
   getMembersWithLastLinkedInUpdates,
   getOnboardingConfig,
@@ -533,7 +534,7 @@ describe('Database Integration Tests', () => {
   });
 });
 
-describe('getMembersWithLastLinkedInUpdates', () => {
+describe('member last LinkedIn update', () => {
   let testDbClient: Client;
 
   const seattleMemberLastLinkedInUpdate = new Date(2021, 1, 1);
@@ -609,52 +610,53 @@ describe('getMembersWithLastLinkedInUpdates', () => {
     );
   });
 
-  it('fetches all members with their correct last LinkedIn update times', async () => {
-    const results = await getMembersWithLastLinkedInUpdates();
+  describe('getMembersWithLastLinkedInUpdates', () => {
+    it('fetches all members with their correct last LinkedIn update times', async () => {
+      const results = await getMembersWithLastLinkedInUpdates();
 
-    expect(results).toHaveLength(3);
+      expect(results).toHaveLength(3);
 
-    expect(results).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          id: seattleMember.officernd_id,
-          last_linkedin_update: seattleMemberLastLinkedInUpdate,
-        }),
-        expect.objectContaining({
-          id: sfMemberWithoutLinkedinOrRAGDocs.officernd_id,
-          last_linkedin_update: null,
-        }),
-        expect.objectContaining({
-          id: sfMember.officernd_id,
-          last_linkedin_update: sfMemberLastLinkedInUpdate,
-        }),
-      ]),
-    );
-  });
-
-  it('fetches a specific member with their last LinkedIn update time when officerndId is provided', async () => {
-    const results = await getMembersWithLastLinkedInUpdates(seattleMember.officernd_id);
-
-    expect(results).toHaveLength(1);
-    expect(results[0]).toMatchObject({
-      id: seattleMember.officernd_id,
-      last_linkedin_update: seattleMemberLastLinkedInUpdate,
+      expect(results).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: seattleMember.officernd_id,
+            last_linkedin_update: seattleMemberLastLinkedInUpdate,
+          }),
+          expect.objectContaining({
+            id: sfMemberWithoutLinkedinOrRAGDocs.officernd_id,
+            last_linkedin_update: null,
+          }),
+          expect.objectContaining({
+            id: sfMember.officernd_id,
+            last_linkedin_update: sfMemberLastLinkedInUpdate,
+          }),
+        ]),
+      );
     });
   });
 
-  it('fetches a specific member with null update time if no docs exist', async () => {
-    const results = await getMembersWithLastLinkedInUpdates(sfMemberWithoutLinkedinOrRAGDocs.officernd_id);
+  describe('getLastLinkedInUpdateForMember', () => {
+    it.each([
+      {
+        description: 'fetches a specific member with their last LinkedIn update time when officerndId is provided',
+        officerndId: seattleMember.officernd_id,
+        expectedResult: seattleMemberLastLinkedInUpdate,
+      },
+      {
+        description: 'returns null update time if no docs exist for member',
+        officerndId: sfMemberWithoutLinkedinOrRAGDocs.officernd_id,
+        expectedResult: null,
+      },
+      {
+        description: 'returns null if the specified member does not exist',
+        officerndId: 'non-existent-member',
+        expectedResult: null,
+      },
+    ])('returns $expectedResult for $description', async ({ officerndId, expectedResult }) => {
+      const result = await getLastLinkedInUpdateForMember(officerndId);
 
-    expect(results).toHaveLength(1);
-    expect(results[0]).toMatchObject({
-      id: sfMemberWithoutLinkedinOrRAGDocs.officernd_id,
-      last_linkedin_update: null,
+      expect(result).toEqual(expectedResult);
     });
-  });
-
-  it('returns an empty array if the specified officerndId does not exist', async () => {
-    const results = await getMembersWithLastLinkedInUpdates('non-existent-member');
-    expect(results).toHaveLength(0);
   });
 });
 
