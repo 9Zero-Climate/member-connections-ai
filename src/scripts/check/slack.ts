@@ -9,7 +9,7 @@ export async function checkSlackConnection(channelName: string) {
     console.log(`Found channel ID: ${channelId}`);
 
     // Fetch messages
-    const messages = await slackSync.fetchChannelHistory(channelId, { limit: 10 });
+    const messages = await slackSync.fetchChannelHistory(channelId, { maxMessages: 10 });
     console.log(`Fetched ${messages.length} messages:`);
 
     // // Log messages and format one
@@ -22,8 +22,8 @@ export async function checkSlackConnection(channelName: string) {
 
     if (messages.length > 0) {
       console.log('Example raw message:', messages[0]);
-      const formatted = await slackSync.formatMessage(messages[0], channelId);
-      console.log('Formatted message:', formatted);
+      const formatted = await slackSync.processMessages(messages, channelId);
+      console.log('Formatted message:', formatted[0]);
     } else {
       console.log('No messages found to format.');
     }
