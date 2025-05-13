@@ -519,9 +519,9 @@ describe('Database Integration Tests', () => {
       // Clear members table and insert a test member
       await testDbClient.query('DELETE FROM members CASCADE');
       await testDbClient.query(
-        `INSERT INTO members (officernd_id, name, location, created_at, updated_at)
+        `INSERT INTO members (officernd_id, name, location)
            VALUES
-           ('test-delete-id', 'Test Delete User', 'Seattle', NOW(), NOW())`,
+           ('test-delete-id', 'Test Delete User', 'Seattle')`,
       );
     });
 
@@ -535,44 +535,50 @@ describe('Database Integration Tests', () => {
 
 describe('getMembersWithLastLinkedInUpdates', () => {
   let testDbClient: Client;
-  const member1 = {
-    officernd_id: 'member-update-1',
-    name: 'Update User 1',
-    linkedin_url: 'https://linkedin.com/in/update1',
+
+  const seattleMemberLastLinkedInUpdate = new Date(2021, 1, 1);
+  const sfMemberLastLinkedInUpdate = new Date(2022, 2, 2);
+
+  const seattleMember = {
+    officernd_id: 'seattle-member',
+    name: 'Seattle Member',
+    linkedin_url: 'https://linkedin.com/in/seattle-member',
     location: OfficeLocation.SEATTLE,
     created_at: new Date(),
     updated_at: new Date(),
   };
-  const member2 = {
-    officernd_id: 'member-update-2',
-    name: 'Update User 2',
+  const sfMember = {
+    officernd_id: 'sf-member',
+    name: 'SF Member',
+    linkedin_url: 'https://linkedin.com/in/sf-member',
+    location: OfficeLocation.SAN_FRANCISCO,
+    created_at: new Date(),
+    updated_at: new Date(),
+  };
+  const sfMemberWithoutLinkedinOrRAGDocs = {
+    officernd_id: 'sf-member-without-linkedin',
+    name: 'SF Member without LinkedIn',
     linkedin_url: null,
     location: OfficeLocation.SAN_FRANCISCO,
     created_at: new Date(),
     updated_at: new Date(),
   };
-  const member3 = {
-    officernd_id: 'member-update-3',
-    name: 'Update User 3',
-    linkedin_url: 'https://linkedin.com/in/update3',
-    location: OfficeLocation.SEATTLE,
-    created_at: new Date(),
-    updated_at: new Date(),
-  };
 
-  const doc1 = {
+  const seattleMemberDoc = {
     source_type: 'linkedin_profile',
-    source_unique_id: `officernd_member_${member1.officernd_id}:profile`,
-    content: 'Profile for member 1',
+    source_unique_id: `officernd_member_${seattleMember.officernd_id}:profile`,
+    content: 'Profile for Seattle Member',
     embedding: generateMockEmbedding(1),
-    created_at: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000), // 10 days ago
+    created_at: seattleMemberLastLinkedInUpdate,
+    updated_at: seattleMemberLastLinkedInUpdate,
   };
-  const doc3 = {
+  const sfMemberDoc = {
     source_type: 'linkedin_posts',
-    source_unique_id: `officernd_member_${member3.officernd_id}:posts`,
-    content: 'Posts for member 3',
+    source_unique_id: `officernd_member_${sfMember.officernd_id}:posts`,
+    content: 'Posts for SF Member',
     embedding: generateMockEmbedding(2),
-    created_at: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000), // 5 days ago
+    created_at: sfMemberLastLinkedInUpdate,
+    updated_at: sfMemberLastLinkedInUpdate,
   };
 
   beforeAll(async () => {
@@ -581,7 +587,7 @@ describe('getMembersWithLastLinkedInUpdates', () => {
     await testDbClient.query('DELETE FROM rag_docs');
 
     // Insert members
-    const memberValues = [member1, member2, member3]
+    const memberValues = [seattleMember, sfMemberWithoutLinkedinOrRAGDocs, sfMember]
       .map(
         (m) =>
           `('${m.officernd_id}', '${m.name}', ${m.linkedin_url ? `'${m.linkedin_url}'` : 'NULL'}, '${m.location}', '${m.created_at.toISOString()}', '${m.updated_at.toISOString()}')`,
@@ -591,12 +597,15 @@ describe('getMembersWithLastLinkedInUpdates', () => {
       `INSERT INTO members (officernd_id, name, linkedin_url, location, created_at, updated_at) VALUES ${memberValues}`,
     );
 
-    // Insert related docs (using the available columns)
-    const docValues = [doc1, doc3]
-      .map((d) => `('${d.source_type}', '${d.source_unique_id}', '${d.content}', '${d.created_at.toISOString()}')`)
+    // Insert related docs
+    const relatedDocValues = [seattleMemberDoc, sfMemberDoc]
+      .map(
+        (d) =>
+          `('${d.source_type}', '${d.source_unique_id}', '${d.content}', '${d.created_at.toISOString()}', '${d.updated_at.toISOString()}')`,
+      )
       .join(',');
     await testDbClient.query(
-      `INSERT INTO rag_docs (source_type, source_unique_id, content, created_at) VALUES ${docValues}`,
+      `INSERT INTO rag_docs (source_type, source_unique_id, content, created_at, updated_at) VALUES ${relatedDocValues}`,
     );
   });
 
@@ -604,31 +613,41 @@ describe('getMembersWithLastLinkedInUpdates', () => {
     const results = await getMembersWithLastLinkedInUpdates();
 
     expect(results).toHaveLength(3);
+
     expect(results).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ id: member1.officernd_id, last_linkedin_update: expect.any(Date) }),
-        expect.objectContaining({ id: member2.officernd_id, last_linkedin_update: null }), // No LinkedIn URL or docs
-        expect.objectContaining({ id: member3.officernd_id, last_linkedin_update: expect.any(Date) }),
+        expect.objectContaining({
+          id: seattleMember.officernd_id,
+          last_linkedin_update: seattleMemberLastLinkedInUpdate,
+        }),
+        expect.objectContaining({
+          id: sfMemberWithoutLinkedinOrRAGDocs.officernd_id,
+          last_linkedin_update: null,
+        }),
+        expect.objectContaining({
+          id: sfMember.officernd_id,
+          last_linkedin_update: sfMemberLastLinkedInUpdate,
+        }),
       ]),
     );
   });
 
   it('fetches a specific member with their last LinkedIn update time when officerndId is provided', async () => {
-    const results = await getMembersWithLastLinkedInUpdates(member1.officernd_id);
+    const results = await getMembersWithLastLinkedInUpdates(seattleMember.officernd_id);
 
     expect(results).toHaveLength(1);
     expect(results[0]).toMatchObject({
-      id: member1.officernd_id,
-      last_linkedin_update: expect.any(Date),
+      id: seattleMember.officernd_id,
+      last_linkedin_update: seattleMemberLastLinkedInUpdate,
     });
   });
 
   it('fetches a specific member with null update time if no docs exist', async () => {
-    const results = await getMembersWithLastLinkedInUpdates(member2.officernd_id);
+    const results = await getMembersWithLastLinkedInUpdates(sfMemberWithoutLinkedinOrRAGDocs.officernd_id);
 
     expect(results).toHaveLength(1);
     expect(results[0]).toMatchObject({
-      id: member2.officernd_id,
+      id: sfMemberWithoutLinkedinOrRAGDocs.officernd_id,
       last_linkedin_update: null,
     });
   });
@@ -672,6 +691,7 @@ describe('deleteLinkedinDocumentsForOfficerndId', () => {
     embedding: generateMockEmbedding(13),
     created_at: new Date(),
   };
+  const ragDocsToInsert = [doc1Profile, doc1Posts, docOtherMember, docNotLinkedin];
 
   beforeAll(async () => {
     testDbClient = await getOrCreateClient();
@@ -679,8 +699,7 @@ describe('deleteLinkedinDocumentsForOfficerndId', () => {
 
   beforeEach(async () => {
     await testDbClient.query('DELETE FROM rag_docs');
-    const docsToInsert = [doc1Profile, doc1Posts, docOtherMember, docNotLinkedin];
-    for (const doc of docsToInsert) {
+    for (const doc of ragDocsToInsert) {
       await testDbClient.query(
         'INSERT INTO rag_docs (source_type, source_unique_id, content, created_at) VALUES ($1, $2, $3, $4)',
         [doc.source_type, doc.source_unique_id, doc.content, doc.created_at],

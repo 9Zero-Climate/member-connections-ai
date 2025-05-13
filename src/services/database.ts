@@ -469,10 +469,10 @@ export interface MemberWithLinkedInUpdateMetadata {
 
 /**
  * Get all members with their last LinkedIn documents update times in a single query
- * @param officerndId - Optional OfficeRnD ID to filter by
+ * @param officerndId - Optional OfficeRnD ID to filter by. If not provided, all members will be returned.
  * @returns List of members
  */
-async function getMembersWithLastLinkedInUpdates(
+async function getMemberOrMembersWithLastLinkedInUpdates(
   officerndId?: string | null,
 ): Promise<MemberWithLinkedInUpdateMetadata[]> {
   logger.info('Fetching Members with last LinkedIn update metadata...');
@@ -827,7 +827,7 @@ export {
   deleteDoc,
   findSimilar,
   closeDbConnection,
-  getMembersWithLastLinkedInUpdates,
+  getMemberOrMembersWithLastLinkedInUpdates as getMembersWithLastLinkedInUpdates,
   updateMember,
   bulkUpsertMembers,
   deleteTypedDocumentsForMember,

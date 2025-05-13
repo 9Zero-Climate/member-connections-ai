@@ -7,11 +7,12 @@ import {
   insertOrUpdateDoc,
 } from '../services/database';
 import { logger } from '../services/logger';
-import { type ProxycurlDateObject, type ProxycurlProfile, getLinkedInProfile } from '../services/proxycurl';
+import { getLinkedInProfile } from '../services/proxycurl';
+import type { ProxycurlDateObject, ProxycurlProfile } from '../services/proxycurl';
 import { DEFAULT_LINKEDIN_PROFLE_ALLOWED_AGE_DAYS } from './linkedin_constants';
 
 // Constants for time calculations
-const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
+export const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
 
 type LinkedInSyncOptions = {
   maxUpdates: number;
@@ -91,9 +92,14 @@ export const updateLinkedinForOfficerndIdIfNeeded = async (officerndId: string):
     return;
   }
 
-  const profileData = await getLinkedInProfile(member.linkedin_url as string);
+  // Make sure we're actually calling the proxycurl service to get the LinkedIn profile
+  const linkedinUrl = member.linkedin_url as string;
+  const profileData = await getLinkedInProfile(linkedinUrl);
+
   if (profileData) {
-    await createLinkedInDocuments(officerndId, member.name, member.linkedin_url as string, profileData);
+    await createLinkedInDocuments(officerndId, member.name, linkedinUrl, profileData);
+  } else {
+    logger.warn({ officerndId, linkedinUrl }, 'Failed to fetch LinkedIn profile');
   }
 };
 

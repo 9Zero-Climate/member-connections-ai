@@ -6,7 +6,7 @@ import { logger } from './logger';
 
 const OFFICERND_API_URL = 'https://app.officernd.com/api/v1';
 const OFFICERND_ORG_SLUG = config.officerndOrgSlug;
-// These are the only members that we care about. All others should be ignored/purged as they are nonmembers or former members
+// Active members are the only members that we care about. All others should be ignored/purged as they are nonmembers or former members
 export const OFFICERND_ACTIVE_MEMBER_STATUS = 'active';
 
 type OfficeRnDTokenResponse = {
