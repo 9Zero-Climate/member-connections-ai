@@ -6,9 +6,8 @@ import { logger } from './logger';
 let client: WebClient | null = null;
 
 type SlackSyncOptions = {
-  maxMessages?: number;
   oldest?: string;
-  newest?: string;
+  latest?: string;
 };
 
 type UsableSlackMessage = MessageElement & {
@@ -71,34 +70,29 @@ const slackSync = {
   /**
    * Fetch messages from a channel
    * @param {string} channelId - The channel ID to fetch from
-   * @param {Object} options - Fetch options
-   * @param {number} options.maxMessages - Maximum number of messages to fetch. If not provided, will fetch as far back as Slack's API will return
-   * @param {string} options.oldest - Start time in Unix timestamp
-   * @param {string} options.newest - End time in Unix timestamp
+   * @param {Object} syncOptions - Fetch options
+   * @param {string} syncOptions.oldest - Start time in Unix timestamp
+   * @param {string} syncOptions.newest - End time in Unix timestamp
    * @returns {Promise<MessageElement>} Array of raw slack messages
    */
-  async fetchChannelHistory(channelId: string, options: SlackSyncOptions = {}): Promise<MessageElement[]> {
-    const { maxMessages, oldest, newest } = options;
+  async fetchChannelHistory(channelId: string, syncOptions: SlackSyncOptions = {}): Promise<MessageElement[]> {
     const messages: MessageElement[] = [];
     let cursor: string | undefined;
 
     await this.joinChannel(channelId);
 
     do {
-      const limit = maxMessages ? Math.min(maxMessages - messages.length, 100) : undefined;
       const result = await getClient().conversations.history({
         channel: channelId,
-        limit,
         cursor,
-        oldest,
-        latest: newest,
+        ...syncOptions,
       });
 
       if (result.messages) {
         messages.push(...result.messages);
       }
       cursor = result.response_metadata?.next_cursor;
-    } while (cursor && (maxMessages ? messages.length < maxMessages : true));
+    } while (cursor);
 
     return messages;
   },

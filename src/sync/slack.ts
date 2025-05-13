@@ -6,9 +6,8 @@ import slackSync from '../services/slack_sync';
 import type { FormattedSlackMessage, SlackSyncOptions } from '../services/slack_sync';
 
 const defaultSyncOptions: SlackSyncOptions = {
-  maxMessages: undefined,
   oldest: undefined,
-  newest: undefined,
+  latest: undefined,
 };
 
 type SlackMessageRagDoc = Document & {
@@ -54,7 +53,9 @@ export async function upsertSlackMessagesRagDocs(
 
     if (existingDoc) {
       logger.info('Documents considered different:');
-      logger.info(JSON.stringify({ existingDoc, newDoc: docToUpsert }, null, 2));
+      logger.info(
+        JSON.stringify({ existingDoc: { ...existingDoc, embedding: undefined }, newDoc: docToUpsert }, null, 2),
+      );
     }
 
     // Insert or update document using the correctly formatted object
