@@ -37,7 +37,11 @@
         "users.profile:read",
         "users:read",
         "reactions:read",
-        "app_mentions:read"
+        "app_mentions:read",
+        "channels:write",
+        "groups:write",
+        "mpim:write",
+        "im:write"
       ]
     }
   },
