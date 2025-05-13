@@ -127,13 +127,15 @@ export const handleCheckinEvent = async (payload: OfficeRnDRawWebhookPayload) =>
     throw new Error(`checkin.office missing, can't set checkin location`);
   }
 
+  // The checkin object has a `start` and `end` date.
+  // When a member checks in: a new checkin object is created, with start=<checkin time> and end=null
+  // When a member checks out: the checkin object is updated with end=<checkout time>
+  // So if end date is null, it indicates the member is currently checked in
+  const checkinLocationToday = checkin.end == null ? getOfficeLocation(checkin.office) : null;
+
   try {
-    // The checkin object has a `start` and `end` date.
-    // When a member checks in: a new checkin object is created, with start=<checkin time> and end=null
-    // When a member checks out: the checkin object is updated with end=<checkout time>
-    // So if end date is null, it indicates the member is currently checked in
     await updateMember(checkin.member, {
-      checkin_location_today: checkin.end == null ? getOfficeLocation(checkin.office) : null,
+      checkin_location_today: checkinLocationToday,
     });
   } catch (error) {
     // TODO #23: if the member is non active, this is fine, but if they are active, this is an error
