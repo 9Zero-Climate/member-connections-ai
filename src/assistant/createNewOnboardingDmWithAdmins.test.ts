@@ -43,6 +43,7 @@ describe('createNewOnboardingDmWithAdmins', () => {
   };
   const defaultBotUserId = 'UBOT';
   const defaultChannelId = 'C123';
+  const defaultTeamId = 'T00000000';
   const defaultUserInfo = { user: { real_name: 'Alice' } };
 
   beforeEach(() => {
@@ -56,7 +57,7 @@ describe('createNewOnboardingDmWithAdmins', () => {
 
     mockClient = {
       conversations: {
-        open: jest.fn().mockResolvedValue({ channel: { id: defaultChannelId } }),
+        open: jest.fn().mockResolvedValue({ channel: { id: defaultChannelId, context_team_id: defaultTeamId } }),
         setTopic: jest.fn(),
       },
       users: {
@@ -72,7 +73,7 @@ describe('createNewOnboardingDmWithAdmins', () => {
     const newUserSlackId = 'UNEWUSER';
     const location = OfficeLocation.SEATTLE;
 
-    const channelId = await createNewOnboardingDmWithAdmins(mockClient, newUserSlackId);
+    const channelLink = await createNewOnboardingDmWithAdmins(mockClient, newUserSlackId);
 
     expect(mockDatabaseService.getMemberFromSlackId).toHaveBeenCalledWith(newUserSlackId);
     expect(mockDatabaseService.getOnboardingConfig).toHaveBeenCalledWith(location);
@@ -98,7 +99,7 @@ describe('createNewOnboardingDmWithAdmins', () => {
         blocks: expect.any(Array),
       }),
     );
-    expect(channelId).toBe(defaultChannelId);
+    expect(channelLink).toBe(`slack://channel?team=${defaultTeamId}&id=${defaultChannelId}`);
     expect(mockClient.chat.postMessage).toHaveBeenCalledTimes(2);
   });
 
