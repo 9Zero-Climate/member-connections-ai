@@ -1,7 +1,7 @@
 import { WebClient } from '@slack/web-api';
+import type { MessageElement } from '@slack/web-api/dist/types/response/ConversationsHistoryResponse';
 import { config } from '../config';
 import { logger } from './logger';
-import type { MessageElement } from '@slack/web-api/dist/types/response/ConversationsHistoryResponse';
 
 let client: WebClient | null = null;
 
