@@ -9,7 +9,8 @@ export async function checkSlackConnection(channelName: string) {
     console.log(`Found channel ID: ${channelId}`);
 
     // Fetch messages
-    const messages = await slackSync.fetchChannelHistory(channelId, { maxMessages: 10 });
+    const yesterdayTimestamp = Date.now() - 24 * 60 * 60 * 1000;
+    const messages = await slackSync.fetchChannelHistory(channelId, { latest: yesterdayTimestamp });
     console.log(`Fetched ${messages.length} messages:`);
 
     // // Log messages and format one
