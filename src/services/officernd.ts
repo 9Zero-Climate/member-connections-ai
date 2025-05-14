@@ -22,8 +22,8 @@ export type OfficeRnDRawMemberData = {
   name: string;
   office: string; // uuid
   linkedin?: string | null; // Undocumented property, set by member in the member portal alongside other social links
-  // Custom properies
-  properties: {
+  // Custom properies. If a member has none of these, the ORND webhook omits the "properties" attribute entirely
+  properties?: {
     // Set/controlled by integrations
     slack_id?: string;
     // Set/controlled by 9Zero admin
@@ -128,13 +128,13 @@ export const cleanMember = (member: OfficeRnDRawMemberData): OfficeRnDMemberData
   id: member._id,
   name: member.name,
   location: getOfficeLocation(member.office),
-  slackId: member.properties.slack_id || null,
+  slackId: member.properties?.slack_id || null,
   linkedinUrl: getMemberLinkedin(member),
-  sector: member.properties.Sector,
-  subsector: member.properties.Subsector,
-  blurb: member.properties.Blurb,
-  type: member.properties.Type,
-  currentRole: member.properties.CurrentRole,
+  sector: member.properties?.Sector,
+  subsector: member.properties?.Subsector,
+  blurb: member.properties?.Blurb,
+  type: member.properties?.Type,
+  currentRole: member.properties?.CurrentRole,
 });
 
 export async function getAllActiveOfficeRnDMembersData(): Promise<OfficeRnDMemberData[]> {
@@ -170,7 +170,7 @@ export async function getAllActiveOfficeRnDMembersData(): Promise<OfficeRnDMembe
 export const getMemberLinkedin = (member: OfficeRnDRawMemberData): string | null => {
   const rawLinkedinUrl =
     member.linkedin || // Prefer the member-set first-class OfficeRnD attribute
-    member.properties.LinkedInViaAdmin; // Fall back to the custom property that 9Zero staff can set
+    member.properties?.LinkedInViaAdmin; // Fall back to the custom property that 9Zero staff can set
 
   if (rawLinkedinUrl) {
     try {
