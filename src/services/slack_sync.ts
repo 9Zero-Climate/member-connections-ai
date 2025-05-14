@@ -5,7 +5,7 @@ import type { MessageElement } from '@slack/web-api/dist/types/response/Conversa
 import { config } from '../config';
 import { logger } from './logger';
 
-import { limitFunction } from 'p-limit';
+import pThrottle from 'p-throttle';
 
 let client: WebClient | null = null;
 
@@ -51,6 +51,13 @@ function getClient(): WebClient {
 function setTestClient(testClient: WebClient): void {
   client = testClient;
 }
+
+const ONE_SECOND_IN_MS = 1000;
+
+const GET_PERMALINK_THROTTLE = {
+  limit: 10,
+  interval: ONE_SECOND_IN_MS,
+};
 
 /**
  * Service for syncing Slack channel content
@@ -155,20 +162,6 @@ const slackSync = {
     }
   },
 
-  async formatMessage(channelId: string, message: UsableSlackMessage): Promise<FormattedSlackMessage> {
-    // The call to the Slack API chat.getPermalink is rate-limited, and if we kick off all the promises
-    // at once, we hit the rate limits. Instead, use p-limit to limit the concurrency of those promises
-    const limitedGetPermalink = limitFunction(this.getPermalinkOrNull, { concurrency: 10 });
-    const permalink = await limitedGetPermalink(channelId, message);
-    return {
-      ts: this.tsToISOString(message.ts),
-      text: message.text,
-      user: message.user,
-      thread_ts: message.thread_ts,
-      permalink,
-    };
-  },
-
   /**
    * Process raw Slack messages:
    *  - filter down to usable messages
@@ -187,7 +180,25 @@ const slackSync = {
 
     logger.info(`Formatting & fetching permalinks for ${validMessages.length} valid messages`);
 
-    const formattedMessages = Promise.all(validMessages.map((message) => this.formatMessage(channelId, message)));
+    // The call to the Slack API chat.getPermalink is rate-limited to "hundreds per minute" and also
+    // burst-limited (i.e. limits on concurrent requests) to unknown rates.
+    // Use p-throttle to limit the number of times we hit this endpoint per second
+    // Note: this function must be defined in the same scope that *all* calls to it are made
+    const throttledGetPermalink = pThrottle(GET_PERMALINK_THROTTLE)(this.getPermalinkOrNull);
+
+    logger.info(
+      `Permalink fetching rate-limited to ${GET_PERMALINK_THROTTLE.limit} per ${GET_PERMALINK_THROTTLE.interval / ONE_SECOND_IN_MS} seconds`,
+    );
+
+    const formattedMessages = await Promise.all(
+      validMessages.map(async (message) => ({
+        ts: this.tsToISOString(message.ts),
+        text: message.text,
+        user: message.user,
+        thread_ts: message.thread_ts,
+        permalink: await throttledGetPermalink(channelId, message),
+      })),
+    );
 
     return formattedMessages;
   },
