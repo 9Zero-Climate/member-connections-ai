@@ -1,5 +1,5 @@
-import type { ToolCall } from '../services/tools';
-import { objectToXml } from '../services/tools';
+import type { LLMToolCall } from '../llmTools';
+import { objectToXml } from '../llmTools/objectToXML';
 import executeToolCalls from './executeToolCalls';
 
 // Mock logger to prevent test logs
@@ -14,20 +14,14 @@ jest.mock('../services/logger', () => ({
 }));
 
 // Mock objectToXml for predictable output verification
-jest.mock('../services/tools', () => ({
-  // Keep original ToolCall type if needed, mock implementations
-  ...jest.requireActual('../services/tools'),
-  objectToXml: jest.fn((obj) => JSON.stringify(obj)), // Simple mock: just stringify
+jest.mock('../llmTools/objectToXML', () => ({
+  objectToXml: jest.fn((obj) => JSON.stringify(obj)),
 }));
 
 describe('executeToolCalls', () => {
   let mockToolImplementations: Record<string, jest.Mock>;
 
   beforeEach(() => {
-    // Reset mocks before each test
-    (objectToXml as jest.Mock).mockClear();
-    (objectToXml as jest.Mock).mockImplementation((obj) => JSON.stringify(obj)); // Reset implementation
-
     mockToolImplementations = {
       get_weather: jest.fn(),
       get_stock_price: jest.fn(),
@@ -35,7 +29,7 @@ describe('executeToolCalls', () => {
   });
 
   it('should execute a single valid tool call and return results', async () => {
-    const toolCalls: ToolCall[] = [
+    const toolCalls: LLMToolCall[] = [
       {
         id: 'call_1',
         type: 'function',
@@ -62,7 +56,7 @@ describe('executeToolCalls', () => {
   });
 
   it('should execute multiple tool calls', async () => {
-    const toolCalls: ToolCall[] = [
+    const toolCalls: LLMToolCall[] = [
       {
         id: 'call_weather',
         type: 'function',
@@ -98,7 +92,7 @@ describe('executeToolCalls', () => {
   });
 
   it('should handle JSON parsing errors for arguments', async () => {
-    const toolCalls: ToolCall[] = [
+    const toolCalls: LLMToolCall[] = [
       {
         id: 'call_bad_args',
         type: 'function',
@@ -126,7 +120,7 @@ describe('executeToolCalls', () => {
   });
 
   it('should handle unknown tool names', async () => {
-    const toolCalls: ToolCall[] = [
+    const toolCalls: LLMToolCall[] = [
       {
         id: 'call_unknown',
         type: 'function',
@@ -147,7 +141,7 @@ describe('executeToolCalls', () => {
   });
 
   it('should handle errors thrown by the tool implementation', async () => {
-    const toolCalls: ToolCall[] = [
+    const toolCalls: LLMToolCall[] = [
       {
         id: 'call_throws',
         type: 'function',
@@ -171,7 +165,7 @@ describe('executeToolCalls', () => {
   });
 
   it('should handle a mix of successful and failing tool calls', async () => {
-    const toolCalls: ToolCall[] = [
+    const toolCalls: LLMToolCall[] = [
       {
         id: 'call_ok',
         type: 'function',

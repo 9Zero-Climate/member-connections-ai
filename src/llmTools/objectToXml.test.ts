@@ -1,16 +1,15 @@
-import { objectToXml } from './tools';
+import { objectToXml } from './objectToXML';
 
 describe('objectToXml', () => {
+  it('handles undefined input', () => {
+    expect(objectToXml(undefined)).toBe('');
+  });
+
   it.each([
     {
       description: 'should handle null input',
       input: null,
       expected: '<root/>\n',
-    },
-    {
-      description: 'should handle undefined input',
-      input: undefined,
-      expected: '',
     },
     {
       description: 'should handle primitive values',
@@ -43,7 +42,6 @@ describe('objectToXml', () => {
     {
       description: 'should respect custom indentation',
       input: { test: 'value' },
-      indent: '  ',
       expected: '<root>\n  <test>value</test>\n</root>\n',
     },
   ])('$description', ({ input, expected }) => {
