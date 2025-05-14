@@ -1,4 +1,4 @@
-import { Client } from 'pg';
+import { Client, type QueryResult } from 'pg';
 import { config } from '../config';
 import { DEFAULT_LINKEDIN_PROFLE_ALLOWED_AGE_DAYS } from '../sync/linkedin_constants';
 import { generateEmbeddings } from './embedding';
@@ -20,6 +20,8 @@ export interface DocumentWithMemberContext extends Document {
   member_name: string | null;
   member_slack_id: string | null;
   member_location: OfficeLocation | null;
+  member_checkin_location_today: OfficeLocation | null;
+  member_is_checked_in_today: boolean;
   member_linkedin_url: string | null;
   member_notion_page_url: string | null;
 }
@@ -231,7 +233,7 @@ async function deleteDoc(sourceUniqueId: string): Promise<boolean> {
  * @param options - Search options
  * @returns Similar documents with similarity scores and member context
  */
-async function findSimilar(embedding: number[], options: SearchOptions = {}): Promise<Document[]> {
+async function findSimilar(embedding: number[], options: SearchOptions = {}): Promise<DocumentWithMemberContext[]> {
   const client = await getOrCreateClient();
 
   try {
@@ -241,7 +243,7 @@ async function findSimilar(embedding: number[], options: SearchOptions = {}): Pr
 
     // Note we're not just direct querying the `rag_docs` table,
     // we're querying the view that includes member context
-    const result = await client.query(
+    const result: QueryResult<Omit<DocumentWithMemberContext, 'member_is_checked_in_today'>> = await client.query(
       `SELECT
         source_type,
         source_unique_id,
@@ -264,60 +266,19 @@ async function findSimilar(embedding: number[], options: SearchOptions = {}): Pr
     );
 
     // Enhance metadata with member context from the view
-    return result.rows.map(
-      (
-        row: Document & {
-          member_name: string | null;
-          member_slack_id: string | null;
-          member_location: OfficeLocation | null;
-          member_checkin_location_today: OfficeLocation | null;
-          member_linkedin_url: string | null;
-          member_notion_page_url: string | null;
-        },
-      ) => {
-        // Extract the fields we want to keep
-        const {
-          source_type,
-          source_unique_id,
-          content,
-          metadata,
-          created_at,
-          updated_at,
-          member_name,
-          member_slack_id,
-          member_location,
-          member_checkin_location_today,
-          member_linkedin_url,
-          member_notion_page_url,
-          embedding: rawEmbedding,
-        } = row;
+    return result.rows.map((row) => {
+      const { embedding: rawEmbedding, ...rest } = row;
 
-        return {
-          source_type,
-          source_unique_id,
-          content,
-          created_at,
-          updated_at,
-          // Only include embedding if requested
-          ...(excludeEmbeddingsFromResults
-            ? {}
-            : {
-                embedding: parseStoredEmbedding(rawEmbedding as string | null),
-              }),
-          // Merge member context into metadata
-          metadata: {
-            ...metadata,
-            member_name,
-            member_slack_id,
-            member_location,
-            member_is_checked_in_today: member_checkin_location_today != null,
-            member_checkin_location_today,
-            member_linkedin_url,
-            member_notion_page_url,
-          },
-        };
-      },
-    );
+      return {
+        member_is_checked_in_today: rest.member_checkin_location_today != null,
+        ...(excludeEmbeddingsFromResults
+          ? {}
+          : {
+              embedding: parseStoredEmbedding(rawEmbedding as string | null),
+            }),
+        ...rest,
+      };
+    });
   } catch (error) {
     logger.error(error, 'Error finding similar documents');
     throw error;
