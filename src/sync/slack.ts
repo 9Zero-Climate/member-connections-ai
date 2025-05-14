@@ -65,21 +65,16 @@ export async function upsertSlackMessagesRagDocs(
     }
   });
 
-  logger.info(
-    { sourceIds: docsToSkip.map((doc) => doc.source_unique_id) },
-    `Skipping ${docsToSkip.length} unchanged documents`,
-  );
-  logger.info(
-    { sourceIds: docsToInsert.map((doc) => doc.source_unique_id) },
-    `Inserting ${docsToInsert.length} new documents`,
-  );
-  await Promise.all(docsToUpdate.map((doc) => insertOrUpdateDoc(doc)));
+  logger.info(`Skipping ${docsToSkip.length} unchanged documents`);
+  logger.debug(`Skipped document source ids: ${docsToSkip.map((doc) => doc.source_unique_id).join(', ')}`);
 
-  logger.info(
-    { sourceIds: docsToInsert.map((doc) => doc.source_unique_id) },
-    `Updating ${docsToUpdate.length} changed documents`,
-  );
+  logger.info(`Inserting ${docsToInsert.length} new documents`);
+  logger.debug(`Inserted document source ids: ${docsToInsert.map((doc) => doc.source_unique_id).join(', ')}`);
   await Promise.all(docsToInsert.map((doc) => insertOrUpdateDoc(doc)));
+
+  logger.info(`Updating ${docsToUpdate.length} changed documents`);
+  logger.debug(`Updated document source ids: ${docsToUpdate.map((doc) => doc.source_unique_id).join(', ')}`);
+  await Promise.all(docsToUpdate.map((doc) => insertOrUpdateDoc(doc)));
 }
 
 /**
