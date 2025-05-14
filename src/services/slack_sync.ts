@@ -157,8 +157,11 @@ const slackSync = {
       });
       return result.permalink || null;
     } catch (error) {
-      logger.warn({ err: error, channelId, message }, 'Error while fetching permalink');
-      return null;
+      if (error.data.error === 'message_not_found') {
+        logger.warn({ err: error, channelId, message }, '"message_not_found" error while fetching permalink, skipping');
+        return null;
+      }
+      throw error;
     }
   },
 
