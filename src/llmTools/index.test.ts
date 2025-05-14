@@ -1,4 +1,4 @@
-import { objectToXml } from './tools';
+import { objectToXml } from '.';
 
 describe('objectToXml', () => {
   it.each([

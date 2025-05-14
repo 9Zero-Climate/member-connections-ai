@@ -1,10 +1,6 @@
 import type { ChatCompletionAssistantMessageParam, ChatCompletionToolMessageParam } from 'openai/resources/chat';
+import { type LLMToolCall, type ToolImplementationsByName, objectToXml } from '../llmTools';
 import { logger } from '../services/logger';
-import { type ToolCall, objectToXml } from '../services/tools';
-
-// Define the expected type for the injected implementations map
-// biome-ignore lint/suspicious/noExplicitAny: Tool functions can have varied args/return types
-type ToolImplementationsMap = Record<string, (args: any) => Promise<any>>;
 
 /**
  * Executes a list of tool calls using provided implementations and returns the results.
@@ -14,8 +10,8 @@ type ToolImplementationsMap = Record<string, (args: any) => Promise<any>>;
  * @returns An array of ChatCompletion*MessageParam containing the results. This should be appended to the LLM thread.
  */
 export default async function executeToolCalls(
-  toolCalls: ToolCall[],
-  toolImplementations: ToolImplementationsMap,
+  toolCalls: LLMToolCall[],
+  toolImplementations: ToolImplementationsByName,
 ): Promise<(ChatCompletionToolMessageParam | ChatCompletionAssistantMessageParam)[]> {
   const toolCallAndResultMessages: (ChatCompletionToolMessageParam | ChatCompletionAssistantMessageParam)[] = [
     {
