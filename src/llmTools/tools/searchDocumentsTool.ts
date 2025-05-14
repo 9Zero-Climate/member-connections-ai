@@ -1,7 +1,7 @@
 import type { ChatCompletionTool } from 'openai/resources/chat';
 import { type Document, findSimilar } from '../../services/database';
 import { generateEmbedding } from '../../services/embedding';
-import type { LLMToolInstance } from '../LLMToolInterface';
+import type { LLMTool } from '../LLMToolInterface';
 
 export interface SearchToolParams {
   query: string;
@@ -41,22 +41,18 @@ const searchDocumentsSpec: ChatCompletionTool = {
   },
 };
 
-// This function will be the implementation for the tool
-const searchDocumentsImpl = async (params: SearchToolParams): Promise<SearchToolResult> => {
-  const { query, limit = DEFAULT_DOCUMENT_LIMIT } = params;
-  const queryEmbedding = await generateEmbedding(query);
-  const documents = await findSimilar(queryEmbedding, { limit, excludeEmbeddingsFromResults: true });
-  return {
-    documents,
-    query,
-  };
+export const SearchDocumentsTool: LLMTool<SearchToolParams, SearchToolResult> = {
+  toolName: 'searchDocuments',
+  forAdminsOnly: false,
+  specForLLM: searchDocumentsSpec,
+  getShortDescription: (params: SearchToolParams) => `Semantic search for "${params.query}"`,
+
+  impl: async ({ query, limit = DEFAULT_DOCUMENT_LIMIT }: SearchToolParams) => {
+    const queryEmbedding = await generateEmbedding(query);
+    const documents = await findSimilar(queryEmbedding, { limit, excludeEmbeddingsFromResults: true });
+    return {
+      documents,
+      query,
+    };
+  },
 };
-
-export class SearchDocumentsTool implements LLMToolInstance<SearchToolParams, SearchToolResult> {
-  static readonly toolName = 'searchDocuments';
-  static readonly forAdminsOnly = false;
-  static readonly specForLLM: ChatCompletionTool = searchDocumentsSpec;
-  static readonly getShortDescription = (params: SearchToolParams) => `Semantic search for "${params.query}"`;
-
-  impl = searchDocumentsImpl;
-}

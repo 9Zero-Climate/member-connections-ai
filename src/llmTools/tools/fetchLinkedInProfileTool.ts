@@ -1,7 +1,7 @@
 import type { ChatCompletionTool } from 'openai/resources/chat';
 import { NINEZERO_SLACK_MEMBER_LINK_PREFIX } from '../../assistant/prompts'; // Assuming this is the correct path
 import { type Document, getLinkedInDocumentsByMemberIdentifier } from '../../services/database';
-import type { LLMToolInstance } from '../LLMToolInterface';
+import type { LLMTool } from '../LLMToolInterface';
 
 export interface LinkedInProfileToolParams {
   memberIdentifier: string;
@@ -34,25 +34,22 @@ const fetchLinkedInProfileSpec: ChatCompletionTool = {
 
 const looksLikeSlackId = (identifier: string): boolean => /^U[A-Z0-9]+$/.test(identifier);
 
-const fetchLinkedInProfileImpl = async (params: LinkedInProfileToolParams): Promise<LinkedInProfileToolResult> => {
-  const { memberIdentifier } = params;
-  const documents = await getLinkedInDocumentsByMemberIdentifier(memberIdentifier);
-  return {
-    documents,
-    memberIdentifier,
-  };
-};
-
-export class FetchLinkedInProfileTool implements LLMToolInstance<LinkedInProfileToolParams, LinkedInProfileToolResult> {
-  static readonly toolName = 'fetchLinkedInProfile';
-  static readonly forAdminsOnly = false;
-  static readonly specForLLM: ChatCompletionTool = fetchLinkedInProfileSpec;
-  static readonly getShortDescription = (params: LinkedInProfileToolParams) => {
+export const FetchLinkedInProfileTool: LLMTool<LinkedInProfileToolParams, LinkedInProfileToolResult> = {
+  toolName: 'fetchLinkedInProfile',
+  forAdminsOnly: false,
+  specForLLM: fetchLinkedInProfileSpec,
+  getShortDescription: (params: LinkedInProfileToolParams) => {
     const memberIdForDisplay = looksLikeSlackId(params.memberIdentifier)
       ? `${NINEZERO_SLACK_MEMBER_LINK_PREFIX}${params.memberIdentifier} `
       : params.memberIdentifier;
     return `Fetch LinkedIn profile for ${memberIdForDisplay}`;
-  };
+  },
 
-  impl = fetchLinkedInProfileImpl;
-}
+  impl: async ({ memberIdentifier }: LinkedInProfileToolParams) => {
+    const documents = await getLinkedInDocumentsByMemberIdentifier(memberIdentifier);
+    return {
+      documents,
+      memberIdentifier,
+    };
+  },
+};

@@ -3,48 +3,31 @@ import { XMLBuilder } from 'fast-xml-parser';
 import type { ChatCompletionTool } from 'openai/resources/chat';
 import { logger } from '../services/logger';
 
-import type { LLMToolClass } from './LLMToolInterface';
-import {
-  type CreateOnboardingThreadParams,
-  type CreateOnboardingThreadResult,
-  OnboardingThreadTool,
-} from './tools/createOnboardingThreadTool';
-import {
-  FetchLinkedInProfileTool,
-  type LinkedInProfileToolParams,
-  type LinkedInProfileToolResult,
-} from './tools/fetchLinkedInProfileTool';
-import { SearchDocumentsTool, type SearchToolParams, type SearchToolResult } from './tools/searchDocumentsTool';
+import type { LLMTool, LLMToolContext, ToolImplementation } from './LLMToolInterface';
+import { OnboardingThreadTool } from './tools/createOnboardingThreadTool';
+import { FetchLinkedInProfileTool } from './tools/fetchLinkedInProfileTool';
+import { SearchDocumentsTool } from './tools/searchDocumentsTool';
 
-export type {
-  CreateOnboardingThreadParams,
-  CreateOnboardingThreadResult,
-  SearchToolParams,
-  SearchToolResult,
-  LinkedInProfileToolParams,
-  LinkedInProfileToolResult,
-};
-
-export interface LLMToolCall {
+export type LLMToolCall = {
   id: string;
   type: 'function';
   function: {
     name: string;
     arguments: string;
   };
-}
+};
 
-// biome-ignore lint/suspicious/noExplicitAny: The LLMToolClass inputs and outputs are different for each tool
-const allToolClasses: LLMToolClass<any, any>[] = [SearchDocumentsTool, FetchLinkedInProfileTool, OnboardingThreadTool];
+// biome-ignore lint/suspicious/noExplicitAny: The LLMTool inputs and outputs are different for each tool
+const allTools: LLMTool<any, any>[] = [SearchDocumentsTool, FetchLinkedInProfileTool, OnboardingThreadTool];
 
-export const TOOL_NAMES = allToolClasses.map((cls) => cls.toolName) as readonly string[];
+export const TOOL_NAMES = allTools.map((tool) => tool.toolName) as readonly string[];
 export type ToolName = (typeof TOOL_NAMES)[number];
 
 export const getToolSpecs = (userIsAdmin: boolean): ChatCompletionTool[] => {
-  return allToolClasses.filter((cls) => !cls.forAdminsOnly || userIsAdmin).map((cls) => cls.specForLLM);
+  return allTools.filter((tool) => !tool.forAdminsOnly || userIsAdmin).map((tool) => tool.specForLLM);
 };
 
-export const getToolClassForToolCall = (toolCall: LLMToolCall): LLMToolClass<unknown, unknown> => {
+export const getToolForToolCall = (toolCall: LLMToolCall): LLMTool<unknown, unknown> => {
   if (toolCall.type !== 'function') {
     logger.error({ toolCall }, 'Unhandled tool call type - not a function');
     throw new Error(`Unhandled tool call type - not a function: ${toolCall.type}`);
@@ -52,38 +35,38 @@ export const getToolClassForToolCall = (toolCall: LLMToolCall): LLMToolClass<unk
 
   const toolName = toolCall.function.name;
 
-  const toolClass = allToolClasses.find((cls) => cls.toolName === toolName);
-  if (!toolClass) {
+  const tool = allTools.find((t) => t.toolName === toolName);
+  if (!tool) {
     logger.error({ toolCall, toolName }, 'Unknown tool name encountered');
     throw new Error(`Unhandled tool call: ${toolName}`);
   }
 
-  return toolClass;
+  return tool;
 };
 
+// Get a short description of the tool call suitable for a user facing message
 export const getToolCallShortDescription = (toolCall: LLMToolCall): string => {
-  const toolClass = getToolClassForToolCall(toolCall);
+  const tool = getToolForToolCall(toolCall);
   const toolArgs = JSON.parse(toolCall.function.arguments);
 
-  return toolClass.getShortDescription(toolArgs);
+  return tool.getShortDescription(toolArgs);
 };
 
 // --- Tool Implementations ---
-type ToolImplementation<Params, Result> = (params: Params) => Promise<Result>;
 
-// ToolImplementationsByName uses unknown as a general placeholder, specific tools' impls will match.
 export type ToolImplementationsByName = {
-  [key in ToolName]?: ToolImplementation<unknown, unknown>;
+  [key: string]: ToolImplementation<object, unknown>;
 };
 
-// Map of tool names to their implementations
 export const getToolImplementationsMap = ({
   slackClient,
   userIsAdmin,
 }: { slackClient: WebClient; userIsAdmin: boolean }): ToolImplementationsByName => {
-  return allToolClasses.reduce<ToolImplementationsByName>((acc, toolClass) => {
-    if (!toolClass.forAdminsOnly || userIsAdmin) {
-      acc[toolClass.toolName] = new toolClass({ slackClient }).impl;
+  const context: LLMToolContext = { slackClient };
+
+  return allTools.reduce<ToolImplementationsByName>((acc, tool) => {
+    if (!tool.forAdminsOnly || userIsAdmin) {
+      acc[tool.toolName] = (params: object) => tool.impl({ context, ...params });
     }
     return acc;
   }, {});

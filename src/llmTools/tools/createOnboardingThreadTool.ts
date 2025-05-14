@@ -1,7 +1,6 @@
-import type { WebClient } from '@slack/web-api/dist/WebClient';
 import type { ChatCompletionTool } from 'openai/resources/chat';
 import { createNewOnboardingDmWithAdmins } from '../../assistant/createNewOnboardingDmWithAdmins';
-import type { LLMToolConstructorOptions, LLMToolInstance } from '../LLMToolInterface';
+import type { LLMTool, LLMToolContext } from '../LLMToolInterface';
 
 export interface CreateOnboardingThreadParams {
   memberSlackId: string;
@@ -28,24 +27,14 @@ const createOnboardingThreadSpec: ChatCompletionTool = {
   },
 };
 
-export class OnboardingThreadTool
-  implements LLMToolInstance<CreateOnboardingThreadParams, CreateOnboardingThreadResult>
-{
-  private readonly slackClient: WebClient;
+export const OnboardingThreadTool: LLMTool<CreateOnboardingThreadParams, CreateOnboardingThreadResult> = {
+  toolName: 'createOnboardingThread',
+  forAdminsOnly: true,
+  specForLLM: createOnboardingThreadSpec,
+  getShortDescription: (params: CreateOnboardingThreadParams) =>
+    `Creating onboarding thread for <@${params.memberSlackId}>`,
 
-  static readonly toolName = 'createOnboardingThread';
-  static readonly forAdminsOnly = true;
-  static readonly specForLLM: ChatCompletionTool = createOnboardingThreadSpec;
-  static readonly getShortDescription = (params: CreateOnboardingThreadParams) =>
-    `Creating onboarding thread for <@${params.memberSlackId}>`;
-
-  constructor(options?: LLMToolConstructorOptions) {
-    if (!options?.slackClient) {
-      throw new Error('OnboardingThreadTool requires slackClient in options');
-    }
-    this.slackClient = options.slackClient;
-  }
-
-  impl = async ({ memberSlackId }: CreateOnboardingThreadParams) =>
-    await createNewOnboardingDmWithAdmins(this.slackClient, memberSlackId);
-}
+  impl: async ({ memberSlackId, context }: CreateOnboardingThreadParams & { context: LLMToolContext }) => {
+    return await createNewOnboardingDmWithAdmins(context.slackClient, memberSlackId);
+  },
+};
