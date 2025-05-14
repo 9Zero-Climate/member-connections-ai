@@ -53,7 +53,7 @@ export async function createNewOnboardingDmWithAdmins(client: WebClient, newUser
   logger.info({ conversationOpenResponse }, 'Conversation open response');
 
   if (!channel?.id) {
-    logger.error({ conversationOpenResponse }, 'Failed to create onboarding thread');
+    logger.warn({ conversationOpenResponse }, 'Failed to create onboarding thread');
     throw new Error('Failed to create onboarding thread');
   }
 

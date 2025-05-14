@@ -117,7 +117,7 @@ export async function createOfficeRnDDocuments(memberData: OfficeRnDMemberData):
  */
 export const handleCheckinEvent = async (payload: OfficeRnDRawWebhookPayload) => {
   if (!['checkin.created', 'checkin.updated'].includes(payload.eventType)) {
-    logger.error({ payload }, `Unsupported event type: ${payload.eventType}`);
+    logger.warn({ payload }, `Unsupported event type: ${payload.eventType}`);
     throw new Error(`Unsupported event type: ${payload.eventType}`);
   }
 
