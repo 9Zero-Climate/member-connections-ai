@@ -33,7 +33,7 @@ export default class ResponseManager {
   async startNewMessageWithPlaceholder(placeholder: string): Promise<void> {
     if (this.inProgressMessage || this.currentResponseText) {
       const msg = 'Cannot start a new message while there is an in-progress message.';
-      logger.error({
+      logger.warn({
         msg,
         inProgressMessage: this.inProgressMessage,
         currentResponseText: this.currentResponseText,

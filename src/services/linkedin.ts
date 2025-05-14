@@ -14,7 +14,7 @@ export const normalizeLinkedInUrl = (linkedinUrl: string): string => {
     return `https://linkedin.com/in/${profileIdentifier}`;
   }
   // Handle cases where the URL doesn't match the expected format
-  logger.error({ linkedinUrl }, 'Invalid LinkedIn URL format');
+  logger.warn({ linkedinUrl }, 'Invalid LinkedIn URL format');
   throw new Error(`Invalid LinkedIn URL format: ${linkedinUrl} - could not extract profile identifier`);
 };
 

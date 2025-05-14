@@ -80,7 +80,7 @@ async function getOrCreateClient(): Promise<Client> {
     globalClient = new Client({ connectionString: config.dbUrl });
     await globalClient.connect();
   } catch (error) {
-    logger.error(error, 'Failed to connect to database');
+    logger.warn(error, 'Failed to connect to database');
     throw error;
   }
 
@@ -94,7 +94,7 @@ async function checkDbConnection(): Promise<void> {
 
 async function closeDbConnection(): Promise<void> {
   if (globalClient === undefined) {
-    logger.error("Trying to close global database connection but it doesn't exist");
+    logger.warn("Trying to close global database connection but it doesn't exist");
   } else {
     await globalClient.end();
     globalClient = undefined;
@@ -181,7 +181,7 @@ async function insertOrUpdateDoc(doc: Document): Promise<Document> {
     returnedDoc.embedding = parseStoredEmbedding(returnedDoc.embedding as string | null);
     return returnedDoc;
   } catch (error) {
-    logger.error(error, 'Error inserting/updating document');
+    logger.warn(error, 'Error inserting/updating document');
     throw error;
   }
 }
@@ -203,7 +203,7 @@ async function getDocBySource(sourceUniqueId: string): Promise<Document | null> 
     doc.embedding = parseStoredEmbedding(doc.embedding as string | null);
     return doc;
   } catch (error) {
-    logger.error(error, 'Error getting document:');
+    logger.warn(error, 'Error getting document:');
     throw error;
   }
 }
@@ -220,7 +220,7 @@ async function deleteDoc(sourceUniqueId: string): Promise<boolean> {
     const result = await client.query('DELETE FROM rag_docs WHERE source_unique_id = $1 RETURNING *', [sourceUniqueId]);
     return result.rows.length > 0;
   } catch (error) {
-    logger.error(error, 'Error deleting document');
+    logger.warn(error, 'Error deleting document');
     throw error;
   }
 }
@@ -319,7 +319,7 @@ async function findSimilar(embedding: number[], options: SearchOptions = {}): Pr
       },
     );
   } catch (error) {
-    logger.error(error, 'Error finding similar documents');
+    logger.warn(error, 'Error finding similar documents');
     throw error;
   }
 }
@@ -426,7 +426,7 @@ async function bulkUpsertMembers(members: BasicMemberForUpsert[]): Promise<Membe
     logger.info(`Upserted ${members.length} members into the database.`);
     return result.rows;
   } catch (error) {
-    logger.error(error, 'Error bulk upserting members');
+    logger.warn(error, 'Error bulk upserting members');
     throw error;
   }
 }
@@ -457,7 +457,7 @@ async function deleteTypedDocumentsForMember(officerndMemberId: string, typePref
     );
     logger.debug(`Deleted ${typePrefix} documents for member ${officerndMemberId}`);
   } catch (error) {
-    logger.error(error, `Error deleting ${typePrefix} documents for member ${officerndMemberId}`);
+    logger.warn(error, `Error deleting ${typePrefix} documents for member ${officerndMemberId}`);
     throw error;
   }
 }
@@ -519,7 +519,7 @@ const getMemberOrMembersWithLastLinkedInUpdates = async (
     logger.info(`Fetched ${members.length} members`);
     return members;
   } catch (error) {
-    logger.error(error, 'Error getting last LinkedIn updates');
+    logger.warn(error, 'Error getting last LinkedIn updates');
     throw error;
   }
 };
@@ -538,7 +538,7 @@ const getMember = async (officerndId: string): Promise<Member> => {
   const result = await client.query('SELECT * FROM members WHERE officernd_id = $1', [officerndId]);
 
   if (result.rows.length !== 1) {
-    logger.error({ result, officerndId }, `Expected 1 member, got ${result.rows.length} for officerndId`);
+    logger.warn({ result, officerndId }, `Expected 1 member, got ${result.rows.length} for officerndId`);
     throw new Error(`Expected 1 member, got ${result.rows.length} for officerndId=${officerndId}`);
   }
   return result.rows[0];
@@ -572,7 +572,7 @@ async function getLinkedInDocuments(linkedinUrl: string): Promise<Document[]> {
       },
     }));
   } catch (error) {
-    logger.error(error, 'Error fetching LinkedIn documents by URL');
+    logger.warn(error, 'Error fetching LinkedIn documents by URL');
     throw error;
   }
 }
@@ -638,7 +638,7 @@ async function getLinkedInDocumentsByMemberIdentifier(memberIdentifier: string):
     // Map results, ensuring metadata includes view fields
     return result.rows;
   } catch (error) {
-    logger.error(error, 'Error fetching LinkedIn documents by Name');
+    logger.warn(error, 'Error fetching LinkedIn documents by Name');
     throw error;
   }
 }

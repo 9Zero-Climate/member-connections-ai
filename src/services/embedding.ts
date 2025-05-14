@@ -36,7 +36,7 @@ async function generateEmbedding(text: string): Promise<number[]> {
 
     return response.data[0].embedding;
   } catch (error) {
-    logger.error(
+    logger.warn(
       {
         err: error,
         message: error instanceof Error ? error.message : 'Unknown error',
@@ -82,7 +82,7 @@ async function generateEmbeddings(texts: string[]): Promise<number[][]> {
     }
     return allEmbeddings;
   } catch (error) {
-    logger.error(
+    logger.warn(
       {
         err: error,
         message: error instanceof Error ? error.message : 'Unknown error',

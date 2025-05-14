@@ -43,7 +43,7 @@ export async function getLinkedInProfile(linkedinUrl: string): Promise<Proxycurl
   const apiKey = config.proxycurlApiKey;
 
   if (apiKey === null || apiKey === undefined) {
-    logger.error('Error: Proxycurl API key not configured');
+    logger.warn('Error: Proxycurl API key not configured');
     throw new Error('Proxycurl API key not configured');
   }
 
@@ -63,7 +63,7 @@ export async function getLinkedInProfile(linkedinUrl: string): Promise<Proxycurl
 
     if (!response.ok) {
       const errorText = await response.text();
-      logger.error(
+      logger.warn(
         {
           status: response.status,
           statusText: response.statusText,
@@ -78,7 +78,7 @@ export async function getLinkedInProfile(linkedinUrl: string): Promise<Proxycurl
 
     return (await response.json()) as ProxycurlProfile;
   } catch (error) {
-    logger.error({ err: error, linkedinUrl }, 'Error fetching LinkedIn profile');
+    logger.warn({ err: error, linkedinUrl }, 'Error fetching LinkedIn profile');
     throw error; // Re-throw after logging
   }
 }

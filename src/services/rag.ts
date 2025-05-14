@@ -28,7 +28,7 @@ async function retrieveRelevantDocs(query: string, options: RagOptions = {}): Pr
 
     return similarDocs;
   } catch (error) {
-    logger.error(error, 'Error in RAG retrieval');
+    logger.warn(error, 'Error in RAG retrieval');
     throw error;
   }
 }

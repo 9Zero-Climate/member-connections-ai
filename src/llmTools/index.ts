@@ -28,7 +28,7 @@ export const getToolSpecs = (userIsAdmin: boolean): ChatCompletionTool[] => {
 
 export const getToolForToolCall = (toolCall: LLMToolCall): LLMTool<unknown, unknown> => {
   if (toolCall.type !== 'function') {
-    logger.error({ toolCall }, 'Unhandled tool call type - not a function');
+    logger.warn({ toolCall }, 'Unhandled tool call type - not a function');
     throw new Error(`Unhandled tool call type - not a function: ${toolCall.type}`);
   }
 
@@ -36,7 +36,7 @@ export const getToolForToolCall = (toolCall: LLMToolCall): LLMTool<unknown, unkn
 
   const tool = ALL_TOOLS.find((t) => t.toolName === toolName);
   if (!tool) {
-    logger.error({ toolCall, toolName }, 'Unknown tool name encountered');
+    logger.warn({ toolCall, toolName }, 'Unknown tool name encountered');
     throw new Error(`Unhandled tool call: ${toolName}`);
   }
 
