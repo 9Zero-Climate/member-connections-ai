@@ -1,16 +1,15 @@
 import { objectToXml } from './objectToXML';
 
 describe('objectToXml', () => {
+  it('handles undefined input', () => {
+    expect(objectToXml(undefined)).toBe('');
+  });
+
   it.each([
     {
       description: 'should handle null input',
       input: null,
       expected: '<root/>\n',
-    },
-    {
-      description: 'should handle undefined input',
-      input: undefined,
-      expected: '',
     },
     {
       description: 'should handle primitive values',
@@ -35,7 +34,10 @@ describe('objectToXml', () => {
     {
       description: 'should handle array values',
       input: { items: ['a', 'b', 'c'] },
+      // This is a weird behavior of the XMLBuilder library, but whatever. TODO #22
       expected: '<root>\n  <items>a</items>\n  <items>b</items>\n  <items>c</items>\n</root>\n',
+      // Something like this would make more sense, but it's not how the library works.
+      // expected: '<root>\n  <items>\n    <item idx="0">a</item>\n    <item idx="1">b</item>\n    <item idx="2">c</item>\n  </items>\n</root>\n',
     },
     {
       description: 'should respect custom indentation',
@@ -43,10 +45,6 @@ describe('objectToXml', () => {
       expected: '<root>\n  <test>value</test>\n</root>\n',
     },
   ])('$description', ({ input, expected }) => {
-    if (input === undefined) {
-      expect(objectToXml(input)).toBe(expected);
-    } else {
-      expect(objectToXml({ root: input })).toBe(expected);
-    }
+    expect(objectToXml({ root: input })).toBe(expected);
   });
 });

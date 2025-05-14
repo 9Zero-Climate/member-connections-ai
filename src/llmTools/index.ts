@@ -17,13 +17,13 @@ export type LLMToolCall = {
 };
 
 // biome-ignore lint/suspicious/noExplicitAny: The LLMTool inputs and outputs are different for each tool
-const allTools: LLMTool<any, any>[] = [SearchDocumentsTool, FetchLinkedInProfileTool, OnboardingThreadTool];
+const ALL_TOOLS: LLMTool<any, any>[] = [SearchDocumentsTool, FetchLinkedInProfileTool, OnboardingThreadTool];
 
-export const TOOL_NAMES = allTools.map((tool) => tool.toolName) as readonly string[];
+export const TOOL_NAMES = ALL_TOOLS.map((tool) => tool.toolName) as readonly string[];
 export type ToolName = (typeof TOOL_NAMES)[number];
 
 export const getToolSpecs = (userIsAdmin: boolean): ChatCompletionTool[] => {
-  return allTools.filter((tool) => !tool.forAdminsOnly || userIsAdmin).map((tool) => tool.specForLLM);
+  return ALL_TOOLS.filter((tool) => !tool.forAdminsOnly || userIsAdmin).map((tool) => tool.specForLLM);
 };
 
 export const getToolForToolCall = (toolCall: LLMToolCall): LLMTool<unknown, unknown> => {
@@ -34,7 +34,7 @@ export const getToolForToolCall = (toolCall: LLMToolCall): LLMTool<unknown, unkn
 
   const toolName = toolCall.function.name;
 
-  const tool = allTools.find((t) => t.toolName === toolName);
+  const tool = ALL_TOOLS.find((t) => t.toolName === toolName);
   if (!tool) {
     logger.error({ toolCall, toolName }, 'Unknown tool name encountered');
     throw new Error(`Unhandled tool call: ${toolName}`);
@@ -63,10 +63,9 @@ export const getToolImplementationsMap = ({
 }: { slackClient: WebClient; userIsAdmin: boolean }): ToolImplementationsByName => {
   const context: LLMToolContext = { slackClient };
 
-  return allTools.reduce<ToolImplementationsByName>((acc, tool) => {
-    if (!tool.forAdminsOnly || userIsAdmin) {
-      acc[tool.toolName] = (params: object) => tool.impl({ context, ...params });
-    }
-    return acc;
-  }, {});
+  const toolNamesAndImplementations = ALL_TOOLS.filter((tool) => !tool.forAdminsOnly || userIsAdmin).map((tool) => {
+    return [tool.toolName, (params: object) => tool.impl({ context, ...params })];
+  });
+
+  return Object.fromEntries(toolNamesAndImplementations);
 };
