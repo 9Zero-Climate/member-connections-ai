@@ -106,7 +106,7 @@ async function getAccessToken(): Promise<string> {
 
   if (!response.ok) {
     const errorText = await response.text();
-    logger.error(
+    logger.warn(
       {
         status: response.status,
         statusText: response.statusText,

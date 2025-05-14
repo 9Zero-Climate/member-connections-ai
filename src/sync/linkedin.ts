@@ -314,7 +314,7 @@ export async function createLinkedInDocuments(
       });
     }
   } catch (error) {
-    logger.error(error, 'Error creating LinkedIn documents');
+    logger.warn(error, 'Error creating LinkedIn documents');
     throw error;
   }
 }
