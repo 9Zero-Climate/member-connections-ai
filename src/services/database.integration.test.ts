@@ -1,7 +1,7 @@
 import type { Client } from 'pg';
 import { mockEmbeddingsService } from './mocks';
 
-import type { DocumentWithMemberContext } from './database';
+import type { DocumentWithMemberContextAndSimilarity } from './database';
 import {
   OfficeLocation,
   bulkUpsertMembers,
@@ -473,8 +473,12 @@ describe('Database Integration Tests', () => {
       expect(docs).toHaveLength(2);
       expect(Array.isArray(docs)).toBe(true);
       expect(docs[0]).toMatchObject(memberInfo);
-      expect((docs as DocumentWithMemberContext[]).map((d) => d.source_type)).toContain('linkedin_experience');
-      expect((docs as DocumentWithMemberContext[]).map((d) => d.source_type)).toContain('linkedin_education');
+      expect((docs as DocumentWithMemberContextAndSimilarity[]).map((d) => d.source_type)).toContain(
+        'linkedin_experience',
+      );
+      expect((docs as DocumentWithMemberContextAndSimilarity[]).map((d) => d.source_type)).toContain(
+        'linkedin_education',
+      );
     });
 
     it.each([

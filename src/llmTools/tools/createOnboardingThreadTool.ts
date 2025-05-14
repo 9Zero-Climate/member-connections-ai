@@ -28,7 +28,6 @@ const createOnboardingThreadSpec: ChatCompletionTool = {
 };
 
 export const OnboardingThreadTool: LLMTool<CreateOnboardingThreadParams, CreateOnboardingThreadResult> = {
-  toolName: 'createOnboardingThread',
   forAdminsOnly: true,
   specForLLM: createOnboardingThreadSpec,
   getShortDescription: (params: CreateOnboardingThreadParams) =>

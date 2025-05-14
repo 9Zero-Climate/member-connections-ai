@@ -8,7 +8,6 @@ export type LLMToolContext = {
 export type ToolImplementation<Params, Result> = (params: Params & { context: LLMToolContext }) => Promise<Result>;
 
 export type LLMTool<Params = unknown, Result = unknown> = {
-  toolName: string;
   specForLLM: ChatCompletionTool;
   forAdminsOnly: boolean;
   getShortDescription: (params: Params) => string;

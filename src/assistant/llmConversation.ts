@@ -47,10 +47,21 @@ export const runLlmConversation = async ({
     // Use thread_ts for subsequent messages in the loop to keep them threaded
     responseManager.startNewMessageWithPlaceholder('_thinking..._');
 
+    const toolSpecs = getToolSpecs(userIsAdmin);
+    logger.debug({ model: config.modelName, messages: llmThread, toolSpecs }, 'Calling for chat completion');
+    const res = await llmClient.chat.completions.create({
+      model: config.modelName,
+      messages: llmThread,
+      tools: toolSpecs,
+      tool_choice: remainingLlmLoopsAllowed === 0 ? 'none' : 'auto',
+      stream: false,
+    });
+
+    logger.debug({ res }, 'Chat completion response');
     const streamFromLlm = await llmClient.chat.completions.create({
       model: config.modelName,
       messages: llmThread,
-      tools: getToolSpecs(userIsAdmin),
+      tools: toolSpecs,
       tool_choice: remainingLlmLoopsAllowed === 0 ? 'none' : 'auto',
       stream: true,
     });
