@@ -2,7 +2,7 @@ import { isDeepStrictEqual } from 'node:util';
 import { ConfigContext, validateConfig } from '../config';
 import { type Document, closeDbConnection, getDocBySource, insertOrUpdateDoc } from '../services/database';
 import { logger } from '../services/logger';
-import slackSync from '../services/slack_sync';
+import slackSync, { extractChannelMessagesFromSlackHistoryExport } from '../services/slack_sync';
 import type { FormattedSlackMessage, SlackSyncOptions } from '../services/slack_sync';
 
 const defaultSyncOptions: SlackSyncOptions = {
@@ -27,12 +27,12 @@ export async function upsertSlackMessagesRagDocs(
   channelName: string,
   channelId: string,
 ) {
-  for (const message of processedMessages) {
-    const sourceUniqueId = `${channelId}:${message.ts}`;
+  logger.info(`Upserting (up to) ${processedMessages.length} messages as RAG Docs`);
 
-    const docToUpsert: SlackMessageRagDoc = {
+  const newDocs: SlackMessageRagDoc[] = processedMessages.map((message) => {
+    return {
       source_type: 'slack',
-      source_unique_id: sourceUniqueId,
+      source_unique_id: `${channelId}:${message.ts}`,
       content: message.text,
       metadata: {
         ts: message.ts,
@@ -43,25 +43,36 @@ export async function upsertSlackMessagesRagDocs(
         permalink: message.permalink,
       },
     };
+  });
+  const existingDocs = await Promise.all(newDocs.map((docToUpsert) => getDocBySource(docToUpsert.source_unique_id)));
 
-    // Don't try to upsert doc if it already exists and nothing has changed
-    const existingDoc = await getDocBySource(sourceUniqueId);
-    if (existingDoc && doesSlackMessageMatchDb(existingDoc, docToUpsert)) {
-      logger.info(`Skipping unchanged document ${sourceUniqueId}`);
-      continue;
+  const docsToSkip: SlackMessageRagDoc[] = [];
+  const docsToUpdate: SlackMessageRagDoc[] = [];
+  const docsToInsert: SlackMessageRagDoc[] = [];
+
+  newDocs.forEach((newDoc, index) => {
+    const existingDoc = existingDocs[index];
+    const isUnchanged = existingDoc && doesSlackMessageMatchDb(existingDoc, newDoc);
+
+    if (!existingDoc) {
+      docsToInsert.push(newDoc);
+    } else if (existingDoc && isUnchanged) {
+      docsToSkip.push(newDoc);
+    } else {
+      docsToUpdate.push(newDoc);
     }
+  });
 
-    if (existingDoc) {
-      logger.info('Documents considered different:');
-      logger.info(
-        JSON.stringify({ existingDoc: { ...existingDoc, embedding: undefined }, newDoc: docToUpsert }, null, 2),
-      );
-    }
+  logger.info(`Skipping ${docsToSkip.length} unchanged documents`);
+  logger.debug(`Skipped document source ids: ${docsToSkip.map((doc) => doc.source_unique_id).join(', ')}`);
 
-    // Insert or update document using the correctly formatted object
-    await insertOrUpdateDoc(docToUpsert);
-    logger.info(`${existingDoc ? 'Updated' : 'Inserted'} document ${sourceUniqueId}`);
-  }
+  logger.info(`Inserting ${docsToInsert.length} new documents`);
+  logger.debug(`Inserted document source ids: ${docsToInsert.map((doc) => doc.source_unique_id).join(', ')}`);
+  await Promise.all(docsToInsert.map((doc) => insertOrUpdateDoc(doc)));
+
+  logger.info(`Updating ${docsToUpdate.length} changed documents`);
+  logger.debug(`Updated document source ids: ${docsToUpdate.map((doc) => doc.source_unique_id).join(', ')}`);
+  await Promise.all(docsToUpdate.map((doc) => insertOrUpdateDoc(doc)));
 }
 
 /**
@@ -74,13 +85,16 @@ export async function upsertSlackMessagesRagDocs(
  * fields (like thread_ts, reply_count) may be undefined in new messages
  * but null/missing in stored documents.
  *
- * @param msgDocInDb - Document from the database
+ * @param existingDoc - Document from the database
  * @param newDoc - Newly processed document straight from Slack
  * @returns boolean indicating if the documents are semantically equal. If false, the DB should be updated with the newDoc.
  */
-export function doesSlackMessageMatchDb(msgDocInDb: Document, newDoc: Document): boolean {
-  if (msgDocInDb.content !== newDoc.content) {
-    console.log('Content mismatch');
+export function doesSlackMessageMatchDb(existingDoc: Document, newDoc: Document): boolean {
+  if (existingDoc.content !== newDoc.content) {
+    logger.debug(
+      { existingDocContent: existingDoc.content, newDocContent: newDoc.content },
+      'New doc content does not match existing doc',
+    );
     return false;
   }
 
@@ -90,11 +104,14 @@ export function doesSlackMessageMatchDb(msgDocInDb: Document, newDoc: Document):
     return Object.fromEntries(entries);
   };
 
-  const dbMeta = cleanMetadata(msgDocInDb.metadata);
+  const dbMeta = cleanMetadata(existingDoc.metadata);
   const newMeta = cleanMetadata(newDoc.metadata);
 
   if (!isDeepStrictEqual(dbMeta, newMeta)) {
-    logger.debug('Metadata mismatch');
+    logger.debug(
+      JSON.stringify({ existingDoc: { ...existingDoc, embedding: undefined }, newDoc }, null, 2),
+      'New doc metadata does not match existing doc',
+    );
     return false;
   }
 
@@ -116,11 +133,9 @@ export async function syncSlackChannels(channelNames: string[], syncOptionOverri
       logger.info(`Syncing channel: ${channelName}`);
 
       const channelId = await slackSync.getChannelId(channelName);
-      logger.info(`Found channel ID: ${channelId}`);
 
       // Fetch messages
       const messages = await slackSync.fetchChannelHistory(channelId, syncOptions);
-      logger.info(`Fetched ${messages.length} messages`);
 
       // Process messages into a shape we can use
       const formattedMessages = await slackSync.processMessages(messages, channelId);
@@ -136,3 +151,36 @@ export async function syncSlackChannels(channelNames: string[], syncOptionOverri
 
   logger.info('Slack sync complete');
 }
+
+/**
+ * Imports data from a full slack history export.
+ * See notes in extractChannelMessagesFromSlackHistoryExport for expected shape of data
+ */
+export const importSlackHistory = async (exportDirectoryPath: string, channelNames: string[]): Promise<void> => {
+  logger.info(`Starting import for channels: ${channelNames.join(', ')}`);
+
+  try {
+    validateConfig(process.env, ConfigContext.SyncSlack);
+
+    for (const channelName of channelNames) {
+      logger.info(`Importing channel: ${channelName}`);
+
+      const channelId = await slackSync.getChannelId(channelName);
+
+      // Extract messages
+      const messages = await extractChannelMessagesFromSlackHistoryExport(exportDirectoryPath, channelName);
+
+      // Process messages into a shape we can use
+      const formattedMessages = await slackSync.processMessages(messages, channelId);
+
+      // Upsert those messages as RAG docs (only if changed or new)
+      await upsertSlackMessagesRagDocs(formattedMessages, channelName, channelId);
+
+      logger.info(`Successfully imported ${formattedMessages.length} messages to database`);
+    }
+  } finally {
+    await closeDbConnection();
+  }
+
+  logger.info('Slack import complete');
+};

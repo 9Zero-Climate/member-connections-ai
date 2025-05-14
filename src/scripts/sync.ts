@@ -2,7 +2,7 @@ import { Command } from 'commander';
 import { syncLinkedIn } from '../sync/linkedin';
 import { syncNotion } from '../sync/notion';
 import { syncOfficeRnD } from '../sync/officernd';
-import { syncSlackChannels } from '../sync/slack';
+import { importSlackHistory, syncSlackChannels } from '../sync/slack';
 
 const program = new Command();
 program.name('sync').description('CLI tool for syncing data from external sources');
@@ -33,5 +33,15 @@ program
   .option('--oldest <timestamp>', 'Start time in Unix timestamp')
   .option('--latest <timestamp>', 'End time in Unix timestamp')
   .action(syncSlackChannels);
+
+program
+  .command('slack-history')
+  .description(
+    'Import Slack history from an exported .zip file. \
+    See https://slack.com/help/articles/201658943-Export-your-workspace-data for how to export.',
+  )
+  .argument('<folderPath>', 'Path to the folder containing the (unzipped) export')
+  .argument('<channelNames...>', 'Names of the channels to sync')
+  .action(importSlackHistory);
 
 program.parse();
