@@ -5,6 +5,8 @@ import type { MessageElement } from '@slack/web-api/dist/types/response/Conversa
 import { config } from '../config';
 import { logger } from './logger';
 
+import { limitFunction } from 'p-limit';
+
 let client: WebClient | null = null;
 
 type SlackSyncOptions = {
@@ -140,6 +142,33 @@ const slackSync = {
     return new Date(milliseconds).toISOString();
   },
 
+  async getPermalinkOrNull(channelId: string, message: UsableSlackMessage): Promise<string | null> {
+    try {
+      const result = await getClient().chat.getPermalink({
+        channel: channelId,
+        message_ts: message.ts,
+      });
+      return result.permalink || null;
+    } catch (error) {
+      logger.warn({ err: error, channelId, message }, 'Error while fetching permalink');
+      return null;
+    }
+  },
+
+  async formatMessage(channelId: string, message: UsableSlackMessage): Promise<FormattedSlackMessage> {
+    // The call to the Slack API chat.getPermalink is rate-limited, and if we kick off all the promises
+    // at once, we hit the rate limits. Instead, use p-limit to limit the concurrency of those promises
+    const limitedGetPermalink = limitFunction(this.getPermalinkOrNull, { concurrency: 10 });
+    const permalink = await limitedGetPermalink(channelId, message);
+    return {
+      ts: this.tsToISOString(message.ts),
+      text: message.text,
+      user: message.user,
+      thread_ts: message.thread_ts,
+      permalink,
+    };
+  },
+
   /**
    * Process raw Slack messages:
    *  - filter down to usable messages
@@ -156,22 +185,9 @@ const slackSync = {
 
     const validMessages = messages.filter(canHandleMessage);
 
-    const permalinkResults = await Promise.all(
-      validMessages.map((message) => {
-        return getClient().chat.getPermalink({
-          channel: channelId,
-          message_ts: message.ts,
-        });
-      }),
-    );
+    logger.info(`Formatting & fetching permalinks for ${validMessages.length} valid messages`);
 
-    const formattedMessages = validMessages.map((message, index) => ({
-      ts: this.tsToISOString(message.ts),
-      text: message.text,
-      user: message.user,
-      thread_ts: message.thread_ts,
-      permalink: permalinkResults[index].permalink ?? null,
-    }));
+    const formattedMessages = Promise.all(validMessages.map((message) => this.formatMessage(channelId, message)));
 
     return formattedMessages;
   },
