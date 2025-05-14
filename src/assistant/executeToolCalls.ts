@@ -1,7 +1,7 @@
 import type { ChatCompletionAssistantMessageParam, ChatCompletionToolMessageParam } from 'openai/resources/chat';
-import { type LLMToolCall, type ToolImplementationsByName, objectToXml } from '../llmTools';
+import type { LLMToolCall, ToolImplementationsByName } from '../llmTools';
+import { objectToXml } from '../llmTools/objectToXML';
 import { logger } from '../services/logger';
-
 /**
  * Executes a list of tool calls using provided implementations and returns the results.
  *

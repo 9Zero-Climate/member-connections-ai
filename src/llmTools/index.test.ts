@@ -1,7 +1,6 @@
-import { objectToXml } from '.';
-import type { LLMToolCall /*, ToolImplementationsByName */ } from './index';
 import type { WebClient } from '@slack/web-api/dist/WebClient';
 import type { LLMTool, LLMToolContext } from './LLMToolInterface';
+import type { LLMToolCall /*, ToolImplementationsByName */ } from './index';
 
 // Helper to create a generic mock LLMTool
 const createMockLlmTool = (
@@ -33,60 +32,22 @@ const anotherGeneralToolMock = createMockLlmTool('another_general_tool_mock', fa
 
 // Mock the actual tool modules to export these generated mocks
 // These names (SearchDocumentsTool, etc.) must match what's imported in src/llmTools/index.ts
-jest.mock('./tools/searchDocumentsTool', () => ({ SearchDocumentsTool: generalToolMock }));
-jest.mock('./tools/fetchLinkedInProfileTool', () => ({ FetchLinkedInProfileTool: anotherGeneralToolMock }));
-jest.mock('./tools/createOnboardingThreadTool', () => ({ OnboardingThreadTool: adminToolMock }));
-
-describe('objectToXml', () => {
-  it.each([
-    {
-      description: 'should handle null input',
-      input: null,
-      expected: '<root/>\n',
-    },
-    {
-      description: 'should handle undefined input',
-      input: undefined,
-      expected: '',
-    },
-    {
-      description: 'should handle primitive values',
-      input: 42,
-      expected: '<root>42</root>\n',
-    },
-    {
-      description: 'should handle simple object',
-      input: { name: 'test', value: 123 },
-      expected: '<root>\n  <name>test</name>\n  <value>123</value>\n</root>\n',
-    },
-    {
-      description: 'should handle nested objects',
-      input: {
-        outer: {
-          inner: 'value',
-          number: 42,
-        },
-      },
-      expected: '<root>\n  <outer>\n    <inner>value</inner>\n    <number>42</number>\n  </outer>\n</root>\n',
-    },
-    {
-      description: 'should handle array values',
-      input: { items: ['a', 'b', 'c'] },
-      expected: '<root>\n  <items>a</items>\n  <items>b</items>\n  <items>c</items>\n</root>\n',
-    },
-    {
-      description: 'should respect custom indentation',
-      input: { test: 'value' },
-      expected: '<root>\n  <test>value</test>\n</root>\n',
-    },
-  ])('$description', ({ input, expected }) => {
-    if (input === undefined) {
-      expect(objectToXml(input)).toBe(expected);
-    } else {
-      expect(objectToXml({ root: input })).toBe(expected);
-    }
-  });
-});
+jest.mock('./tools/searchDocumentsTool', () => ({
+  // Use a getter to ensure mocks are initialized before access
+  get SearchDocumentsTool() {
+    return generalToolMock;
+  },
+}));
+jest.mock('./tools/fetchLinkedInProfileTool', () => ({
+  get FetchLinkedInProfileTool() {
+    return anotherGeneralToolMock;
+  },
+}));
+jest.mock('./tools/createOnboardingThreadTool', () => ({
+  get OnboardingThreadTool() {
+    return adminToolMock;
+  },
+}));
 
 describe('LLM Tools Index Logic', () => {
   let LlmToolsIndex: typeof import('./index');

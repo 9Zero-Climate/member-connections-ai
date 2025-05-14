@@ -1,5 +1,5 @@
 import type { LLMToolCall } from '../llmTools';
-import { objectToXml } from '../llmTools';
+import { objectToXml } from '../llmTools/objectToXML';
 import executeToolCalls from './executeToolCalls';
 
 // Mock logger to prevent test logs
@@ -14,9 +14,7 @@ jest.mock('../services/logger', () => ({
 }));
 
 // Mock objectToXml for predictable output verification
-jest.mock('../llmTools', () => ({
-  // Keep original ToolCall type if needed, mock implementations
-  ...jest.requireActual('../llmTools'),
+jest.mock('../llmTools/objectToXML', () => ({
   objectToXml: jest.fn((obj) => JSON.stringify(obj)),
 }));
 
