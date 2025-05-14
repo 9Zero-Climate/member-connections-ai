@@ -29,7 +29,7 @@ export async function upsertSlackMessagesRagDocs(
 ) {
   logger.info(`Upserting (up to) ${processedMessages.length} messages as RAG Docs`);
 
-  const docsToMaybeUpsert: SlackMessageRagDoc[] = processedMessages.map((message) => {
+  const newDocs: SlackMessageRagDoc[] = processedMessages.map((message) => {
     return {
       source_type: 'slack',
       source_unique_id: `${channelId}:${message.ts}`,
@@ -44,24 +44,22 @@ export async function upsertSlackMessagesRagDocs(
       },
     };
   });
-  const existingDocs = await Promise.all(
-    docsToMaybeUpsert.map((docToUpsert) => getDocBySource(docToUpsert.source_unique_id)),
-  );
+  const existingDocs = await Promise.all(newDocs.map((docToUpsert) => getDocBySource(docToUpsert.source_unique_id)));
 
   const docsToSkip: SlackMessageRagDoc[] = [];
   const docsToUpdate: SlackMessageRagDoc[] = [];
   const docsToInsert: SlackMessageRagDoc[] = [];
 
-  docsToMaybeUpsert.forEach((docToMaybeUpsert, index) => {
+  newDocs.forEach((newDoc, index) => {
     const existingDoc = existingDocs[index];
-    const isUnchanged = existingDoc && doesSlackMessageMatchDb(existingDoc, docToMaybeUpsert);
+    const isUnchanged = existingDoc && doesSlackMessageMatchDb(existingDoc, newDoc);
 
     if (!existingDoc) {
-      docsToInsert.push(docToMaybeUpsert);
+      docsToInsert.push(newDoc);
     } else if (existingDoc && isUnchanged) {
-      docsToSkip.push(docToMaybeUpsert);
+      docsToSkip.push(newDoc);
     } else {
-      docsToUpdate.push(docToMaybeUpsert);
+      docsToUpdate.push(newDoc);
     }
   });
 
@@ -155,16 +153,8 @@ export async function syncSlackChannels(channelNames: string[], syncOptionOverri
 }
 
 /**
- * Imports data from a full slack history export. Expects the export to be a directory in the format:
- * /<export name>
- *   /<channel-name-a>
- *     <date1>.json
- *     <date2>.json
- *   /<channel-name-b>
- *     <date1>.json
- *     <date2>.json
- *
- * Where the content of the .json files is a MessageElement[]
+ * Imports data from a full slack history export.
+ * See notes in extractChannelMessagesFromSlackHistoryExport for expected shape of data
  */
 export const importSlackHistory = async (exportDirectoryPath: string, channelNames: string[]): Promise<void> => {
   logger.info(`Starting import for channels: ${channelNames.join(', ')}`);
@@ -177,7 +167,7 @@ export const importSlackHistory = async (exportDirectoryPath: string, channelNam
 
       const channelId = await slackSync.getChannelId(channelName);
 
-      // Exract messages
+      // Extract messages
       const messages = await extractChannelMessagesFromSlackHistoryExport(exportDirectoryPath, channelName);
 
       // Process messages into a shape we can use

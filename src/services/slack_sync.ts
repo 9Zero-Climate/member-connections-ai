@@ -222,6 +222,9 @@ export type { FormattedSlackMessage, SlackSyncOptions };
  *      <date2>.json
  *
  * Where the content of the .json files is a MessageElement[]
+ *
+ * This matches the export format from Slack:
+ * https://slack.com/help/articles/201658943-Export-your-workspace-data
  */
 
 export const extractChannelMessagesFromSlackHistoryExport = async (

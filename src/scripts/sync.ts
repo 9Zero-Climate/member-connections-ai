@@ -36,6 +36,10 @@ program
 
 program
   .command('slack-history')
+  .description(
+    'Import Slack history from an exported .zip file. \
+    See https://slack.com/help/articles/201658943-Export-your-workspace-data for how to export.',
+  )
   .argument('<folderPath>', 'Path to the folder containing the (unzipped) export')
   .argument('<channelNames...>', 'Names of the channels to sync')
   .action(importSlackHistory);
