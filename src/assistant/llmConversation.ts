@@ -2,8 +2,8 @@ import type { SayFn } from '@slack/bolt';
 import type { WebClient } from '@slack/web-api';
 import type { OpenAI } from 'openai';
 import { config } from '../config';
+import { type LLMToolCall, getToolCallShortDescription, getToolImplementationsMap, getToolSpecs } from '../llmTools';
 import { logger } from '../services/logger';
-import { type ToolCall, getToolCallShortDescription, getToolImplementationsMap, getToolSpecs } from '../services/tools';
 import ResponseManager from './ResponseManager';
 import executeToolCalls from './executeToolCalls';
 import { type SlackMessage, buildInitialLlmThread } from './initialLlmThread';
@@ -55,7 +55,7 @@ export const runLlmConversation = async ({
       stream: true,
     });
 
-    const toolCalls: ToolCall[] = [];
+    const toolCalls: LLMToolCall[] = [];
 
     for await (const chunk of streamFromLlm) {
       const delta = chunk.choices[0]?.delta;

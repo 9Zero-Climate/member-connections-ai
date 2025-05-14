@@ -2,7 +2,7 @@ import { Command } from 'commander';
 import { syncLinkedIn } from '../sync/linkedin';
 import { syncNotion } from '../sync/notion';
 import { syncOfficeRnD } from '../sync/officernd';
-import { syncSlackChannels } from '../sync/slack';
+import { importSlackHistory, syncSlackChannels } from '../sync/slack';
 
 const program = new Command();
 program.name('sync').description('CLI tool for syncing data from external sources');
@@ -30,10 +30,18 @@ program
   .command('slack')
   .description('Sync messages from a specific set of Slack channels')
   .argument('<channelNames...>', 'Names of the channels to sync')
-  .option('-l, --limit <number>', 'Maximum number of messages to sync', Number.parseInt)
-  .option('-o, --oldest <timestamp>', 'Start time in Unix timestamp')
-  .option('-n, --newest <timestamp>', 'End time in Unix timestamp')
-  .option('-b, --batch-size <number>', 'Number of messages to process in each batch', Number.parseInt)
+  .option('--oldest <timestamp>', 'Start time in Unix timestamp')
+  .option('--latest <timestamp>', 'End time in Unix timestamp')
   .action(syncSlackChannels);
+
+program
+  .command('slack-history')
+  .description(
+    'Import Slack history from an exported .zip file. \
+    See https://slack.com/help/articles/201658943-Export-your-workspace-data for how to export.',
+  )
+  .argument('<folderPath>', 'Path to the folder containing the (unzipped) export')
+  .argument('<channelNames...>', 'Names of the channels to sync')
+  .action(importSlackHistory);
 
 program.parse();

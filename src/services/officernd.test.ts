@@ -225,7 +225,6 @@ describe('OfficeRnD Service', () => {
         _id: 'member-min',
         name: 'Minimal Member',
         office: '',
-        properties: {},
         calculatedStatus: 'active',
       };
 

@@ -1,45 +1,31 @@
-import { isDeepStrictEqual } from 'node:util';
+import * as fs from 'node:fs';
+import path from 'node:path';
 import { WebClient } from '@slack/web-api';
+import type { MessageElement } from '@slack/web-api/dist/types/response/ConversationsHistoryResponse';
 import { config } from '../config';
-import type { Document } from './database';
-import { generateEmbeddings } from './embedding';
 import { logger } from './logger';
+
+import pThrottle from 'p-throttle';
 
 let client: WebClient | null = null;
 
-interface FetchOptions {
-  limit?: number;
+type SlackSyncOptions = {
   oldest?: string;
   latest?: string;
-}
+};
 
-interface SlackSyncOptions extends FetchOptions {}
-
-interface SlackMessage {
+type UsableSlackMessage = MessageElement & {
   ts: string;
-  text?: string;
+  text: string;
+};
+
+type FormattedSlackMessage = {
+  ts: string;
+  text: string;
+  permalink: string | null;
   user?: string;
   thread_ts?: string;
-  reply_count?: number;
-  reactions?: Array<{ name: string; count: number }>;
-  type?: string;
-  subtype?: string;
-  channel?: string;
-  team?: string;
-}
-
-interface FormattedMessage {
-  source: string;
-  content: string;
-  metadata: {
-    ts: string;
-    thread_ts?: string;
-    channel: string;
-    user?: string;
-    permalink: string;
-    channelName: string;
-  };
-}
+};
 
 interface SlackError extends Error {
   data?: {
@@ -66,6 +52,13 @@ function setTestClient(testClient: WebClient): void {
   client = testClient;
 }
 
+const ONE_SECOND_IN_MS = 1000;
+
+const GET_PERMALINK_THROTTLE = {
+  limit: 10,
+  interval: ONE_SECOND_IN_MS,
+};
+
 /**
  * Service for syncing Slack channel content
  */
@@ -88,15 +81,13 @@ const slackSync = {
   /**
    * Fetch messages from a channel
    * @param {string} channelId - The channel ID to fetch from
-   * @param {Object} options - Fetch options
-   * @param {number} options.limit - Maximum number of messages to fetch
-   * @param {string} options.oldest - Start time in Unix timestamp
-   * @param {string} options.latest - End time in Unix timestamp
-   * @returns {Promise<Array>} Array of messages
+   * @param {Object} syncOptions - Fetch options
+   * @param {string} syncOptions.oldest - Start time in Unix timestamp
+   * @param {string} syncOptions.newest - End time in Unix timestamp
+   * @returns {Promise<MessageElement>} Array of raw slack messages
    */
-  async fetchChannelHistory(channelId: string, options: FetchOptions = {}): Promise<SlackMessage[]> {
-    const { limit = 1000, oldest, latest } = options;
-    const messages: SlackMessage[] = [];
+  async fetchChannelHistory(channelId: string, syncOptions: SlackSyncOptions = {}): Promise<MessageElement[]> {
+    const messages: MessageElement[] = [];
     let cursor: string | undefined;
 
     await this.joinChannel(channelId);
@@ -104,15 +95,17 @@ const slackSync = {
     do {
       const result = await getClient().conversations.history({
         channel: channelId,
-        limit: Math.min(limit - messages.length, 100),
         cursor,
-        oldest,
-        latest,
+        ...syncOptions,
       });
 
-      messages.push(...(result.messages as SlackMessage[]));
+      if (result.messages) {
+        messages.push(...result.messages);
+      }
       cursor = result.response_metadata?.next_cursor;
-    } while (cursor && messages.length < limit);
+    } while (cursor);
+
+    logger.info(`Fetched ${messages.length} messages`);
 
     return messages;
   },
@@ -129,6 +122,7 @@ const slackSync = {
     if (!channel?.id) {
       throw new Error(`Channel '${channelName}' not found`);
     }
+    logger.info(`Found channel ID: ${channel.id}`);
     return channel.id;
   },
 
@@ -155,115 +149,100 @@ const slackSync = {
     return new Date(milliseconds).toISOString();
   },
 
-  /**
-   * Format message for database storage
-   * @param {Object} message - Slack message object
-   * @param {string} channelId - Channel ID
-   * @returns {Object} Formatted message
-   */
-  async formatMessage(message: SlackMessage, channelId: string): Promise<FormattedMessage | null> {
-    if (!message.text?.trim()) {
-      return null;
-    }
-
-    const [permalinkResult, channelName] = await Promise.all([
-      getClient().chat.getPermalink({
+  async getPermalinkOrNull(channelId: string, message: UsableSlackMessage): Promise<string | null> {
+    try {
+      const result = await getClient().chat.getPermalink({
         channel: channelId,
         message_ts: message.ts,
-      }),
-      this.getChannelName(channelId),
-    ]);
-
-    let userProfile: { display_name?: string; real_name?: string } | undefined;
-    if (message.user) {
-      try {
-        const userInfo = await getClient().users.info({ user: message.user });
-        if (userInfo.ok && userInfo.user) {
-          userProfile = userInfo.user.profile;
-        }
-      } catch (err) {
-        logger.warn(`Failed to get user info for ${message.user}:`, err);
+      });
+      return result.permalink || null;
+    } catch (error) {
+      if ((error as SlackError).data?.error === 'message_not_found') {
+        logger.warn({ err: error, channelId, message }, '"message_not_found" error while fetching permalink, skipping');
+        return null;
       }
+      throw error;
     }
-    const userDisplayName = userProfile?.display_name;
-    const userRealName = userProfile?.real_name;
-
-    return {
-      source: 'slack',
-      content: message.text,
-      metadata: {
-        ts: this.tsToISOString(message.ts),
-        thread_ts: message.thread_ts,
-        channel: channelId,
-        user: message.user,
-        permalink: permalinkResult.permalink ?? '',
-        channelName: channelName,
-      },
-    };
   },
 
   /**
-   * Process a batch of messages and generate embeddings
-   * @param {Array} messages - Array of Slack messages
-   * @param {string} channelId - Channel ID
-   * @returns {Promise<Array>} Array of formatted messages with embeddings
+   * Process raw Slack messages:
+   *  - filter down to usable messages
+   *  - attach permalinks
    */
-  async processMessageBatch(
-    messages: SlackMessage[],
-    channelId: string,
-  ): Promise<(FormattedMessage & { embedding: number[] })[]> {
-    const formattedMessages = await Promise.all(messages.map((msg) => this.formatMessage(msg, channelId)));
+  async processMessages(messages: MessageElement[], channelId: string): Promise<FormattedSlackMessage[]> {
+    const canHandleMessage = (message: MessageElement): message is UsableSlackMessage =>
+      message.ts != null && message.text?.trim() != null;
 
-    const canHandleMessage = (msg: FormattedMessage | null): msg is FormattedMessage => msg !== null;
+    const unhandledMessages = messages.filter((msg) => !canHandleMessage(msg));
+    if (unhandledMessages.length > 0) {
+      logger.warn(`Unhandled messages: ${JSON.stringify(unhandledMessages)}`);
+    }
 
-    const validMessages = formattedMessages.filter(canHandleMessage);
-    const unhandledMessages = formattedMessages.filter((msg) => !canHandleMessage(msg));
-    logger.warn(`Unhandled messages: ${JSON.stringify(unhandledMessages)}`);
+    const validMessages = messages.filter(canHandleMessage);
 
-    const embeddings = await generateEmbeddings(validMessages.map((msg) => msg.content));
-    return validMessages.map((msg, index) => ({
-      ...msg,
-      embedding: embeddings[index],
-    }));
+    logger.info(`Formatting & fetching permalinks for ${validMessages.length} valid messages`);
+
+    // The call to the Slack API chat.getPermalink is rate-limited to "hundreds per minute" and also
+    // burst-limited (i.e. limits on concurrent requests) to unknown rates.
+    // Use p-throttle to limit the number of times we hit this endpoint per second
+    // Note: this function must be defined in the same scope that *all* calls to it are made
+    const throttledGetPermalink = pThrottle(GET_PERMALINK_THROTTLE)(this.getPermalinkOrNull);
+
+    logger.info(
+      `Permalink fetching rate-limited to ${GET_PERMALINK_THROTTLE.limit} per ${GET_PERMALINK_THROTTLE.interval / ONE_SECOND_IN_MS} seconds`,
+    );
+
+    const formattedMessages = await Promise.all(
+      validMessages.map(async (message) => ({
+        ts: this.tsToISOString(message.ts),
+        text: message.text,
+        user: message.user,
+        thread_ts: message.thread_ts,
+        permalink: await throttledGetPermalink(channelId, message),
+      })),
+    );
+
+    return formattedMessages;
   },
 };
 
-/**
- * Compares two documents for semantic equality, ignoring:
- * - Database-specific fields (created_at, updated_at)
- * - Undefined/null metadata fields
- * - Embedding data
- *
- * This is specifically designed for Slack message comparison where certain
- * fields (like thread_ts, reply_count) may be undefined in new messages
- * but null/missing in stored documents.
- *
- * @param msgDocInDb - Document from the database
- * @param newDoc - Newly processed document straight from Slack
- * @returns boolean indicating if the documents are semantically equal. If false, the DB should be updated with the newDoc.
- */
-export function doesSlackMessageMatchDb(msgDocInDb: Document, newDoc: Document): boolean {
-  if (msgDocInDb.content !== newDoc.content) {
-    console.log('Content mismatch');
-    return false;
-  }
-
-  const cleanMetadata = (metadata: Record<string, unknown> | undefined): Record<string, unknown> => {
-    if (!metadata) return {};
-    const entries = Object.entries(metadata).filter(([_, value]) => value !== undefined && value !== null);
-    return Object.fromEntries(entries);
-  };
-
-  const dbMeta = cleanMetadata(msgDocInDb.metadata);
-  const newMeta = cleanMetadata(newDoc.metadata);
-
-  if (!isDeepStrictEqual(dbMeta, newMeta)) {
-    logger.debug('Metadata mismatch');
-    return false;
-  }
-
-  return true;
-}
-
 export default { ...slackSync, setTestClient };
-export type { SlackMessage, FormattedMessage, FetchOptions };
+export type { FormattedSlackMessage, SlackSyncOptions };
+
+/**
+ * Extracts Slack messages for a given channel from a folder of exported data.
+ * Expects the export to be a directory in the format:
+ *  /<export name>
+ *    /<channel-name-a>
+ *      <date1>.json
+ *      <date2>.json
+ *    /<channel-name-b>
+ *      <date1>.json
+ *      <date2>.json
+ *
+ * Where the content of the .json files is a MessageElement[]
+ *
+ * This matches the export format from Slack:
+ * https://slack.com/help/articles/201658943-Export-your-workspace-data
+ */
+
+export const extractChannelMessagesFromSlackHistoryExport = async (
+  exportDirectoryPath: string,
+  channelName: string,
+): Promise<MessageElement[]> => {
+  const channelExportDirectoryPath = path.join(exportDirectoryPath, channelName);
+  logger.info(`Extracting messages for ${channelName} channel at path: ${channelExportDirectoryPath}`);
+  const jsonFileNames = fs.readdirSync(channelExportDirectoryPath).filter((fileName) => fileName.endsWith('.json'));
+
+  const messages = jsonFileNames.flatMap((fileName) => {
+    const filePath = path.join(channelExportDirectoryPath, fileName);
+    const fileContents = fs.readFileSync(filePath, 'utf-8');
+    const jsonData = JSON.parse(fileContents);
+    return jsonData;
+  });
+
+  logger.info(`Extracted ${messages.length} messages`);
+
+  return messages;
+};

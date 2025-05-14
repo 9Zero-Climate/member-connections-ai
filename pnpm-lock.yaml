@@ -35,6 +35,9 @@ dependencies:
   openai:
     specifier: ^4.93.0
     version: 4.93.0(zod@3.24.3)
+  p-throttle:
+    specifier: ^7.0.0
+    version: 7.0.0
   pg:
     specifier: ^8.15.6
     version: 8.15.6
@@ -3750,6 +3753,11 @@ packages:
     dependencies:
       '@types/retry': 0.12.0
       retry: 0.13.1
+    dev: false
+
+  /p-throttle@7.0.0:
+    resolution: {integrity: sha512-aio0v+S0QVkH1O+9x4dHtD4dgCExACcL+3EtNaGqC01GBudS9ijMuUsmN8OVScyV4OOp0jqdLShZFuSlbL/AsA==}
+    engines: {node: '>=18'}
     dev: false
 
   /p-timeout@3.2.0:
