@@ -157,7 +157,7 @@ const slackSync = {
       });
       return result.permalink || null;
     } catch (error) {
-      if (error.data.error === 'message_not_found') {
+      if ((error as SlackError).data?.error === 'message_not_found') {
         logger.warn({ err: error, channelId, message }, '"message_not_found" error while fetching permalink, skipping');
         return null;
       }
