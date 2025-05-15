@@ -143,7 +143,6 @@ describe('searchMembersTool', () => {
           combinedMatchScore: expect.closeTo(MEDIUM_SIMILARITY + LOW_SIMILARITY),
         }),
       );
-      expect(combined[1]?.metadata).toBeUndefined();
 
       expect(combined[2]).toEqual(
         expect.objectContaining({
@@ -153,7 +152,6 @@ describe('searchMembersTool', () => {
           combinedMatchScore: expect.closeTo(HIGH_SIMILARITY),
         }),
       );
-      expect(combined[2]?.metadata).toBeUndefined();
     });
 
     it('handles documents with unique queries and sorts them', () => {
@@ -222,9 +220,10 @@ describe('searchMembersTool', () => {
           embedding: [0.1, 0.2, 0.3],
           matchScoresByQuery: { [QUERY1]: HIGH_SIMILARITY },
           combinedMatchScore: expect.closeTo(HIGH_SIMILARITY),
+          metadata: { custom_field: 'custom_value', another: 123 },
         }),
       );
-      expect(combinedDoc.metadata).toBeUndefined();
+
       expect(combinedDoc).not.toHaveProperty('query');
       expect(combinedDoc).not.toHaveProperty('similarity');
       expect(combinedDoc).not.toHaveProperty('member_name');
@@ -243,6 +242,7 @@ describe('searchMembersTool', () => {
         'embedding',
         'matchScoresByQuery',
         'combinedMatchScore',
+        'metadata',
       ];
       expect(Object.keys(combinedDoc).sort()).toEqual(expectedKeys.sort());
     });
