@@ -24,14 +24,12 @@ export interface FeedbackContext {
   reaction: string;
   channelId: string;
   messageTs: string;
-  originalMessageText: string;
+  truncatedMessageText: string;
 }
 
-const abbreviateAndQuoteMessage = (message: string): string => {
-  const maxLength = 300;
-  const suffix = message.length > maxLength ? ' [...]' : '';
-  const abbreviatedMessage = message.slice(0, maxLength);
-  return `> ${abbreviatedMessage.replace(/\n/g, '\n> ')}${suffix}`;
+// Replace newlines with newline + block quote character (">") so that message is rendered with quote blocks
+export const quoteMessage = (message: string): string => {
+  return `> ${message.replace(/\n/g, '\n> ')}`;
 };
 
 /**
@@ -76,7 +74,7 @@ const buildFeedbackModal = (metadata: string): View => {
         elements: [
           {
             type: 'mrkdwn',
-            text: abbreviateAndQuoteMessage(context?.originalMessageText),
+            text: quoteMessage(context?.truncatedMessageText),
           },
         ],
       },

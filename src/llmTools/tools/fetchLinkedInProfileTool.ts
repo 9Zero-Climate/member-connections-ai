@@ -35,7 +35,6 @@ const fetchLinkedInProfileSpec: ChatCompletionTool = {
 const looksLikeSlackId = (identifier: string): boolean => /^U[A-Z0-9]+$/.test(identifier);
 
 export const FetchLinkedInProfileTool: LLMTool<LinkedInProfileToolParams, LinkedInProfileToolResult> = {
-  toolName: 'fetchLinkedInProfile',
   forAdminsOnly: false,
   specForLLM: fetchLinkedInProfileSpec,
   getShortDescription: (params: LinkedInProfileToolParams) => {
