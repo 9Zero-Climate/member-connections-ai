@@ -1,4 +1,5 @@
 import type { ChatCompletionTool } from 'openai/resources/chat';
+import groupBy from 'lodash/groupby';
 import {
   type Document,
   type DocumentWithMemberContextAndSimilarity,
@@ -73,7 +74,7 @@ const searchMembersSpec: ChatCompletionTool = {
         },
         limit: {
           type: 'number',
-          description: `Number of results to return from each query. Use ${DEFAULT_DOCUMENT_LIMIT_PER_QUERY} as a minimum and then hand-sort through the results. Since this is a "fuzzy" semantiic search, some results may be irrelevant and should be ignored.`,
+          description: `Number of results to return from each query. Request at least ${DEFAULT_DOCUMENT_LIMIT_PER_QUERY} results and then hand-sort through the results. Since this is a "fuzzy" semantic search, some results may be irrelevant and should be ignored.`,
           default: DEFAULT_DOCUMENT_LIMIT_PER_QUERY,
         },
       },
@@ -120,18 +121,13 @@ export const combineDocumentsFromMultipleQueries = (
 export const coallateDocumentsByMember = (
   documents: DocumentWithMemberContextAndQuery[],
 ): MemberSearchMemberResult[] => {
-  const documentsByMember = documents.reduce(
-    (acc, document) => {
-      if (!acc[document.member_officernd_id]) {
-        acc[document.member_officernd_id] = [];
-      }
-      acc[document.member_officernd_id].push(document);
-      return acc;
-    },
-    {} as Record<string, DocumentWithMemberContextAndQuery[]>,
+  const documentsByMember: Record<string, DocumentWithMemberContextAndQuery[]> = groupBy(
+    documents,
+    'member_officernd_id',
   );
 
   const membersFormatted: MemberSearchMemberResult[] = Object.values(documentsByMember).map((documents) => {
+    // All documents have the same member information (e.g. name), just grab the first one to extract that info
     const firstDocument = documents[0];
     const matchedQueries = [...new Set(documents.map((document) => document.query))];
     const relevantDocuments = combineDocumentsFromMultipleQueries(documents);

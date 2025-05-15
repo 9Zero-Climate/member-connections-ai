@@ -282,7 +282,6 @@ async function findSimilar(
         [embeddingVector, limit ?? DEFAULT_SEARCH_LIMIT],
       );
 
-    // Enhance metadata with member context from the view
     return result.rows.map((row) => {
       const { embedding: rawEmbedding, ...rest } = row;
 
