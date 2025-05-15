@@ -10,7 +10,6 @@ const createMockLlmTool = (
   specFunctionParams: any = {},
   // biome-ignore lint/suspicious/noExplicitAny: mocking
 ): LLMTool<any, { result: string }> => ({
-  toolName: name,
   forAdminsOnly: isAdmin,
   specForLLM: {
     type: 'function',
@@ -26,12 +25,24 @@ const createMockLlmTool = (
 });
 
 // Instantiate tools for testing different scenarios
-const generalToolMock = createMockLlmTool('general_tool_mock', false);
-const adminToolMock = createMockLlmTool('admin_tool_mock', true);
-const anotherGeneralToolMock = createMockLlmTool('another_general_tool_mock', false);
+const generalToolName = 'general_tool_mock';
+const generalToolMock = createMockLlmTool(generalToolName, false);
+const adminToolName = 'admin_tool_mock';
+const adminToolMock = createMockLlmTool(adminToolName, true);
+const anotherGeneralToolName = 'another_general_tool_mock';
+const anotherGeneralToolMock = createMockLlmTool(anotherGeneralToolName, false);
+const searchMembersToolName = 'search_members_tool_mock';
+const searchMembersToolMock = createMockLlmTool(searchMembersToolName, false);
 
 // Mock the actual tool modules to export these generated mocks
 // These names (SearchDocumentsTool, etc.) must match what's imported in src/llmTools/index.ts
+jest.mock('./tools/searchMembersTool', () => ({
+  // Use a getter to ensure mocks are initialized before access
+  get SearchMembersTool() {
+    // Assuming SearchMembersTool is a general, non-admin tool for this mock
+    return searchMembersToolMock;
+  },
+}));
 jest.mock('./tools/searchDocumentsTool', () => ({
   // Use a getter to ensure mocks are initialized before access
   get SearchDocumentsTool() {
@@ -67,18 +78,30 @@ describe('LLM Tools Index Logic', () => {
   describe('TOOL_NAMES', () => {
     it('contains the names of all registered mock tools', () => {
       expect(LlmToolsIndex.TOOL_NAMES).toEqual(
-        expect.arrayContaining([generalToolMock.toolName, adminToolMock.toolName, anotherGeneralToolMock.toolName]),
+        expect.arrayContaining([
+          searchMembersToolMock.specForLLM.function.name,
+          generalToolMock.specForLLM.function.name,
+          adminToolMock.specForLLM.function.name,
+          anotherGeneralToolMock.specForLLM.function.name,
+        ]),
       );
-      expect(LlmToolsIndex.TOOL_NAMES.length).toBe(3);
+      expect(LlmToolsIndex.TOOL_NAMES.length).toBe(4);
+    });
+  });
+
+  describe('getToolName', () => {
+    it('returns the name of the tool', () => {
+      expect(LlmToolsIndex.getToolName(generalToolMock as LLMTool<unknown, unknown>)).toBe(generalToolName);
     });
   });
 
   describe('getToolSpecs', () => {
     it('returns specs for all tools if userIsAdmin is true', () => {
       const specs = LlmToolsIndex.getToolSpecs(true);
-      expect(specs).toHaveLength(3);
+      expect(specs).toHaveLength(4);
       expect(specs).toEqual(
         expect.arrayContaining([
+          searchMembersToolMock.specForLLM,
           generalToolMock.specForLLM,
           adminToolMock.specForLLM,
           anotherGeneralToolMock.specForLLM,
@@ -88,8 +111,14 @@ describe('LLM Tools Index Logic', () => {
 
     it('returns specs for non-admin tools if userIsAdmin is false', () => {
       const specs = LlmToolsIndex.getToolSpecs(false);
-      expect(specs).toHaveLength(2); // generalToolMock and anotherGeneralToolMock
-      expect(specs).toEqual(expect.arrayContaining([generalToolMock.specForLLM, anotherGeneralToolMock.specForLLM]));
+      expect(specs).toHaveLength(3); // searchMembersToolMock, generalToolMock and anotherGeneralToolMock
+      expect(specs).toEqual(
+        expect.arrayContaining([
+          searchMembersToolMock.specForLLM,
+          generalToolMock.specForLLM,
+          anotherGeneralToolMock.specForLLM,
+        ]),
+      );
       expect(specs).not.toContainEqual(adminToolMock.specForLLM);
     });
   });
@@ -100,12 +129,12 @@ describe('LLM Tools Index Logic', () => {
         id: 'call123',
         type: 'function',
         function: {
-          name: generalToolMock.toolName,
+          name: generalToolMock.specForLLM.function.name,
           arguments: '{"arg":"test"}',
         },
       };
       const tool = LlmToolsIndex.getToolForToolCall(toolCall);
-      expect(tool.toolName).toBe(generalToolMock.toolName);
+      expect(tool).toBe(generalToolMock);
     });
 
     it('throws an error for an unknown tool name', () => {
@@ -124,7 +153,7 @@ describe('LLM Tools Index Logic', () => {
       const toolCall = {
         id: 'call789',
         type: 'not_a_function_type',
-        function: { name: generalToolMock.toolName, arguments: '{}' },
+        function: { name: 'foo', arguments: '{}' },
       } as unknown as LLMToolCall;
       expect(() => LlmToolsIndex.getToolForToolCall(toolCall)).toThrow(
         'Unhandled tool call type - not a function: not_a_function_type',
@@ -139,12 +168,12 @@ describe('LLM Tools Index Logic', () => {
         id: 'callDescSearch',
         type: 'function',
         function: {
-          name: generalToolMock.toolName,
+          name: generalToolMock.specForLLM.function.name,
           arguments: JSON.stringify(args),
         },
       };
       expect(LlmToolsIndex.getToolCallShortDescription(toolCall)).toBe(
-        `Short desc for ${generalToolMock.toolName} with ${JSON.stringify(args)}`,
+        `Short desc for ${generalToolName} with ${JSON.stringify(args)}`,
       );
     });
   });
@@ -162,14 +191,14 @@ describe('LLM Tools Index Logic', () => {
         userIsAdmin: true,
       }) as MockToolImplementationsMap;
 
-      expect(Object.keys(implementations)).toHaveLength(3);
+      expect(Object.keys(implementations)).toHaveLength(4);
 
       const generalToolParams = { arg: 'general use' };
-      await implementations[generalToolMock.toolName](generalToolParams);
+      await implementations[generalToolName](generalToolParams);
       expect(generalToolMock.impl).toHaveBeenCalledWith({ context: outerContext, ...generalToolParams });
 
       const adminToolParams = { arg: 'admin power' };
-      await implementations[adminToolMock.toolName](adminToolParams);
+      await implementations[adminToolName](adminToolParams);
       expect(adminToolMock.impl).toHaveBeenCalledWith({ context: outerContext, ...adminToolParams });
     });
 
@@ -179,14 +208,19 @@ describe('LLM Tools Index Logic', () => {
         userIsAdmin: false,
       }) as MockToolImplementationsMap;
 
-      expect(Object.keys(implementations)).toHaveLength(2); // generalToolMock and anotherGeneralToolMock
-      expect(implementations[generalToolMock.toolName]).toBeDefined();
-      expect(implementations[anotherGeneralToolMock.toolName]).toBeDefined();
-      expect(implementations[adminToolMock.toolName]).toBeUndefined();
+      expect(Object.keys(implementations)).toHaveLength(3); // searchMembersToolMock, generalToolMock and anotherGeneralToolMock
+      expect(implementations[searchMembersToolName]).toBeDefined();
+      expect(implementations[generalToolName]).toBeDefined();
+      expect(implementations[anotherGeneralToolName]).toBeDefined();
+      expect(implementations[adminToolName]).toBeUndefined();
 
       const generalToolParams = { arg: 'general use again' };
-      await implementations[generalToolMock.toolName](generalToolParams);
+      await implementations[generalToolName](generalToolParams);
       expect(generalToolMock.impl).toHaveBeenCalledWith({ context: outerContext, ...generalToolParams });
+
+      const searchMembersToolParams = { query: 'find devs' };
+      await implementations[searchMembersToolName](searchMembersToolParams);
+      expect(searchMembersToolMock.impl).toHaveBeenCalledWith({ context: outerContext, ...searchMembersToolParams });
     });
   });
 });

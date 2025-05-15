@@ -6,7 +6,7 @@ import type { LLMTool, LLMToolContext, ToolImplementation } from './LLMToolInter
 import { OnboardingThreadTool } from './tools/createOnboardingThreadTool';
 import { FetchLinkedInProfileTool } from './tools/fetchLinkedInProfileTool';
 import { SearchDocumentsTool } from './tools/searchDocumentsTool';
-
+import { SearchMembersTool } from './tools/searchMembersTool';
 export type LLMToolCall = {
   id: string;
   type: 'function';
@@ -17,9 +17,18 @@ export type LLMToolCall = {
 };
 
 // biome-ignore lint/suspicious/noExplicitAny: The LLMTool inputs and outputs are different for each tool
-const ALL_TOOLS: LLMTool<any, any>[] = [SearchDocumentsTool, FetchLinkedInProfileTool, OnboardingThreadTool];
+const ALL_TOOLS: LLMTool<any, any>[] = [
+  SearchMembersTool,
+  SearchDocumentsTool,
+  FetchLinkedInProfileTool,
+  OnboardingThreadTool,
+];
 
-export const TOOL_NAMES = ALL_TOOLS.map((tool) => tool.toolName) as readonly string[];
+export const getToolName = (tool: LLMTool<unknown, unknown>): string => {
+  return tool.specForLLM.function.name;
+};
+
+export const TOOL_NAMES = ALL_TOOLS.map((tool) => getToolName(tool)) as readonly string[];
 export type ToolName = (typeof TOOL_NAMES)[number];
 
 export const getToolSpecs = (userIsAdmin: boolean): ChatCompletionTool[] => {
@@ -34,7 +43,7 @@ export const getToolForToolCall = (toolCall: LLMToolCall): LLMTool<unknown, unkn
 
   const toolName = toolCall.function.name;
 
-  const tool = ALL_TOOLS.find((t) => t.toolName === toolName);
+  const tool = ALL_TOOLS.find((t) => getToolName(t) === toolName);
   if (!tool) {
     logger.warn({ toolCall, toolName }, 'Unknown tool name encountered');
     throw new Error(`Unhandled tool call: ${toolName}`);
@@ -64,7 +73,7 @@ export const getToolImplementationsMap = ({
   const context: LLMToolContext = { slackClient };
 
   const toolNamesAndImplementations = ALL_TOOLS.filter((tool) => !tool.forAdminsOnly || userIsAdmin).map((tool) => {
-    return [tool.toolName, (params: object) => tool.impl({ context, ...params })];
+    return [getToolName(tool), (params: object) => tool.impl({ context, ...params })];
   });
 
   return Object.fromEntries(toolNamesAndImplementations);

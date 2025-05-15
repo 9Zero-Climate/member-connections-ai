@@ -1,4 +1,4 @@
-import { Client } from 'pg';
+import { Client, type QueryResult } from 'pg';
 import { config } from '../config';
 import { DEFAULT_LINKEDIN_PROFLE_ALLOWED_AGE_DAYS } from '../sync/linkedin_constants';
 import { generateEmbeddings } from './embedding';
@@ -16,24 +16,30 @@ export interface Document {
   updated_at?: Date;
 }
 
-export interface DocumentWithMemberContext extends Document {
+export interface DocumentWithMemberContextAndSimilarity extends Document {
   member_name: string | null;
   member_slack_id: string | null;
   member_location: OfficeLocation | null;
+  member_checkin_location_today: OfficeLocation | null;
+  member_is_checked_in_today: boolean;
   member_linkedin_url: string | null;
   member_notion_page_url: string | null;
+  member_officernd_id: string;
+  similarity: number;
 }
-
-export interface SearchOptions {
+const DEFAULT_SEARCH_LIMIT = 20;
+export type SearchOptions = {
   limit?: number;
   excludeEmbeddingsFromResults?: boolean;
-}
+  memberLocation?: OfficeLocation;
+  memberCheckedInOnly?: boolean;
+};
 
-export interface TestClient {
+export type TestClient = {
   query: jest.Mock;
   connect: jest.Mock;
   end: jest.Mock;
-}
+};
 
 export enum OfficeLocation {
   SEATTLE = 'Seattle',
@@ -231,18 +237,26 @@ async function deleteDoc(sourceUniqueId: string): Promise<boolean> {
  * @param options - Search options
  * @returns Similar documents with similarity scores and member context
  */
-async function findSimilar(embedding: number[], options: SearchOptions = {}): Promise<Document[]> {
+async function findSimilar(
+  embedding: number[],
+  options: SearchOptions = {},
+): Promise<DocumentWithMemberContextAndSimilarity[]> {
   const client = await getOrCreateClient();
+
+  const limit = options.limit ?? DEFAULT_SEARCH_LIMIT;
+  const excludeEmbeddingsFromResults = options.excludeEmbeddingsFromResults ?? true; // Default to excluding embeddings
+  const memberLocation = options.memberLocation ?? null;
+  const filterByMemberLocation = memberLocation != null;
+  const memberCheckedInOnly = options.memberCheckedInOnly ?? false;
 
   try {
     const embeddingVector = formatForComparison(embedding);
-    const limit = options.limit || 5;
-    const excludeEmbeddingsFromResults = options.excludeEmbeddingsFromResults ?? true; // Default to excluding embeddings
 
     // Note we're not just direct querying the `rag_docs` table,
     // we're querying the view that includes member context
-    const result = await client.query(
-      `SELECT
+    const result: QueryResult<Omit<DocumentWithMemberContextAndSimilarity, 'member_is_checked_in_today'>> =
+      await client.query(
+        `SELECT
         source_type,
         source_unique_id,
         content,
@@ -256,68 +270,32 @@ async function findSimilar(embedding: number[], options: SearchOptions = {}): Pr
         member_checkin_location_today,
         member_linkedin_url,
         member_notion_page_url,
+        member_officernd_id,
         1 - (embedding <=> $1) as similarity
       FROM documents_with_member_context
+      WHERE
+        ${filterByMemberLocation ? 'member_location = $2 AND' : ''}
+        ${memberCheckedInOnly ? 'member_checkin_location_today IS NOT NULL AND' : ''}
+        1 = 1 -- placeholder to make the query valid when no filters applied
       ORDER BY embedding <=> $1
       LIMIT $2`,
-      [embeddingVector, limit],
-    );
+        [embeddingVector, limit ?? DEFAULT_SEARCH_LIMIT],
+      );
 
     // Enhance metadata with member context from the view
-    return result.rows.map(
-      (
-        row: Document & {
-          member_name: string | null;
-          member_slack_id: string | null;
-          member_location: OfficeLocation | null;
-          member_checkin_location_today: OfficeLocation | null;
-          member_linkedin_url: string | null;
-          member_notion_page_url: string | null;
-        },
-      ) => {
-        // Extract the fields we want to keep
-        const {
-          source_type,
-          source_unique_id,
-          content,
-          metadata,
-          created_at,
-          updated_at,
-          member_name,
-          member_slack_id,
-          member_location,
-          member_checkin_location_today,
-          member_linkedin_url,
-          member_notion_page_url,
-          embedding: rawEmbedding,
-        } = row;
+    return result.rows.map((row) => {
+      const { embedding: rawEmbedding, ...rest } = row;
 
-        return {
-          source_type,
-          source_unique_id,
-          content,
-          created_at,
-          updated_at,
-          // Only include embedding if requested
-          ...(excludeEmbeddingsFromResults
-            ? {}
-            : {
-                embedding: parseStoredEmbedding(rawEmbedding as string | null),
-              }),
-          // Merge member context into metadata
-          metadata: {
-            ...metadata,
-            member_name,
-            member_slack_id,
-            member_location,
-            member_is_checked_in_today: member_checkin_location_today != null,
-            member_checkin_location_today,
-            member_linkedin_url,
-            member_notion_page_url,
-          },
-        };
-      },
-    );
+      return {
+        member_is_checked_in_today: rest.member_checkin_location_today != null,
+        ...(excludeEmbeddingsFromResults
+          ? {}
+          : {
+              embedding: parseStoredEmbedding(rawEmbedding as string | null),
+            }),
+        ...rest,
+      };
+    });
   } catch (error) {
     logger.warn(error, 'Error finding similar documents');
     throw error;
@@ -562,7 +540,7 @@ async function getLinkedInDocuments(linkedinUrl: string): Promise<Document[]> {
       [linkedinUrl],
     );
     // Map results, ensuring metadata includes view fields (already done by findSimilar's logic)
-    return result.rows.map((row: DocumentWithMemberContext) => ({
+    return result.rows.map((row: DocumentWithMemberContextAndSimilarity) => ({
       ...row,
       metadata: {
         ...row.metadata,
@@ -596,7 +574,9 @@ export const deleteLinkedinDocumentsForOfficerndId = async (officerndMemberId: s
  * @param memberIdentifier - The member's fullname, slackID, linkedin URL, or OfficeRnD ID
  * @returns Array of documents with their content and metadata
  */
-async function getLinkedInDocumentsByMemberIdentifier(memberIdentifier: string): Promise<DocumentWithMemberContext[]> {
+async function getLinkedInDocumentsByMemberIdentifier(
+  memberIdentifier: string,
+): Promise<DocumentWithMemberContextAndSimilarity[]> {
   const client = await getOrCreateClient();
   // Since this function call is LLM-friendly, we can't assume that the memberIdentifier is normalized if it's a linkedin URL
   const normalizedLinkedInUrl = normalizeLinkedinUrlOrNull(memberIdentifier);

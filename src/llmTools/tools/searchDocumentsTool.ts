@@ -42,7 +42,6 @@ const searchDocumentsSpec: ChatCompletionTool = {
 };
 
 export const SearchDocumentsTool: LLMTool<SearchToolParams, SearchToolResult> = {
-  toolName: 'searchDocuments',
   forAdminsOnly: false,
   specForLLM: searchDocumentsSpec,
   getShortDescription: (params: SearchToolParams) => `Semantic search for "${params.query}"`,
