@@ -111,7 +111,7 @@ describe('LLM Tools Index Logic', () => {
 
     it('returns specs for non-admin tools if userIsAdmin is false', () => {
       const specs = LlmToolsIndex.getToolSpecs(false);
-      expect(specs).toHaveLength(3); // searchMembersToolMock, generalToolMock and anotherGeneralToolMock
+      expect(specs).toHaveLength(3);
       expect(specs).toEqual(
         expect.arrayContaining([
           searchMembersToolMock.specForLLM,
