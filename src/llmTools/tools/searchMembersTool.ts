@@ -1,5 +1,5 @@
 import type { ChatCompletionTool } from 'openai/resources/chat';
-import groupBy from 'lodash/groupby';
+import { groupBy } from 'lodash';
 import {
   type Document,
   type DocumentWithMemberContextAndSimilarity,

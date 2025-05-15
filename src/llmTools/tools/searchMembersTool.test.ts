@@ -1,7 +1,6 @@
 import { OfficeLocation } from '../../services/database';
 import type { DocumentWithMemberContextAndSimilarity } from '../../services/database';
 import {
-  SearchMembersTool,
   type SearchMembersToolParams,
   coallateDocumentsByMember,
   combineDocumentsFromMultipleQueries,
