@@ -35,6 +35,12 @@ const getResponseIntro = (originalMessageText: string | undefined, reactionName:
   return `I see your ":${reactionName}:" reaction!`;
 };
 
+export const truncateMessage = (message: string, maxLength = 300) => {
+  const suffix = message.length > maxLength ? ' [...]' : '';
+  const truncatedMessage = message.slice(0, maxLength);
+  return `${truncatedMessage}${suffix}`;
+};
+
 /**
  * Called when a reaction is added to a message.
  * If the reaction is on a message posted by the bot, this initiates a feedback prompt.
@@ -78,12 +84,15 @@ export default async function initiateFeedbackFlowFromReactionEvent({
   });
   const originalMessageText = reactionSubjectResponse.messages?.[0]?.text;
 
-  const context = {
+  // We only include a truncated version of the original message text because the Slack API
+  // imposes a character limit per block. It's supposedly 3000 characters per block, but in practice
+  // it seems to be somewhat less
+  const context: FeedbackContext = {
     reaction: reactionName,
     channelId: event.item.channel,
     messageTs: event.item.ts,
-    originalMessageText: originalMessageText,
-  } as FeedbackContext;
+    truncatedMessageText: truncateMessage(originalMessageText || ''),
+  };
 
   const contextString = JSON.stringify(context);
 
