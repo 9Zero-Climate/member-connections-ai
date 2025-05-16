@@ -116,7 +116,8 @@ export const isDirectedAtUs = async (
   if (!threadMessages) {
     throw new Error(`No messages in thread for message ts ${slackMessage.ts}`);
   }
-  const llmHistory = convertSlackHistoryForLLMContext(threadMessages, slackMessage.ts);
+  const { botId } = await getBotIds(client);
+  const llmHistory = convertSlackHistoryForLLMContext(threadMessages, botId);
   const messagesForLlm = [
     {
       role: 'system',
@@ -129,6 +130,8 @@ export const isDirectedAtUs = async (
     },
     ...llmHistory,
   ];
+
+  logger.debug({ messagesForLlm }, 'Messages for LLM as orchestration agent');
 
   const llmResponse = await llmClient.chat.completions.create({
     model: config.modelName,
