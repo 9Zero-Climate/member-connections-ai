@@ -6,7 +6,7 @@ import { config } from '../../config';
 import { logger } from '../../services/logger';
 import type { SlackMessage } from '../initialLlmThread';
 import { handleIncomingMessage } from '../llmConversation';
-import { convertSlackHistoryToLLMHistory } from '../messagePacking';
+import { convertSlackHistoryForLLMContext } from '../messagePacking';
 import { BASIC_ASSISTANT_DESCRIPTION } from '../prompts';
 import { fetchSlackThreadAndChannelContext, getBotUserId } from '../slackInteraction';
 
@@ -110,7 +110,7 @@ export const isDirectedAtUs = async (
   if (!threadMessages) {
     throw new Error(`No messages in thread for message ts ${slackMessage.ts}`);
   }
-  const llmHistory = convertSlackHistoryToLLMHistory(threadMessages, slackMessage.ts);
+  const llmHistory = convertSlackHistoryForLLMContext(threadMessages, slackMessage.ts);
   const messagesForLlm = [
     {
       role: 'system',
