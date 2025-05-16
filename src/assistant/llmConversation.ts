@@ -1,5 +1,6 @@
 import type { SayFn } from '@slack/bolt';
 import type { WebClient } from '@slack/web-api';
+import type { MessageElement } from '@slack/web-api/dist/types/response/ConversationsHistoryResponse';
 import type { OpenAI } from 'openai';
 import { config } from '../config';
 import { type LLMToolCall, getToolCallShortDescription, getToolImplementationsMap, getToolSpecs } from '../llmTools';
@@ -7,20 +8,15 @@ import { logger } from '../services/logger';
 import ResponseManager from './ResponseManager';
 import executeToolCalls from './executeToolCalls';
 import { type SlackMessage, buildInitialLlmThread } from './initialLlmThread';
-import {
-  convertSlackHistoryForLLMContext,
-  createConversationSummary,
-  packToolCallInfoIntoSlackMessageMetadata,
-} from './messagePacking';
+import { convertSlackHistoryForLLMContext, packToolCallInfoIntoSlackMessageMetadata } from './messagePacking';
 import {
   addFeedbackHintReactions,
   fetchSlackThreadAndChannelContext,
   fetchSlackThreadMessages,
-  getBotId,
   fetchUserInfo,
+  getBotIds,
 } from './slackInteraction';
 import type { ChatMessage } from './types';
-import type { MessageElement } from '@slack/web-api/dist/types/response/ConversationsHistoryResponse';
 
 type RunLlmConversationArgs = {
   llmClient: OpenAI;
@@ -208,11 +204,11 @@ export const handleIncomingMessage = async ({
     }
 
     const userInfo = await fetchUserInfo(client, userId);
-    const botUserId = await getBotId(client);
+    const botIds = await getBotIds(client);
 
-    const conversationSummary = createConversationSummary(slackMessagesForHistory, botUserId);
+    const conversationSummaryMessage = convertSlackHistoryForLLMContext(slackMessagesForHistory, botIds.botId);
 
-    const initialLlmThread = buildInitialLlmThread(conversationSummary, userInfo, text, botUserId);
+    const initialLlmThread = buildInitialLlmThread(conversationSummaryMessage, userInfo, text, botIds);
 
     const finalizedMessageTs = await runLlmConversation({
       llmClient,

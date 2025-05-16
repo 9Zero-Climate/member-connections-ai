@@ -8,7 +8,7 @@ import type { SlackMessage } from '../initialLlmThread';
 import { handleIncomingMessage } from '../llmConversation';
 import { convertSlackHistoryForLLMContext } from '../messagePacking';
 import { BASIC_ASSISTANT_DESCRIPTION } from '../prompts';
-import { fetchSlackThreadAndChannelContext, getBotUserId } from '../slackInteraction';
+import { type BotIds, fetchSlackThreadAndChannelContext, getBotIds } from '../slackInteraction';
 
 export type ThreadMessage = MessageEvent & { thread_ts: string };
 export enum ConditionalResponse {
@@ -53,10 +53,10 @@ export const shouldRespondToMessage = async (
     channel: slackMessage.channel,
     ts: slackMessage.thread_ts,
   });
-  const botId = await getBotUserId(client);
+  const botIds = await getBotIds(client);
 
-  if (!wePreviouslyParticipatedInThread(threadContents, botId)) {
-    logger.info({ threadContents, botId }, 'We did not previously participate in this thread, skipping');
+  if (!wePreviouslyParticipatedInThread(threadContents, botIds)) {
+    logger.info({ threadContents, botIds }, 'We did not previously participate in this thread, skipping');
     return ConditionalResponse.IGNORE;
   }
 
@@ -65,14 +65,20 @@ export const shouldRespondToMessage = async (
 
 export const wePreviouslyParticipatedInThread = (
   threadContents: ConversationsRepliesResponse,
-  botId: string,
+  botIds: BotIds,
 ): boolean => {
   if (!threadContents.messages) {
-    throw new Error('No messages in thread');
+    return false;
   }
 
-  const wePreviouslyParticipatedInThread = threadContents.messages.some((message) => message.bot_id === botId);
-  return wePreviouslyParticipatedInThread;
+  const ourMessagesInThread = threadContents.messages.filter(
+    (message) => message.user === botIds.userId || message.bot_id === botIds.botId,
+  );
+
+  if (ourMessagesInThread.length > 0) {
+    logger.info({ ourMessagesInThread, botIds }, 'We previously participated in this thread');
+  }
+  return ourMessagesInThread.length > 0;
 };
 
 const toolShouldRespond: ChatCompletionTool = {

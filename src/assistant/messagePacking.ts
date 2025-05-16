@@ -4,7 +4,6 @@ import type { MessageMetadata } from '@slack/web-api/dist';
 import type { FluffyMetadata, MessageElement } from '@slack/web-api/dist/types/response/ConversationsHistoryResponse';
 import type { ChatCompletionMessageToolCall } from 'openai/resources/chat/completions';
 import type { ChatMessage } from './types';
-// Consider adding: import { logger } from '../services/logger';
 
 type MessageMetadataWithToolCalls = MessageMetadata & {
   event_payload: {
@@ -26,43 +25,6 @@ const getCompleteToolCallInfoFromMessage = (message: MessageElement): string | u
 };
 
 /**
- * Creates a human-and LLM-readable summary of the conversation from Slack messages.
- * @param messages - Array of Slack messages (MessageElement).
- * @param botUserId - The Slack ID of the bot, to identify assistant messages.
- * @returns A string summarizing the conversation.
- */
-export const createConversationSummary = (messages: MessageElement[], botUserId?: string): string => {
-  if (!messages || messages.length === 0) {
-    return 'No prior conversation history.';
-  }
-
-  const summaryLines: string[] = [];
-
-  for (const message of messages) {
-    const trimmedMessageText = message.text?.trim();
-    if (!trimmedMessageText) continue;
-
-    if (message.bot_id && (!botUserId || message.bot_id === botUserId)) {
-      const completeToolCallInfo = getCompleteToolCallInfoFromMessage(message);
-      if (completeToolCallInfo) {
-        summaryLines.push(`  (Assistant used tool(s): ${completeToolCallInfo}.`);
-        // Ignore the message text when there are tool calls - it's procedurally generated and not helpful to the assistant
-      } else {
-        summaryLines.push(`Assistant: ${trimmedMessageText}`);
-      }
-    } else if (message.user) {
-      summaryLines.push(`User <@${message.user}>: ${trimmedMessageText}`);
-    }
-  }
-
-  if (summaryLines.length === 0) {
-    return 'No relevant conversation history to summarize.';
-  }
-
-  return summaryLines.join('\n');
-};
-
-/**
  * Pack tool call info into Slack message metadata.
  * This metadata is used to record tool calls made by the assistant.
  * @param toolCalls - The LLM tool call info to pack.
@@ -76,3 +38,39 @@ export const packToolCallInfoIntoSlackMessageMetadata = (
     tool_calls: JSON.stringify(toolCalls),
   },
 });
+
+export const NO_CONVERSATION_HISTORY_SUMMARY = '[No history in this thread. This is a brand new conversation.]';
+
+export const stringifySlackMessage = (message: MessageElement, botUserId: string): string => {
+  const trimmedMessageText = message.text?.trim();
+  if (!trimmedMessageText) return '';
+
+  if (message.bot_id && message.bot_id === botUserId) {
+    const completeToolCallInfo = getCompleteToolCallInfoFromMessage(message);
+    if (completeToolCallInfo) {
+      return `  (Assistant used tool(s): ${completeToolCallInfo}.)`;
+      // Ignore the message text when there are tool calls - it's procedurally generated and not helpful to the assistant
+    }
+    return `Assistant: ${trimmedMessageText}`;
+  }
+  return `User <@${message.user}>: ${trimmedMessageText}`;
+};
+
+/**
+ * Convert Slack message history into a human- and LLM-readable
+ */
+export function stringifySlackConversation(messages: MessageElement[], botUserId: string): string {
+  const conversationLines = messages.map((message) => stringifySlackMessage(message, botUserId));
+
+  return conversationLines ? conversationLines.join('\n') : NO_CONVERSATION_HISTORY_SUMMARY;
+}
+
+export const convertSlackHistoryForLLMContext = (messages: MessageElement[], botUserId: string): ChatMessage[] => {
+  const conversationString = stringifySlackConversation(messages, botUserId);
+  return [
+    {
+      role: 'system',
+      content: `Summary of the preceding conversation (users are referred to by their Slack IDs):\n${conversationString}`,
+    },
+  ];
+};
