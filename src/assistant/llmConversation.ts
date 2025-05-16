@@ -1,6 +1,5 @@
 import type { SayFn } from '@slack/bolt';
 import type { WebClient } from '@slack/web-api';
-import type { MessageElement } from '@slack/web-api/dist/types/response/ConversationsHistoryResponse';
 import type { OpenAI } from 'openai';
 import { config } from '../config';
 import { type LLMToolCall, getToolCallShortDescription, getToolImplementationsMap, getToolSpecs } from '../llmTools';
@@ -196,7 +195,7 @@ export const handleIncomingMessage = async ({
         ? await fetchSlackThreadAndChannelContext(client, slackChannel, thread_ts || triggeringMessageTs)
         : await fetchSlackThreadMessages(client, slackChannel, thread_ts);
 
-    const slackMessagesForHistory: MessageElement[] = (rawSlackMessages || []) as MessageElement[];
+    const slackMessagesForHistory = rawSlackMessages || [];
     logger.debug({ slackMessagesCount: slackMessagesForHistory.length }, 'Slack messages for history fetched');
 
     if (!userId) {

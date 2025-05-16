@@ -59,14 +59,14 @@ export const stringifySlackMessage = (message: MessageElement, botUserId: string
 /**
  * Convert Slack message history into a human- and LLM-readable
  */
-export function stringifySlackConversation(messages: MessageElement[], botUserId: string): string {
-  const conversationLines = messages.map((message) => stringifySlackMessage(message, botUserId));
+export function stringifySlackConversation(messages: MessageElement[], botId: string): string {
+  const conversationLines = messages.map((message) => stringifySlackMessage(message, botId));
 
   return conversationLines ? conversationLines.join('\n') : NO_CONVERSATION_HISTORY_SUMMARY;
 }
 
-export const convertSlackHistoryForLLMContext = (messages: MessageElement[], botUserId: string): ChatMessage[] => {
-  const conversationString = stringifySlackConversation(messages, botUserId);
+export const convertSlackHistoryForLLMContext = (messages: MessageElement[], botId: string): ChatMessage[] => {
+  const conversationString = stringifySlackConversation(messages, botId);
   return [
     {
       role: 'system',

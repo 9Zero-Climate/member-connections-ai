@@ -149,6 +149,12 @@ const getAuthInfo = async (client: WebClient): Promise<AuthTestResponse> => {
   return authTestResponse;
 };
 
+/* Slack bots get two IDs: bot ID and user ID. Why both? I'm not sure.
+ *
+ * In the context of Slack messages, the user ID is used in place of a normal user ID while the bot ID goes in the bot_id field.
+ * Messages from a bot look like { user: 'U123', bot_id: 'B123', ... }
+ * Messages from a user look similar but with no bot_id field.
+ */
 export type BotIds = {
   botId: string;
   userId: string;
