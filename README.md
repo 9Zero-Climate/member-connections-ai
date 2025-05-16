@@ -52,6 +52,18 @@ https://app.officernd.com/admin/climate9zero/home)
 
 [![Badge - Shields.io - Status Badges](https://img.shields.io/badge/Shields.io-status_badges_😉-blue?logo=shields.io)](https://shields.io/)
 
+## Branches and deployments
+
+There are some surprises in this section, so you'll want to read this if you're adopting this codebase.
+
+* We have two bots deployed from this repo:
+    * The main bot, called "`Fabric By 9Zero`" in the 9Zero Climate Slack workspace, deploys from the `production` branch.
+    * The preview bot, called "`(alpha) Member Connections Bot`", deploys from the `staging` branch, which is the default branch for pull requests.
+* **Both** the preview bot and the production bot hit the **same Supabase database**.
+* ORND webhooks generally point at the `production` bot.
+* Nightly syncs are performed using GitHub Actions and are **based on the `staging` branch**. This is because cron-style GH actions have to run from the default branch.
+* To promote code from `staging` to `production`, run the [Merge Staging To Production](https://github.com/9Zero-Climate/member-connections-ai/actions/workflows/merge-staging-to-prod.yml) GitHub Action.
+
 ## Development
 
 ### Prerequisites
