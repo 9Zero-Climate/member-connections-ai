@@ -7,11 +7,14 @@ import { logger } from '../services/logger';
 import ResponseManager from './ResponseManager';
 import executeToolCalls from './executeToolCalls';
 import { type SlackMessage, buildInitialLlmThread } from './initialLlmThread';
-import { convertSlackHistoryToLLMHistory, packToolCallInfoIntoSlackMessageMetadata } from './messagePacking';
-import { addFeedbackHintReactions, fetchSlackThreadAndChannelContext } from './slackInteraction';
-import { fetchSlackThreadMessages } from './slackInteraction';
-import { getBotId } from './slackInteraction';
-import { fetchUserInfo } from './slackInteraction';
+import { convertSlackHistoryForLLMContext, packToolCallInfoIntoSlackMessageMetadata } from './messagePacking';
+import {
+  addFeedbackHintReactions,
+  fetchSlackThreadAndChannelContext,
+  fetchSlackThreadMessages,
+  fetchUserInfo,
+  getBotIds,
+} from './slackInteraction';
 import type { ChatMessage } from './types';
 
 type RunLlmConversationArgs = {
@@ -161,7 +164,6 @@ export const handleIncomingMessage = async ({
 }: HandleIncomingMessageArgs) => {
   const { channel: slackChannel, thread_ts, text, ts: triggeringMessageTs, user: userId, subtype } = slackMessage;
 
-  // Always use the triggering message's ts to start/continue a thread
   const effectiveThreadTs = triggeringMessageTs;
   const responseManager = new ResponseManager({ client, say, channelOrThreadTs: effectiveThreadTs });
 
@@ -176,7 +178,6 @@ export const handleIncomingMessage = async ({
     'Handling incoming Slack message',
   );
 
-  // Show the user that we are preparing to respond
   await client.reactions.add({
     name: 'thinking_face',
     channel: slackChannel,
@@ -190,20 +191,23 @@ export const handleIncomingMessage = async ({
       );
     }
     const rawSlackMessages =
-      includeChannelContext || !thread_ts // !thread_ts here is a hack to satistfy the type checker
+      includeChannelContext || !thread_ts
         ? await fetchSlackThreadAndChannelContext(client, slackChannel, thread_ts || triggeringMessageTs)
         : await fetchSlackThreadMessages(client, slackChannel, thread_ts);
-    const slackMessages = rawSlackMessages as SlackMessage[];
-    logger.debug({ slackMessages }, 'Slack messages fetched');
+
+    const slackMessagesForHistory = rawSlackMessages || [];
+    logger.debug({ slackMessagesCount: slackMessagesForHistory.length }, 'Slack messages for history fetched');
 
     if (!userId) {
       throw new Error('handleIncomingMessage called without a userId for an expected user interaction event.');
     }
 
     const userInfo = await fetchUserInfo(client, userId);
-    const botUserId = await getBotId(client);
-    const threadHistoryForLLM = convertSlackHistoryToLLMHistory(slackMessages, triggeringMessageTs);
-    const initialLlmThread = buildInitialLlmThread(threadHistoryForLLM, userInfo, text, botUserId);
+    const botIds = await getBotIds(client);
+
+    const conversationSummaryMessage = convertSlackHistoryForLLMContext(slackMessagesForHistory, botIds.botId);
+
+    const initialLlmThread = buildInitialLlmThread(conversationSummaryMessage, userInfo, text, botIds);
 
     const finalizedMessageTs = await runLlmConversation({
       llmClient,
@@ -215,7 +219,6 @@ export const handleIncomingMessage = async ({
       userIsAdmin: userInfo.is_admin || false,
     });
 
-    // Add feedback reactions if the conversation resulted in a final message
     if (finalizedMessageTs) {
       addFeedbackHintReactions(client, slackChannel, finalizedMessageTs);
     } else {
@@ -232,7 +235,6 @@ export const handleIncomingMessage = async ({
       },
       'Error in message handler',
     );
-    // Report the error
     await say({
       text: `Something went wrong processing that message.\n You may want to forward this error message to an admin:\n\`\`\`\n${
         e instanceof Error ? e.message : JSON.stringify(e)
@@ -240,7 +242,6 @@ export const handleIncomingMessage = async ({
       thread_ts: effectiveThreadTs,
     });
   } finally {
-    // Remove reaction from the trigger message
     await client.reactions
       .remove({
         name: 'thinking_face',

@@ -3,7 +3,7 @@ import type { Channel } from '@slack/web-api/dist/types/response/ConversationsOp
 import type { OfficeLocation } from '../services/database';
 import { getMemberFromSlackId, getOnboardingConfig } from '../services/database';
 import { logger } from '../services/logger';
-import { getBotUserId } from './slackInteraction';
+import { getBotIds } from './slackInteraction';
 
 export const getSentenceAboutAdmins = (adminUserSlackIds: string[], location: OfficeLocation) => {
   const adminUserNames = adminUserSlackIds.map((id) => `<@${id}>`).join(' and ');
@@ -41,7 +41,7 @@ export async function createNewOnboardingDmWithAdmins(client: WebClient, newUser
     throw new Error(`No admin users found for ${location}`);
   }
 
-  const botUserId = await getBotUserId(client);
+  const { userId: botUserId } = await getBotIds(client);
 
   const userIds = [...admin_user_slack_ids, botUserId, newUserSlackId];
   logger.info(`Creating new onboarding thread with users: ${userIds}`);

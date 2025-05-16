@@ -17,20 +17,26 @@ import {
 } from './messageHandler';
 
 jest.mock('../slackInteraction', () => ({
-  getBotUserId: jest.fn().mockResolvedValue('U_BOT_ID'),
+  getBotIds: jest.fn().mockResolvedValue({
+    botId: 'B_BOT_ID',
+    userId: 'U_BOT_USER_ID',
+  }),
   fetchSlackThreadAndChannelContext: jest.fn().mockResolvedValue([
     { user: 'U123', ts: '123.456', text: 'Initial' },
-    { bot_id: 'U_BOT_ID', ts: '123.457', text: 'Bot reply' },
+    { bot_id: 'U_BOT_USER_ID', ts: '123.457', text: 'Bot reply' },
     { user: 'U123', ts: '123.459', text: 'is this for the bot?' },
   ]),
 }));
 
 jest.mock('../messagePacking', () => ({
-  convertSlackHistoryToLLMHistory: jest.fn().mockReturnValue([
+  createConversationSummary: jest.fn().mockReturnValue('Mocked conversation summary'),
+  convertSlackHistoryForLLMContext: jest.fn().mockReturnValue([
+    { role: 'system', content: 'Mocked summary from convertSlackHistoryForLLMContext' },
     { role: 'user', content: 'Initial' },
     { role: 'assistant', content: 'Bot reply' },
     { role: 'user', content: 'is this for the bot?' },
   ]),
+  packToolCallInfoIntoSlackMessageMetadata: jest.fn(),
 }));
 
 jest.mock('../llmConversation', () => ({
@@ -136,7 +142,10 @@ describe('messageHandler', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    (slackInteraction.getBotUserId as jest.Mock).mockResolvedValue('U_BOT_ID');
+    (slackInteraction.getBotIds as jest.Mock).mockResolvedValue({
+      botId: 'B_BOT_ID',
+      userId: 'U_BOT_USER_ID',
+    });
     (mockWebClient.conversations.replies as jest.Mock).mockResolvedValue({
       ok: true,
       messages: [],
@@ -197,7 +206,7 @@ describe('messageHandler', () => {
         ok: true,
         messages: [
           { user: 'U123', ts: '123.456' },
-          { bot_id: 'U_BOT_ID', ts: '123.457' },
+          { bot_id: 'B_BOT_ID', user: 'U_BOT_USER_ID', ts: '123.457' },
         ],
       });
 
@@ -306,50 +315,55 @@ describe('messageHandler', () => {
   });
 
   describe('wePreviouslyParticipatedInThread', () => {
-    const botId = 'U_BOT_ID';
+    const botIds = {
+      botId: 'U_BOT_ID',
+      userId: 'U_BOT_USER_ID',
+    };
 
-    it('throws error when thread has no messages', () => {
+    it('returns false when thread has no messages', () => {
       const threadContents = { ok: true } as ConversationsRepliesResponse;
-      expect(() => wePreviouslyParticipatedInThread(threadContents, botId)).toThrow('No messages in thread');
+      expect(wePreviouslyParticipatedInThread(threadContents, botIds)).toBe(false);
     });
 
-    it('returns true when bot has previously participated', () => {
+    it.each([
+      {
+        expected: true,
+        when: 'bot has previously participated, identified by bot_id and user id',
+        messageOverrides: { bot_id: botIds.botId, user: botIds.userId, text: 'Bot reply' },
+      },
+      // In our observations, slack messages from bots have *both* bot_id and user fields set.
+      // But I don't see a downside in checking for either one on its own as well.
+      {
+        expected: true,
+        when: 'bot has previously participated, identified by bot_id',
+        messageOverrides: { bot_id: botIds.botId, text: 'Bot reply' },
+      },
+      {
+        expected: true,
+        when: 'bot has previously participated, identified by bot user id',
+        messageOverrides: { user: botIds.userId, text: 'Bot reply' },
+      },
+      {
+        expected: false,
+        when: 'bot has not previously participated',
+        messageOverrides: { user: 'U123' },
+      },
+      {
+        expected: false,
+        when: 'other bot has participated',
+        messageOverrides: { bot_id: 'OTHER_BOT_ID', text: 'Other bot reply' },
+      },
+    ])('returns $expected when $when', ({ messageOverrides, expected }) => {
       const threadContents = {
         ok: true,
         messages: [
           { user: 'U123', ts: '123.456', text: 'Initial' },
-          { bot_id: botId, ts: '123.457', text: 'Bot reply' },
+          { ts: '123.457', text: 'Another message', ...messageOverrides },
           { user: 'U123', ts: '123.459', text: 'Follow up' },
         ],
       } as ConversationsRepliesResponse;
 
-      expect(wePreviouslyParticipatedInThread(threadContents, botId)).toBe(true);
-    });
-
-    it('returns false when bot has not previously participated', () => {
-      const threadContents = {
-        ok: true,
-        messages: [
-          { user: 'U123', ts: '123.456', text: 'Initial' },
-          { user: 'U456', ts: '123.457', text: 'Another user' },
-          { user: 'U123', ts: '123.459', text: 'Follow up' },
-        ],
-      } as ConversationsRepliesResponse;
-
-      expect(wePreviouslyParticipatedInThread(threadContents, botId)).toBe(false);
-    });
-
-    it('returns false when thread only has messages from other bots', () => {
-      const threadContents = {
-        ok: true,
-        messages: [
-          { user: 'U123', ts: '123.456', text: 'Initial' },
-          { bot_id: 'OTHER_BOT', ts: '123.457', text: 'Other bot reply' },
-          { user: 'U123', ts: '123.459', text: 'Follow up' },
-        ],
-      } as ConversationsRepliesResponse;
-
-      expect(wePreviouslyParticipatedInThread(threadContents, botId)).toBe(false);
+      expect(wePreviouslyParticipatedInThread(threadContents, botIds)).toBe(expected);
     });
   });
 });

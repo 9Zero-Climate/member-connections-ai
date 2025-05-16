@@ -41,6 +41,7 @@ describe('createNewOnboardingDmWithAdmins', () => {
     admin_user_slack_ids: ['UADMIN'],
     onboarding_message_content: 'Default welcome message!',
   };
+  const defaultBotId = 'BBOT';
   const defaultBotUserId = 'UBOT';
   const defaultChannelId = 'C123';
   const defaultTeamId = 'T00000000';
@@ -52,7 +53,10 @@ describe('createNewOnboardingDmWithAdmins', () => {
 
     // Setup default mock behaviors
     mockDatabaseService.getOnboardingConfig.mockResolvedValue(defaultOnboardingConfig);
-    mockSlackInteractionService.getBotUserId.mockResolvedValue(defaultBotUserId);
+    mockSlackInteractionService.getBotIds.mockResolvedValue({
+      botId: defaultBotId,
+      userId: defaultBotUserId,
+    });
     mockDatabaseService.getMemberFromSlackId.mockResolvedValue({ location: OfficeLocation.SEATTLE });
 
     mockClient = {
@@ -77,7 +81,7 @@ describe('createNewOnboardingDmWithAdmins', () => {
 
     expect(mockDatabaseService.getMemberFromSlackId).toHaveBeenCalledWith(newUserSlackId);
     expect(mockDatabaseService.getOnboardingConfig).toHaveBeenCalledWith(location);
-    expect(mockSlackInteractionService.getBotUserId).toHaveBeenCalledWith(mockClient);
+    expect(mockSlackInteractionService.getBotIds).toHaveBeenCalledWith(mockClient);
     expect(mockClient.conversations.open).toHaveBeenCalledWith({ users: 'UADMIN,UBOT,UNEWUSER' });
     expect(mockClient.conversations.setTopic).toHaveBeenCalledWith({
       channel: defaultChannelId,
