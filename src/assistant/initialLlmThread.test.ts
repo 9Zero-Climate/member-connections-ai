@@ -4,7 +4,7 @@ import type { ChatMessage } from './types';
 
 describe('llmHistoryConversion', () => {
   describe('buildInitialLlmThread', () => {
-    it('should build initial thread with user info and message', () => {
+    it('builds initial thread with user info and message', () => {
       const userInfo = {
         slack_ID: '<@U123>',
         preferred_name: 'tester',
@@ -14,49 +14,23 @@ describe('llmHistoryConversion', () => {
       };
 
       const existingHistory: ChatMessage[] = [
-        { role: 'user', content: 'Previous message' },
-        { role: 'assistant', content: 'Previous response' },
+        { role: 'system', content: 'Here is the summary of the thread: blah blah blah' },
       ];
 
-      const result = buildInitialLlmThread(existingHistory, userInfo, 'Hello', 'BOT123');
-
-      // Extract just the date from the result for stable test comparison
-      const dateTimeMessage = result[1].content as string;
-      expect(dateTimeMessage).toMatch(/^The current date and time is .* and your slack ID is BOT123\.$/);
+      const result = buildInitialLlmThread(existingHistory, userInfo, 'Hello', { botId: 'BOT123', userId: 'USER123' });
 
       expect(result).toEqual([
         { role: 'system', content: DEFAULT_SYSTEM_CONTENT },
         {
           role: 'system',
-          content: expect.stringMatching(/^The current date and time is .* and your slack ID is BOT123\.$/),
+          // Should mention both bot and bot user ID so that the assistant can recognize mentions of itself
+          content: expect.stringMatching(/^The current date and time is .*BOT123.*USER123.*\.$/),
         },
-        { role: 'system', content: 'Here is the conversation history (if any):' },
-        { role: 'user', content: 'Previous message' },
-        { role: 'assistant', content: 'Previous response' },
-        { role: 'system', content: `The following message is from: ${JSON.stringify(userInfo)}` },
-        { role: 'user', content: 'Hello' },
-      ]);
-    });
-
-    it('should handle empty history', () => {
-      const userInfo = {
-        slack_ID: '<@U123>',
-        preferred_name: 'tester',
-        real_name: 'Test User',
-        time_zone: 'America/New_York',
-        time_zone_offset: -14400,
-      };
-
-      const result = buildInitialLlmThread([], userInfo, 'Hello', 'BOT123');
-
-      expect(result).toEqual([
-        { role: 'system', content: DEFAULT_SYSTEM_CONTENT },
+        { role: 'system', content: 'Here is the summary of the thread: blah blah blah' },
         {
           role: 'system',
-          content: expect.stringMatching(/^The current date and time is .* and your slack ID is BOT123\.$/),
+          content: `The current task is to respond to the most recent user message, in the context of the immediately preceding conversation. Details of the user who left the last message: ${JSON.stringify(userInfo)}. Their most recent message follows.`,
         },
-        { role: 'system', content: 'Here is the conversation history (if any):' },
-        { role: 'system', content: `The following message is from: ${JSON.stringify(userInfo)}` },
         { role: 'user', content: 'Hello' },
       ]);
     });

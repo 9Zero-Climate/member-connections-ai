@@ -105,6 +105,7 @@ export const combineDocumentsFromMultipleQueries = (
         source_unique_id: document.source_unique_id,
         content: document.content,
         embedding: document.embedding,
+        metadata: document.metadata,
         matchScoresByQuery,
         combinedMatchScore,
       };

@@ -46,6 +46,6 @@ Testing conventions:
 - Prefer concise, focused tests to tests that cover multiple cases.
 - Avoid having many, verbose test fixtures. Use helper functions if necessary or a centralized fixture with the spread operator to change the fixture as needed for specific cases.
 - prefer to centralize test logic - if there are several similar tests, use helper functions or declarative test cases that get mapped over with `it.each(testCases, ...)`.
-- prefer to use Jest's built-in matchers and assertions over custom logic.
+- prefer to use Jest's built-in matchers and assertions over custom logic. Use `jest.objectContaining` with `expect().toMatchObject()` to combine multiple assertions.
 - avoid mocks when possible. Prefer to factor business logic out into pure functions that can be tested in isolation.
 - when you do need to mock a service, import & use our premade service mocks in src/services/mocks.ts where possible.

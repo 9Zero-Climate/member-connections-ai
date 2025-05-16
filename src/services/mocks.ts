@@ -52,7 +52,7 @@ export const mockSlackService = {
 };
 
 export const mockSlackInteractionService = {
-  getBotUserId: jest.fn(),
+  getBotIds: jest.fn(),
 };
 
 export const mockLoggerService = {
