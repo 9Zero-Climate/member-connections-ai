@@ -1,12 +1,22 @@
 import type { SayFn } from '@slack/bolt';
 import type { ChatPostMessageResponse, WebClient } from '@slack/web-api';
 import { config } from '../config';
-import ResponseManager from './ResponseManager';
+import { logger } from '../services/logger';
+import ResponseManager, { splitMessageThatIsTooLong, findNewlineIndexToSplitMessage } from './ResponseManager';
 
 jest.mock('../config', () => ({
   config: {
     // This needs to be set but note we're using jest.useFakeTimers() throughout these tests so the value shouldn't matter
     chatEditIntervalMs: 100,
+  },
+}));
+
+jest.mock('../services/logger', () => ({
+  logger: {
+    info: jest.fn(),
+    warn: jest.fn(),
+    error: jest.fn(),
+    debug: jest.fn(),
   },
 }));
 
@@ -25,6 +35,7 @@ describe('ResponseManager', () => {
   const testChannel = 'C123CHANNEL';
   const testTs = '1678886400.000001';
   const placeholderText = '_thinking..._';
+  const SLACK_MAX_MESSAGE_LENGTH = 3000; // Value from ResponseManager.ts
 
   beforeEach(() => {
     jest.useFakeTimers();
@@ -56,6 +67,10 @@ describe('ResponseManager', () => {
       ts: testTs,
       message: { text: expect.any(String) }, // Text will vary
     } as MockChatPostMessageResponse);
+    (logger.warn as jest.Mock).mockClear();
+    (logger.info as jest.Mock).mockClear();
+    (logger.error as jest.Mock).mockClear();
+    (logger.debug as jest.Mock).mockClear();
   });
 
   afterEach(() => {
@@ -265,5 +280,249 @@ describe('ResponseManager', () => {
       // await expect(responseManager.startNewMessageWithPlaceholder('New placeholder')).resolves.toBeDefined(); // Incorrect assertion for Promise<void>
       expect(mockSay).toHaveBeenCalledTimes(2); // Original + new
     });
+  });
+
+  describe('updateMessage', () => {
+    beforeEach(async () => {
+      // Start a message for these tests
+      await responseManager.startNewMessageWithPlaceholder(placeholderText);
+      // Ensure mockSay is reset if it was used by startNewMessageWithPlaceholder
+      mockSay.mockClear();
+      // Reset update mock as well for clean checks in each updateMessage test
+      mockClient.chat.update.mockClear();
+    });
+
+    it('should call update directly if message is shorter than SLACK_MAX_MESSAGE_LENGTH', async () => {
+      const shortMessage = 'This is a short message.';
+      // currentResponseText is updated internally by appendToMessage
+      // We'll call appendToMessage then trigger updateMessage logic by advancing timers
+      await responseManager.appendToMessage(shortMessage);
+      jest.advanceTimersByTime(config.chatEditIntervalMs + 1);
+      await responseManager.appendToMessage(''); // Trigger update check
+
+      expect(mockClient.chat.update).toHaveBeenCalledTimes(1);
+      expect(mockClient.chat.update).toHaveBeenCalledWith({
+        channel: testChannel,
+        ts: testTs,
+        text: shortMessage,
+      });
+    });
+
+    it('posts split message as 2 messages when message exceeds SLACK_MAX_MESSAGE_LENGTH', async () => {
+      // 1. Arrange
+      const initialMessageTs = testTs; // testTs is the TS from the initial placeholder message
+      const tsAfterFirstPrefixUpdate = 'ts.after.first.prefix.update';
+      const tsAfterSecondPrefixUpdate = 'ts.after.second.prefix.update'; // From finalizeMessage's internal update
+      const continuedMessageTs = 'ts.continued.message';
+
+      const part1 =
+        'This is the first part of a very long message, long enough to ensure it gets split. It contains newlines.\n';
+      const part2 =
+        'This is the second part, which will become the suffix after the split occurs because the total length is greater than SLACK_MAX_MESSAGE_LENGTH. More text to make it long.\nEven more text.';
+      const longMessage = part1 + 'a'.repeat(SLACK_MAX_MESSAGE_LENGTH) + part2;
+
+      // Determine actual prefix and suffix based on real function's behavior
+      const actualSplit = splitMessageThatIsTooLong(longMessage, SLACK_MAX_MESSAGE_LENGTH);
+      const expectedPrefix = actualSplit.prefix;
+      const expectedSuffix = actualSplit.suffix;
+
+      // Ensure the split will actually happen and produce a non-empty prefix and suffix for this test
+      expect(expectedPrefix).not.toBe(longMessage);
+      expect(expectedSuffix).not.toBe('');
+      expect(expectedPrefix.length).toBeLessThanOrEqual(SLACK_MAX_MESSAGE_LENGTH);
+
+      // Mock setup for chat.update:
+      // 1st call: during initial split, updates original message with prefix
+      mockClient.chat.update.mockResolvedValueOnce({
+        ok: true,
+        channel: testChannel,
+        ts: tsAfterFirstPrefixUpdate, // Returns new TS
+        message: { text: expectedPrefix },
+      } as MockChatPostMessageResponse);
+      // 2nd call: from finalizeMessage's internal call to updateMessage (still with prefix)
+      mockClient.chat.update.mockResolvedValueOnce({
+        ok: true,
+        channel: testChannel,
+        ts: tsAfterSecondPrefixUpdate, // Returns another new TS
+        message: { text: expectedPrefix },
+      } as MockChatPostMessageResponse);
+
+      // Mock setup for say (for the new "continued" message)
+      mockSay.mockResolvedValueOnce({
+        ok: true,
+        channel: testChannel,
+        ts: continuedMessageTs,
+        message: { text: '_takes deep breath_' },
+      } as MockChatPostMessageResponse);
+
+      // 2. Act
+      // Directly set currentResponseText and call updateMessage for focused testing of the split logic.
+      // The startNewMessageWithPlaceholder in beforeEach already set up an inProgressMessage.
+      // @ts-expect-error Test wants to access private member
+      responseManager.currentResponseText = longMessage;
+      // @ts-expect-error Test wants to access private member
+      const updatePromise = responseManager.updateMessage();
+
+      // Advance time past the cooldown period
+      jest.advanceTimersByTime(config.chatEditIntervalMs + 1);
+      // Run any pending timers
+      jest.runOnlyPendingTimers();
+
+      await updatePromise;
+
+      // 3. Assert
+      // First update call (prefix to original message)
+      expect(mockClient.chat.update).toHaveBeenNthCalledWith(1, {
+        channel: testChannel,
+        ts: initialMessageTs, // Original TS of the placeholder message
+        text: expectedPrefix,
+      });
+
+      // Second update call (prefix again, from finalizeMessage, using TS from first update)
+      expect(mockClient.chat.update).toHaveBeenNthCalledWith(2, {
+        channel: testChannel,
+        ts: tsAfterFirstPrefixUpdate, // TS returned by the first update
+        text: expectedPrefix,
+      });
+
+      // Say call for the new "continued" message
+      expect(mockSay).toHaveBeenCalledWith({
+        text: '_takes deep breath_',
+        thread_ts: initialMessageTs, // Should be in the same thread as the original placeholder
+      });
+
+      // Check internal state after operations
+      // @ts-expect-error Test wants to access private member
+      expect(responseManager.currentResponseText).toBe(expectedSuffix);
+      // @ts-expect-error Test wants to access private member
+      expect(responseManager.inProgressMessage?.ts).toBe(continuedMessageTs);
+
+      // Verify total calls
+      expect(mockClient.chat.update).toHaveBeenCalledTimes(2);
+      expect(mockSay).toHaveBeenCalledTimes(1);
+    });
+  });
+});
+
+describe('splitMessageThatIsTooLong', () => {
+  it('splits a message correctly when a valid newline index is found', () => {
+    const message = '11111\n22222'; // Total length 11, newline at index 5
+    // For limit = 7, findNewlineIndexToSplitMessage should return 5.
+    const result = splitMessageThatIsTooLong(message, 7);
+    expect(result).toEqual({ prefix: '11111', suffix: '22222' });
+  });
+
+  it('returns the original message as prefix and empty suffix when no suitable newline is found', () => {
+    const message = '111112222233333'; // No newlines, length 15
+    // For limit = 10, findNewlineIndexToSplitMessage should return null.
+    const result = splitMessageThatIsTooLong(message, 10);
+    expect(result).toEqual({ prefix: message, suffix: '' });
+    // logger.warn would be called internally by splitMessageThatIsTooLong in this case.
+  });
+
+  it('handles an empty message string', () => {
+    const message = '';
+    // findNewlineIndexToSplitMessage("", 10) would return null.
+    const result = splitMessageThatIsTooLong(message, 10);
+    expect(result).toEqual({ prefix: '', suffix: '' });
+  });
+});
+
+describe('findNewlineIndexToSplitMessage', () => {
+  it.each([
+    // Basic cases
+    { message: '12345\n78901', limit: 10, expectedIndex: 5, description: "'12345\n78901'; lim 10 (nl before lim)" },
+    { message: '12345\n78901', limit: 3, expectedIndex: 5, description: "'12345\n78901'; lim 3 (nl after lim)" },
+    { message: '1234567890', limit: 10, expectedIndex: null, description: "'1234567890' no nl; lim 10" },
+    { message: '1\n234567890', limit: 10, expectedIndex: 1, description: "'1\n234567890'; lim 10 (nl at start)" },
+    {
+      message: '1234567890\n',
+      limit: 10,
+      expectedIndex: 10,
+      description: "'1234567890\n'; lim 10 (nl after lim, picked)",
+    },
+    { message: '1234567890\n', limit: 11, expectedIndex: 10, description: "'1234567890\n'; lim 11 (nl included)" },
+    {
+      message: '1\n34\n678\n0123',
+      limit: 3,
+      expectedIndex: 1,
+      description: "'1\n34\n678\n0123'; lim 3 (in '34'). Prefers last nl before lim ('1\n')",
+    },
+    {
+      message: '1\n34\n678\n0123',
+      limit: 0,
+      expectedIndex: 1,
+      description: "'1\n34\n678\n0123'; lim 0. Prefers first nl after lim ('1\n')",
+    },
+
+    // Edge cases for limit
+    { message: '12345\n78901', limit: 5, expectedIndex: 5, description: "'12345\n78901'; lim 5 (lim at nl)" },
+    { message: '12345\n78901', limit: 0, expectedIndex: 5, description: "'12345\n78901'; lim 0 (nl exists after)" },
+
+    // Edge cases for message
+    { message: '', limit: 10, expectedIndex: null, description: 'empty string; lim 10' },
+    { message: '\n', limit: 0, expectedIndex: null, description: 'do not use newline in position 0' },
+    { message: ' \n', limit: 0, expectedIndex: 1, description: 'allow newline in position 1' },
+    { message: '123', limit: 0, expectedIndex: null, description: "'123' no nl; lim 0" },
+    { message: '123', limit: 10, expectedIndex: null, description: "'123' no nl; lim 10" },
+
+    // Specific logic: canUseEarlyNewline (lastNewlineIndex > 0) vs canUseLaterNewline (firstNewlineAfterLimitIndex > 0)
+    {
+      message: '123\n567\n901',
+      limit: 8,
+      expectedIndex: 7,
+      description: "'123\n567\n901'; lim 8. Prefers last nl >0 before lim ('567\n' at 7)",
+    },
+    {
+      message: '123\n567\n901',
+      limit: 7,
+      expectedIndex: 7,
+      description: "'123\n567\n901'; lim 7. last nl is at 7. (7>0) is true.",
+    },
+    {
+      message: '1\n34\n678',
+      limit: 3,
+      expectedIndex: 1,
+      description: "'1\n34\n678'; lim 3. last nl ('1\n' at 1) is >0 and before lim. (1>0) is true.",
+    },
+
+    // canUseEarlyNewline is false (lastNewlineIndex <= 0), check canUseLaterNewline
+    {
+      message: '123\n56789',
+      limit: 2,
+      expectedIndex: 3,
+      description: "'123\n56789'; lim 2. no nl before/at lim 2. Picks first after ('123\n' at 3).",
+    },
+    {
+      message: '\n123456789',
+      limit: 0,
+      expectedIndex: null,
+      description: "'\n123456789'; lim 0. lastInd(0)=0(not>0). firstInd(0)=0(not>0). Null.",
+    },
+    {
+      message: '123456\n890',
+      limit: 0,
+      expectedIndex: 6,
+      description: "'123456\n890'; lim 0. no nl before/at lim 0. Picks first after ('123456\n' at 6).",
+    },
+    {
+      message: '123456\n890',
+      limit: 6,
+      expectedIndex: 6,
+      description: "'123456\n890'; lim 6. no nl before lim 6. Picks first AT/after ('123456\n' at 6).",
+    },
+
+    // Both canUseEarlyNewline and canUseLaterNewline are false
+    { message: '123456789', limit: 10, expectedIndex: null, description: "'123456789' no nl; lim 10" },
+    { message: '123456789', limit: 0, expectedIndex: null, description: "'123456789' no nl; lim 0" },
+    {
+      message: '\n',
+      limit: -1,
+      expectedIndex: null,
+      description: 'only nl at 0. lim -1 (becomes 0). lastInd(0)=0(not>0). firstInd(0)=0(not>0). Null.',
+    },
+  ])('for message "$message" and limit $limit, returns $expectedIndex ($description)', (testCaseObject) => {
+    const { message, limit, expectedIndex } = testCaseObject;
+    expect(findNewlineIndexToSplitMessage(message, limit)).toBe(expectedIndex);
   });
 });

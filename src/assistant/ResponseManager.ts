@@ -3,6 +3,11 @@ import type { ChatPostMessageResponse, WebClient } from '@slack/web-api';
 import { config } from '../config';
 import { logger } from '../services/logger';
 
+// Slack API docs say to "limit text to 4000 characters for best results".
+// In reality, we have experienced API errors at ~3700 characters.
+// Play it safe.
+const SLACK_MAX_MESSAGE_LENGTH = 3000;
+
 export interface UpdateMessageParams {
   client: WebClient;
   say: SayFn;
@@ -128,10 +133,72 @@ export default class ResponseManager {
       );
     }
 
-    this.inProgressMessage = await this.params.client.chat.update({
-      channel: this.inProgressMessage.channel,
-      ts: this.inProgressMessage.ts,
-      text: this.currentResponseText,
-    });
+    if (this.currentResponseText.length > SLACK_MAX_MESSAGE_LENGTH) {
+      // Dealing with long messages:
+      // 1. Split the message on the last newline before the limit
+      // 2. send the first part immediately
+      // 3. send the second part in a new message, which becomes our in-progress message
+      const { prefix, suffix } = splitMessageThatIsTooLong(this.currentResponseText, SLACK_MAX_MESSAGE_LENGTH);
+      logger.info(
+        {
+          currentResponseText: this.currentResponseText,
+          prefix,
+          suffix,
+          length: this.currentResponseText.length,
+        },
+        'Response text may be too long for Slack. Splitting into multiple messages.',
+      );
+
+      this.inProgressMessage = await this.params.client.chat.update({
+        channel: this.inProgressMessage.channel,
+        ts: this.inProgressMessage.ts,
+        text: prefix,
+      });
+
+      this.currentResponseText = prefix;
+      await this.finalizeMessage();
+
+      await this.startNewMessageWithPlaceholder('_takes deep breath_');
+      this.currentResponseText = suffix;
+    } else {
+      // Normal case: just update the message with the current response text
+      this.inProgressMessage = await this.params.client.chat.update({
+        channel: this.inProgressMessage.channel,
+        ts: this.inProgressMessage.ts,
+        text: this.currentResponseText,
+      });
+    }
   }
 }
+
+export const findNewlineIndexToSplitMessage = (message: string, limit: number): number | null => {
+  const lastNewlineBeforeLimitIndex = message.lastIndexOf('\n', limit);
+  const firstNewlineAfterLimitIndex = message.indexOf('\n', limit);
+  // Doesn't make any sense to use a newline that is the first character.
+  // Also indexOf returns -1 if no newline is found
+  const canUseEarlyNewline = lastNewlineBeforeLimitIndex > 0;
+  const canUseLaterNewline = firstNewlineAfterLimitIndex > 0;
+
+  if (!canUseEarlyNewline && !canUseLaterNewline) {
+    return null;
+  }
+
+  return canUseEarlyNewline ? lastNewlineBeforeLimitIndex : firstNewlineAfterLimitIndex;
+};
+
+export const splitMessageThatIsTooLong = (message: string, limit: number): { prefix: string; suffix: string } => {
+  const newlineIndex = findNewlineIndexToSplitMessage(message, limit);
+  if (newlineIndex === null) {
+    logger.warn(
+      {
+        message,
+        limit,
+        newlineIndex,
+      },
+      "No suitable newline found. Returning the original message; we'll just have to take our chances that the slack API doesn't blow up on us",
+    );
+    return { prefix: message, suffix: '' };
+  }
+
+  return { prefix: message.slice(0, newlineIndex), suffix: message.slice(newlineIndex + 1) };
+};
