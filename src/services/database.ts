@@ -252,11 +252,19 @@ async function findSimilar(
   try {
     const embeddingVector = formatForComparison(embedding);
 
-    // Note we're not just direct querying the `rag_docs` table,
-    // we're querying the view that includes member context
-    const result: QueryResult<Omit<DocumentWithMemberContextAndSimilarity, 'member_is_checked_in_today'>> =
-      await client.query(
-        `SELECT
+    const queryParams: unknown[] = [
+      embeddingVector, // 1st param: refer to as $1 in sql query
+      limit ?? DEFAULT_SEARCH_LIMIT, // $2
+    ];
+    let filterQuery = '1 = 1 -- placeholder to make the query valid when no filters applied\n';
+    if (filterByMemberLocation) {
+      queryParams.push(memberLocation); // $3
+      filterQuery += 'AND member_location = $3\n';
+    }
+    if (memberCheckedInOnly) {
+      filterQuery += 'AND member_checkin_location_today IS NOT NULL\n';
+    }
+    const query = `SELECT
         source_type,
         source_unique_id,
         content,
@@ -272,15 +280,16 @@ async function findSimilar(
         member_notion_page_url,
         member_officernd_id,
         1 - (embedding <=> $1) as similarity
+      -- Note we're not just direct querying the rag_docs table,
+      -- we're querying the view that includes member context
       FROM documents_with_member_context
       WHERE
-        ${filterByMemberLocation ? 'member_location = $2 AND' : ''}
-        ${memberCheckedInOnly ? 'member_checkin_location_today IS NOT NULL AND' : ''}
-        1 = 1 -- placeholder to make the query valid when no filters applied
+        ${filterQuery}
       ORDER BY embedding <=> $1
-      LIMIT $2`,
-        [embeddingVector, limit ?? DEFAULT_SEARCH_LIMIT],
-      );
+      LIMIT $2`;
+
+    const result: QueryResult<Omit<DocumentWithMemberContextAndSimilarity, 'member_is_checked_in_today'>> =
+      await client.query(query, queryParams);
 
     return result.rows.map((row) => {
       const { embedding: rawEmbedding, ...rest } = row;

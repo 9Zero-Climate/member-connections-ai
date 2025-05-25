@@ -47,8 +47,7 @@ export const runLlmConversation = async ({
   while (remainingLlmLoopsAllowed > 0) {
     logger.debug({ remainingLlmLoopsAllowed, threadLength: llmThread.length }, 'Tool call / response loop iteration');
     remainingLlmLoopsAllowed--;
-    // Use thread_ts for subsequent messages in the loop to keep them threaded
-    responseManager.startNewMessageWithPlaceholder('_thinking..._');
+    await responseManager.startNewMessageWithPlaceholder('_thinking..._');
 
     const toolSpecs = getToolSpecs(userIsAdmin);
     logger.debug({ model: config.modelName, messages: llmThread, toolSpecs }, 'Calling for chat completion');

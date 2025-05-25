@@ -28,6 +28,8 @@ const generateMockEmbedding = (seed = 0): number[] => {
   return Array.from({ length: VECTOR_DIMENSION }, (_, i) => (i + seed) / VECTOR_DIMENSION);
 };
 
+const DEFAULT_TEST_MEMBER_ID = 'test-doc-member-default';
+
 describe('Database Integration Tests', () => {
   const testDoc = {
     source_type: 'test',
@@ -41,6 +43,7 @@ describe('Database Integration Tests', () => {
       reply_count: 2,
       reactions: [{ name: 'thumbsup', count: 1 }],
       permalink: 'https://slack.com/archives/C1234567890/p1234567890123456',
+      officernd_member_id: DEFAULT_TEST_MEMBER_ID,
     },
   };
 
@@ -49,6 +52,12 @@ describe('Database Integration Tests', () => {
   beforeAll(async () => {
     testDbClient = await getOrCreateClient();
     mockEmbeddingsService.generateEmbeddings.mockImplementation(() => [generateMockEmbedding()]);
+
+    // Insert the default test member
+    await testDbClient.query(
+      "INSERT INTO members (officernd_id, name, location) VALUES ($1, 'Default Test Doc Member', NULL) ON CONFLICT (officernd_id) DO NOTHING",
+      [DEFAULT_TEST_MEMBER_ID],
+    );
   });
 
   describe('insertOrUpdateDoc', () => {
@@ -151,6 +160,23 @@ describe('Database Integration Tests', () => {
       expect(result).toHaveLength(2);
       expect(result[0].source_unique_id).toEqual(testDoc.source_unique_id);
       expect(result[1].source_unique_id).toEqual(testDoc2.source_unique_id);
+    });
+
+    it('should find similar documents with location filter', async () => {
+      // Update the default member's location for this test
+      await testDbClient.query('UPDATE members SET location = $1 WHERE officernd_id = $2', [
+        OfficeLocation.SAN_FRANCISCO,
+        DEFAULT_TEST_MEMBER_ID,
+      ]);
+
+      // testDoc is already inserted by the findSimilar beforeAll, and already linked to DEFAULT_TEST_MEMBER_ID
+      const result = await findSimilar(generateMockEmbedding(1), {
+        limit: 1,
+        memberLocation: OfficeLocation.SAN_FRANCISCO,
+      });
+      expect(result).toHaveLength(1);
+      expect(result[0].source_unique_id).toEqual(testDoc.source_unique_id);
+      expect(result[0].member_location).toEqual(OfficeLocation.SAN_FRANCISCO);
     });
 
     it('should exclude embeddings when excludeEmbeddingsFromResults is true', async () => {
